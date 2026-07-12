@@ -5,8 +5,14 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "contracts:build": "pnpm --filter @gpu-rental/contracts run build",
     "dev": "vite",
     "lint": "tsc -p tsconfig.json --noEmit",
+    "prebuild": "pnpm run contracts:build",
+    "predev": "pnpm run contracts:build",
+    "prelint": "pnpm run contracts:build",
+    "pretest": "pnpm run contracts:build",
+    "pretypecheck": "pnpm run contracts:build",
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"

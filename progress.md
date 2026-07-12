@@ -92,3 +92,19 @@
 - `README.md`、`docs/`：新增公开项目说明、架构、演示、部署与素材许可文档。
 - `pnpm-lock.yaml`：锁定 workspace 依赖解析结果。
 - 回滚方式：对包含本任务的发布提交执行 `git revert <commit>`。
+
+## 2026-07-13 - Task: 修复干净 CI 环境的共享契约构建竞态
+
+### What was done
+
+- 让前端在 lint、类型检查、测试、开发和构建前显式生成共享契约产物，消除 workspace 并行任务对本机残留文件的依赖。
+
+### Testing
+
+- 首轮 GitHub Actions 日志确认失败原因是前端找不到尚未生成的 `@gpu-rental/contracts` 类型产物。
+- 删除共享契约构建产物后执行根级 `pnpm lint`：通过，前端与 API 均在各自检查前重新生成契约。
+
+### Notes
+
+- `apps/web/package.json`：补充统一的 `contracts:build` 前置步骤。
+- 回滚方式：执行 `git revert <本轮修复提交>`。
