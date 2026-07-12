@@ -1,0 +1,26 @@
+{
+  "name": "gpu-rental-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A portfolio-grade GPU resource rental control plane with a real NestJS, MongoDB and Redis backend.",
+  "license": "MIT",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": ">=10.34.5 <11"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present run build",
+    "dev": "pnpm --parallel --filter @gpu-rental/api --filter @gpu-rental/web run dev",
+    "lint": "pnpm -r --if-present run lint",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "test": "pnpm -r --if-present run test",
+    "test:e2e": "pnpm --filter @gpu-rental/api run test:e2e",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "cli": "pnpm --filter @gpu-rental/api run cli"
+  },
+  "devDependencies": {
+    "prettier": "3.6.2"
+  }
+}
