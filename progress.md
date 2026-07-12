@@ -124,3 +124,19 @@
 
 - `apps/api/src/redis/session.service.ts`：显式注入 `ConfigService`，未改变会话数据与 TTL 逻辑。
 - 回滚方式：执行 `git revert <本轮修复提交>`。
+
+## 2026-07-13 - Task: 调整真实数据存储 E2E 初始化时限
+
+### What was done
+
+- 将 E2E 生命周期钩子的时限调整为 60 秒，允许 GitHub runner 完成 MongoDB 连接与索引初始化；单项测试仍保持 30 秒限制。
+
+### Testing
+
+- 第三轮 GitHub Actions 已通过格式、lint、类型检查和单元测试，E2E 仅在默认 10 秒 `beforeAll` 时限处失败。
+- 调整后的完整 E2E 由下一轮 Actions 复验。
+
+### Notes
+
+- `apps/api/vitest.e2e.config.ts`：只调整集成环境初始化时限，不改变测试断言或业务实现。
+- 回滚方式：执行 `git revert <本轮修复提交>`。
