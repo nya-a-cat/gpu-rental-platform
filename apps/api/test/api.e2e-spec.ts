@@ -25,9 +25,16 @@ describe("API with MongoDB and Redis", () => {
   let mongo: Connection;
 
   beforeAll(async () => {
+    const startedAt = Date.now();
+    const checkpoint = (stage: string): void => {
+      console.info(`[e2e:init] ${stage} +${Date.now() - startedAt}ms`);
+    };
+
+    checkpoint("compile:start");
     const module = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
+    checkpoint("compile:done");
     app = module.createNestApplication();
     app.use(cookieParser());
     app.useGlobalPipes(
@@ -38,7 +45,9 @@ describe("API with MongoDB and Redis", () => {
       }),
     );
     app.setGlobalPrefix("api");
+    checkpoint("app:init:start");
     await app.init();
+    checkpoint("app:init:done");
 
     mongo = app.get<Connection>(getConnectionToken());
     if (!/(_ci|_test)$/.test(mongo.name)) {
@@ -51,6 +60,7 @@ describe("API with MongoDB and Redis", () => {
       mongo.collection("gpu_resources").deleteMany({}),
       mongo.collection("users").deleteMany({}),
     ]);
+    checkpoint("mongo:cleanup:done");
   });
 
   afterAll(async () => {
