@@ -202,3 +202,20 @@
 - `ROADMAP.md`：记录 Pages 已发布与全页面截图驱动验收完成。
 - `progress.md`：追加本轮实现、测试证据、文件清单与回滚点。
 - 回滚方式：执行 `git revert <本轮前端提交>`。
+
+## 2026-07-13 - Task: 定位 CI E2E 初始化阻塞阶段
+
+### What was done
+
+- 为 E2E 启动的模块编译、Nest 应用初始化和 MongoDB 清理增加带耗时的阶段标记，用于定位精确 60 秒超时发生点。
+
+### Testing
+
+- GitHub Actions 运行 `29212990922` 已确认格式、lint、类型检查、单元测试和 Pages 发布通过，API E2E 仍在 `beforeAll` 精确 60 秒超时。
+- 阶段标记由下一轮 Actions 运行提供远端诊断证据，不把诊断改动表述为根因已修复。
+
+### Notes
+
+- `apps/api/test/api.e2e-spec.ts`：增加不含凭据和业务数据的初始化耗时标记。
+- `progress.md`：追加本轮诊断范围、验证证据和回滚点。
+- 回滚方式：执行 `git revert <本轮诊断提交>`。
