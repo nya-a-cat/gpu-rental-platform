@@ -156,3 +156,19 @@
 
 - `.github/workflows/pipeline.yml`：移除 Pages 对 quality job 的依赖关系。
 - 回滚方式：执行 `git revert <本轮修复提交>`。
+
+## 2026-07-13 - Task: 移除隔离 E2E 容器的冗余 Redis 预清理
+
+### What was done
+
+- 删除 E2E 启动阶段对全新 Redis service container 的串行 `KEYS` 扫描；Redis 仍由登录、撤销与并发锁用例真实访问。
+
+### Testing
+
+- MongoDB 服务日志确认连接、认证、集合创建和全部索引构建均在 E2E 启动后立即完成，排除数据库初始化慢的问题。
+- 精确日志显示超时发生于首个测试执行前；下一轮 Actions 将验证移除冗余 Redis 预清理后的完整 5 项 E2E。
+
+### Notes
+
+- `apps/api/test/api.e2e-spec.ts`：保留测试数据库名称保护与 MongoDB 数据清理，仅移除隔离 Redis 的无效预扫描。
+- 回滚方式：执行 `git revert <本轮修复提交>`。
