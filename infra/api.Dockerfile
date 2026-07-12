@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:24-bookworm-slim AS base
+FROM node:26-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 WORKDIR /workspace
@@ -20,7 +20,7 @@ COPY apps/api apps/api
 COPY packages/contracts packages/contracts
 RUN pnpm --filter @gpu-rental/api... run build
 
-FROM node:24-bookworm-slim AS runtime
+FROM node:26-bookworm-slim AS runtime
 ENV NODE_ENV=production
 WORKDIR /workspace
 COPY --from=build --chown=node:node /workspace/node_modules ./node_modules
