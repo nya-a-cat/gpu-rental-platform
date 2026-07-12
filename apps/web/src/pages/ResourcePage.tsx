@@ -123,19 +123,41 @@ export function ResourcePage() {
               tone={statusTone(resource.availability)}
             />
           </div>
-          <div
-            className="large-schematic"
-            aria-label={tr("GPU 模块结构示意", "GPU module schematic")}
-            role="img"
-          >
-            <img alt="" aria-hidden="true" src={gpuModuleCutaway} />
-            <div className="schematic-caption">
-              <span>FICTIONAL MODULE / ORIGINAL ARTWORK</span>
-              <strong>{resource.memoryGb} GB</strong>
+          <div className="large-schematic">
+            <div
+              className="module-diagram"
+              aria-label={tr("GPU 模块结构示意", "GPU module schematic")}
+              role="img"
+            >
+              <div className="module-ports" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+                <span />
+              </div>
+              <div className="module-observation">
+                <img alt="" aria-hidden="true" src={gpuModuleCutaway} />
+                <span>MODULE VIEW / 04</span>
+              </div>
+              <div className="module-memory-bank" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+                <span />
+                <span />
+                <span />
+              </div>
+              <div className="module-bus" aria-hidden="true" />
             </div>
-            <VentGrille
-              label={tr("装饰性设备格栅", "Decorative equipment grille")}
-            />
+            <div className="schematic-sidecar">
+              <div className="schematic-caption">
+                <span>FICTIONAL MODULE / ORIGINAL ARTWORK</span>
+                <strong>{resource.memoryGb} GB</strong>
+              </div>
+              <VentGrille
+                label={tr("装饰性设备格栅", "Decorative equipment grille")}
+              />
+            </div>
           </div>
           <dl className="detail-specs">
             <div>
@@ -192,6 +214,22 @@ export function ResourcePage() {
               value={durationHours}
             />
           </label>
+          <div
+            className="duration-presets"
+            aria-label={tr("常用租期", "Common durations")}
+          >
+            {[1, 8, 24, 72, 168].map((hours) => (
+              <button
+                aria-pressed={durationHours === hours}
+                disabled={!available || Boolean(order)}
+                key={hours}
+                onClick={() => setDurationHours(hours)}
+                type="button"
+              >
+                {hours}h
+              </button>
+            ))}
+          </div>
           <div className="order-calculation">
             <span>{tr("小时单价", "Hourly rate")}</span>
             <strong>{formatMoney(resource.hourlyPriceCents, locale)}</strong>

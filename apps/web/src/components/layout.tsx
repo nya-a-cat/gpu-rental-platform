@@ -1,5 +1,6 @@
 import { UserRole } from "@gpu-rental/contracts";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { useApp, useLocale } from "../app-context";
 import { StatusLamp, VentGrille } from "./mechanical";
@@ -8,7 +9,12 @@ export function AppLayout() {
   const { gateway, logout, resetDemo, sessionError, sessionLoading, user } =
     useApp();
   const { locale, setLocale, tr } = useLocale();
+  const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    window.scrollTo({ left: 0, top: 0 });
+  }, [location.pathname]);
 
   async function handleLogout(all = false): Promise<void> {
     await logout(all);
@@ -56,6 +62,29 @@ export function AppLayout() {
             <NavLink to="/admin">{tr("调度后台", "Admin")}</NavLink>
           ) : null}
         </nav>
+        <div
+          className={`runtime-status runtime-status--${gateway.mode}`}
+          role="status"
+        >
+          <StatusLamp
+            label={
+              gateway.mode === "demo"
+                ? tr("沙盒库存", "SANDBOX INVENTORY")
+                : tr("服务端在线", "SERVER LINK")
+            }
+            tone={gateway.mode === "demo" ? "warn" : "good"}
+          />
+          <span>
+            {gateway.mode === "demo"
+              ? tr("浏览器本地流程", "BROWSER-LOCAL WORKFLOW")
+              : tr("真实会话与订单", "LIVE SESSION & ORDERS")}
+          </span>
+          {gateway.mode === "demo" ? (
+            <button onClick={() => void handleReset()} type="button">
+              {tr("归零", "RESET")}
+            </button>
+          ) : null}
+        </div>
         <div className="topbar-actions">
           <div className="locale-toggle" aria-label={tr("语言", "Language")}>
             <button
@@ -103,33 +132,6 @@ export function AppLayout() {
           )}
         </div>
       </header>
-
-      <div className={`mode-banner mode-banner--${gateway.mode}`} role="status">
-        <StatusLamp
-          label={
-            gateway.mode === "demo"
-              ? tr("演示数据 · 模拟库存", "Demo data · Simulated inventory")
-              : tr("API 模式 · 服务端会话", "API mode · Server session")
-          }
-          tone={gateway.mode === "demo" ? "warn" : "good"}
-        />
-        <span>
-          {gateway.mode === "demo"
-            ? tr(
-                "操作仅保存在当前浏览器，不会分配实体 GPU 或产生费用。",
-                "Changes stay in this browser. No physical GPU is allocated or billed.",
-              )
-            : tr(
-                "资源仍为模拟资产；订单、并发锁和会话由真实后端处理。",
-                "Assets remain simulated; orders, locks and sessions use the real backend.",
-              )}
-        </span>
-        {gateway.mode === "demo" ? (
-          <button onClick={() => void handleReset()} type="button">
-            {tr("重置演示", "Reset demo")}
-          </button>
-        ) : null}
-      </div>
 
       {sessionError ? (
         <div className="session-warning" role="alert">

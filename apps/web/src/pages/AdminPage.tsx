@@ -9,6 +9,7 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { readErrorMessage, useApp, useLocale } from "../app-context";
 import {
+  EmptyState,
   ErrorState,
   LoadState,
   MechanicalPanel,
@@ -31,6 +32,10 @@ export function AdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
+
+  const onlineRatio = overview?.resourcesTotal
+    ? Math.round((overview.resourcesOnline / overview.resourcesTotal) * 100)
+    : 0;
 
   useEffect(() => {
     let active = true;
@@ -184,29 +189,45 @@ export function AdminPage() {
             />
           </div>
           <MechanicalPanel
-            eyebrow="OPERATING RULES"
-            title={tr("调度规则", "Dispatch rules")}
+            className="dispatch-board"
+            eyebrow="LIVE DISPATCH READOUT"
+            title={tr("运行状态", "Operating state")}
           >
-            <ol className="rule-list">
-              <li>
-                {tr(
-                  "所有资源均明确标记为模拟资产。",
-                  "Every resource is explicitly simulated.",
-                )}
-              </li>
-              <li>
-                {tr(
-                  "有生效订单的资源不能下架。",
-                  "A resource with an active order cannot go offline.",
-                )}
-              </li>
-              <li>
-                {tr(
-                  "订单终态不可再次流转。",
-                  "Terminal orders cannot transition again.",
-                )}
-              </li>
-            </ol>
+            <div className="dispatch-readout">
+              <div className="dispatch-readout__primary">
+                <span>{tr("资源在线率", "RESOURCE ONLINE")}</span>
+                <strong>{onlineRatio}%</strong>
+                <div aria-label={`${onlineRatio}%`} className="ratio-track">
+                  <span style={{ width: `${onlineRatio}%` }} />
+                </div>
+              </div>
+              <div className="dispatch-readout__matrix" aria-hidden="true">
+                {resources.map((resource) => (
+                  <i
+                    className={
+                      resource.listingStatus === GpuListingStatus.Online
+                        ? "is-online"
+                        : ""
+                    }
+                    key={resource.id}
+                  />
+                ))}
+              </div>
+              <dl className="dispatch-protocol">
+                <div>
+                  <dt>{tr("占用保护", "ALLOCATION GUARD")}</dt>
+                  <dd>{tr("已启用", "ACTIVE")}</dd>
+                </div>
+                <div>
+                  <dt>{tr("订单终态", "TERMINAL ORDERS")}</dt>
+                  <dd>{overview.terminalOrders}</dd>
+                </div>
+                <div>
+                  <dt>{tr("资产模式", "ASSET MODE")}</dt>
+                  <dd>SIMULATED</dd>
+                </div>
+              </dl>
+            </div>
           </MechanicalPanel>
         </section>
       ) : null}
@@ -272,46 +293,56 @@ export function AdminPage() {
             eyebrow="INVENTORY REGISTER"
             title={tr("资源清单", "Inventory register")}
           >
-            <div className="admin-list">
-              {resources.map((resource) => (
-                <article key={resource.id}>
-                  <div>
-                    <span>{resource.name}</span>
-                    <strong>
-                      {resource.model} · {resource.memoryGb} GB
-                    </strong>
-                    <small>
-                      {resource.region} ·{" "}
-                      {formatMoney(resource.hourlyPriceCents, locale)}/h
-                    </small>
-                  </div>
-                  <StatusLamp
-                    label={listingLabel(resource.listingStatus, tr)}
-                    tone={statusTone(resource.listingStatus)}
-                  />
-                  <select
-                    aria-label={tr(
-                      `设置 ${resource.name} 上架状态`,
-                      `Set listing state for ${resource.name}`,
-                    )}
-                    disabled={pending === resource.id}
-                    onChange={(event) =>
-                      void changeListing(
-                        resource,
-                        event.target.value as GpuListingStatus,
-                      )
-                    }
-                    value={resource.listingStatus}
-                  >
-                    {Object.values(GpuListingStatus).map((value) => (
-                      <option key={value} value={value}>
-                        {listingLabel(value, tr)}
-                      </option>
-                    ))}
-                  </select>
-                </article>
-              ))}
-            </div>
+            {resources.length === 0 ? (
+              <EmptyState
+                message={tr(
+                  "当前没有资源记录，请使用左侧表单登记首个资源。",
+                  "No resources are registered. Use the form to add the first unit.",
+                )}
+                title={tr("资源寄存器为空", "Inventory register empty")}
+              />
+            ) : (
+              <div className="admin-list">
+                {resources.map((resource) => (
+                  <article key={resource.id}>
+                    <div>
+                      <span>{resource.name}</span>
+                      <strong>
+                        {resource.model} · {resource.memoryGb} GB
+                      </strong>
+                      <small>
+                        {resource.region} ·{" "}
+                        {formatMoney(resource.hourlyPriceCents, locale)}/h
+                      </small>
+                    </div>
+                    <StatusLamp
+                      label={listingLabel(resource.listingStatus, tr)}
+                      tone={statusTone(resource.listingStatus)}
+                    />
+                    <select
+                      aria-label={tr(
+                        `设置 ${resource.name} 上架状态`,
+                        `Set listing state for ${resource.name}`,
+                      )}
+                      disabled={pending === resource.id}
+                      onChange={(event) =>
+                        void changeListing(
+                          resource,
+                          event.target.value as GpuListingStatus,
+                        )
+                      }
+                      value={resource.listingStatus}
+                    >
+                      {Object.values(GpuListingStatus).map((value) => (
+                        <option key={value} value={value}>
+                          {listingLabel(value, tr)}
+                        </option>
+                      ))}
+                    </select>
+                  </article>
+                ))}
+              </div>
+            )}
           </MechanicalPanel>
         </div>
       ) : null}
@@ -320,38 +351,48 @@ export function AdminPage() {
           eyebrow="GLOBAL ORDER REGISTER"
           title={tr("全部订单", "All orders")}
         >
-          <div className="admin-list admin-list--orders">
-            {orders.map((order) => (
-              <article key={order.id}>
-                <div>
-                  <span>{order.id}</span>
-                  <strong>
-                    {order.gpuModel} · {order.gpuName}
-                  </strong>
-                  <small>
-                    {formatDate(order.createdAt, locale)} ·{" "}
-                    {formatMoney(order.totalPriceCents, locale)}
-                  </small>
-                </div>
-                <StatusLamp
-                  label={orderStatusLabel(order.status, tr)}
-                  tone={statusTone(order.status)}
-                />
-                {order.status === OrderStatus.Active ? (
-                  <button
-                    className="button button--dark button--small"
-                    disabled={pending === order.id}
-                    onClick={() => void cancelOrder(order.id)}
-                    type="button"
-                  >
-                    {tr("取消订单", "Cancel order")}
-                  </button>
-                ) : (
-                  <span className="terminal-stamp">TERMINAL</span>
-                )}
-              </article>
-            ))}
-          </div>
+          {orders.length === 0 ? (
+            <EmptyState
+              message={tr(
+                "当前还没有订单，用户完成预订后会进入全局寄存器。",
+                "No orders yet. Reservations appear in the global register.",
+              )}
+              title={tr("订单寄存器为空", "Order register empty")}
+            />
+          ) : (
+            <div className="admin-list admin-list--orders">
+              {orders.map((order) => (
+                <article key={order.id}>
+                  <div>
+                    <span>{order.id}</span>
+                    <strong>
+                      {order.gpuModel} · {order.gpuName}
+                    </strong>
+                    <small>
+                      {formatDate(order.createdAt, locale)} ·{" "}
+                      {formatMoney(order.totalPriceCents, locale)}
+                    </small>
+                  </div>
+                  <StatusLamp
+                    label={orderStatusLabel(order.status, tr)}
+                    tone={statusTone(order.status)}
+                  />
+                  {order.status === OrderStatus.Active ? (
+                    <button
+                      className="button button--dark button--small"
+                      disabled={pending === order.id}
+                      onClick={() => void cancelOrder(order.id)}
+                      type="button"
+                    >
+                      {tr("取消订单", "Cancel order")}
+                    </button>
+                  ) : (
+                    <span className="terminal-stamp">TERMINAL</span>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
         </MechanicalPanel>
       ) : null}
     </div>

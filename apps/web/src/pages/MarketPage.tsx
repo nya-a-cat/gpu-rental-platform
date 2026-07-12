@@ -50,6 +50,7 @@ export function MarketPage() {
     "newest",
   );
   const [page, setPage] = useState(1);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
@@ -141,18 +142,25 @@ export function MarketPage() {
     <div className="page-frame market-page">
       <section className="market-hero">
         <div className="hero-copy">
-          <span className="serial-label">KW-EXCHANGE / PANEL 01</span>
+          <span className="serial-label">KILOWORKS / GPU INVENTORY 2026</span>
           <p className="hero-kicker">
-            {tr("按需算力调度台", "ON-DEMAND COMPUTE DISPATCH")}
+            {tr("GPU 资源租赁调度台", "GPU RESOURCE EXCHANGE")}
           </p>
           <h1>
-            {tr("让每一块算力", "Put every compute unit")}
-            <span>{tr("进入正确队列。", "in the right queue.")}</span>
+            <span className="hero-title-part">
+              {tr("筛 GPU。", "FIND A GPU.")}
+            </span>{" "}
+            <span className="hero-title-part">
+              {tr("看价格。", "SEE THE PRICE.")}
+            </span>
+            <span className="hero-title-accent">
+              {tr("直接预订。", "RESERVE IT.")}
+            </span>
           </h1>
           <p>
             {tr(
-              "筛选模拟 GPU 资产，完成预订、订单流转与退租。公开演示不连接实体设备，也不展示伪造遥测。",
-              "Filter simulated GPU assets and walk through reservation, order transitions and returns. The public demo never connects to hardware or invents telemetry.",
+              "按型号、显存、区域与小时价格筛选库存。确认资源后创建订单，需要时一键退租。",
+              "Filter inventory by model, memory, region and hourly rate. Create an order, then return it when the work is done.",
             )}
           </p>
           <div className="hero-actions">
@@ -161,8 +169,53 @@ export function MarketPage() {
             </a>
             <span className="plate-note">RESOURCE MODE / SIMULATED</span>
           </div>
+          <div className="hero-readouts">
+            <div>
+              <span>{tr("本页可租", "AVAILABLE")}</span>
+              <strong>{availableCount.toString().padStart(2, "0")}</strong>
+            </div>
+            <div>
+              <span>{tr("覆盖区域", "REGIONS")}</span>
+              <strong>
+                {facets.regions.length.toString().padStart(2, "0")}
+              </strong>
+            </div>
+            <div>
+              <span>{tr("价格上限", "PRICE LIMIT")}</span>
+              <strong>
+                {maxPrice
+                  ? formatMoney(maxPrice, locale).replace("CN¥", "¥")
+                  : "—"}
+              </strong>
+            </div>
+            <div>
+              <span>{tr("订单路径", "ORDER PATH")}</span>
+              <strong>{tr("预订 → 退租", "BOOK → RETURN")}</strong>
+            </div>
+          </div>
         </div>
-        <MechanicalPanel className="gauge-console" eyebrow="MARKET READOUT">
+        <figure className="hero-archive">
+          <img
+            alt={tr(
+              "1976 年 NASA 控制室仪表墙档案照片",
+              "Archival photograph of a 1976 NASA control-room instrument wall",
+            )}
+            decoding="async"
+            referrerPolicy="no-referrer"
+            src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/INSTRUMENT_PANELS_IN_CONTROL_ROOM_-_NARA_-_17447770.jpg/1280px-INSTRUMENT_PANELS_IN_CONTROL_ROOM_-_NARA_-_17447770.jpg"
+          />
+          <figcaption>
+            <a
+              href="https://commons.wikimedia.org/wiki/File:INSTRUMENT_PANELS_IN_CONTROL_ROOM_-_NARA_-_17447770.jpg"
+              rel="noreferrer"
+              target="_blank"
+            >
+              MARTIN BROWN / NASA / NARA
+            </a>
+            <span>PUBLIC DOMAIN (US) · ARCHIVE REFERENCE</span>
+          </figcaption>
+        </figure>
+        <MechanicalPanel className="gauge-console" eyebrow="INVENTORY STATUS">
           <img
             alt=""
             aria-hidden="true"
@@ -170,7 +223,7 @@ export function MarketPage() {
             src={mechanicalStatusPlate}
           />
           <div className="console-label-row">
-            <strong>{tr("市场读数", "MARKET READOUT")}</strong>
+            <strong>{tr("库存状态", "INVENTORY STATUS")}</strong>
             <StatusLamp
               label={tr("清单已连接", "LIST CONNECTED")}
               tone="good"
@@ -208,10 +261,23 @@ export function MarketPage() {
 
       <div className="market-workbench">
         <MechanicalPanel
-          className="filter-panel"
+          className={`filter-panel${filtersExpanded ? " is-expanded" : ""}`}
           eyebrow="FILTER BANK / A"
           title={tr("资源筛选器", "Resource selector")}
         >
+          <button
+            aria-expanded={filtersExpanded}
+            className="filter-panel-toggle"
+            onClick={() => setFiltersExpanded((value) => !value)}
+            type="button"
+          >
+            {filtersExpanded
+              ? tr("收起筛选条件", "Close filters")
+              : tr(
+                  `展开筛选 · ${activeFilterCount} 项已启用`,
+                  `Open filters · ${activeFilterCount} active`,
+                )}
+          </button>
           <div className="filter-count">
             <span>{tr("已启用条件", "ACTIVE FILTERS")}</span>
             <strong>{activeFilterCount.toString().padStart(2, "0")}</strong>
@@ -340,10 +406,10 @@ export function MarketPage() {
               <span>
                 INVENTORY / {resources.total.toString().padStart(3, "0")}
               </span>
-              <h2>{tr("模拟资源列阵", "Simulated inventory")}</h2>
+              <h2>{tr("可预订资源", "Bookable inventory")}</h2>
             </div>
             <span className="engraved-label">
-              {tr("不含实时温度或利用率", "NO LIVE TELEMETRY")}
+              {tr("价格与状态来自库存记录", "PRICE & STATE FROM INVENTORY")}
             </span>
           </header>
 
@@ -405,26 +471,35 @@ function ResourceCard({
   const { locale, tr } = useLocale();
   const available = resource.availability === GpuAvailability.Available;
   return (
-    <article className="resource-card">
-      <span className="card-index">
-        UNIT {(index + 1).toString().padStart(2, "0")}
-      </span>
-      <div className="resource-schematic" aria-hidden="true">
-        <span className="schematic-chip">GPU</span>
-        <span className="schematic-bus" />
-        {Array.from({ length: 4 }, (_, block) => (
-          <span className="schematic-memory" key={block} />
-        ))}
-      </div>
-      <div className="resource-card__title">
-        <div>
-          <span>{resource.name}</span>
-          <h3>{resource.model}</h3>
-        </div>
+    <article
+      className={`resource-card${available ? " is-available" : " is-rented"}`}
+    >
+      <div className="resource-card__rail">
+        <span className="card-index">
+          {(index + 1).toString().padStart(2, "0")}
+        </span>
         <StatusLamp
           label={availabilityLabel(resource.availability, tr)}
           tone={statusTone(resource.availability)}
         />
+      </div>
+      <div className="resource-card__identity">
+        <div>
+          <span>{resource.name}</span>
+          <h3>{resource.model}</h3>
+        </div>
+        <div className="resource-schematic" aria-hidden="true">
+          <span className="schematic-chip">GPU</span>
+          <span className="schematic-bus" />
+          {Array.from({ length: 4 }, (_, block) => (
+            <span className="schematic-memory" key={block} />
+          ))}
+        </div>
+        <div className="tag-row">
+          {resource.tags.map((tag) => (
+            <span key={tag}>{tag}</span>
+          ))}
+        </div>
       </div>
       <dl className="spec-grid">
         <div>
@@ -436,27 +511,23 @@ function ResourceCard({
           <dd>{resource.region}</dd>
         </div>
         <div>
-          <dt>{tr("计费", "RATE")}</dt>
-          <dd>{formatMoney(resource.hourlyPriceCents, locale)} / h</dd>
-        </div>
-        <div>
-          <dt>{tr("资产", "MODE")}</dt>
-          <dd>SIMULATED</dd>
+          <dt>{tr("资源记录", "RECORD")}</dt>
+          <dd>{resource.id.slice(-6).toUpperCase()}</dd>
         </div>
       </dl>
-      <div className="tag-row">
-        {resource.tags.map((tag) => (
-          <span key={tag}>{tag}</span>
-        ))}
+      <div className="resource-card__price">
+        <span>{tr("小时单价", "HOURLY RATE")}</span>
+        <strong>{formatMoney(resource.hourlyPriceCents, locale)}</strong>
+        <small>/ HOUR</small>
+        <Link
+          className={`button ${available ? "button--orange" : "button--quiet"}`}
+          to={`/resources/${resource.id}`}
+        >
+          {available
+            ? tr("查看并预订", "Inspect & reserve")
+            : tr("查看详情", "Inspect")}
+        </Link>
       </div>
-      <Link
-        className={`button ${available ? "button--orange" : "button--quiet"}`}
-        to={`/resources/${resource.id}`}
-      >
-        {available
-          ? tr("查看并预订", "Inspect & reserve")
-          : tr("查看详情", "Inspect")}
-      </Link>
     </article>
   );
 }

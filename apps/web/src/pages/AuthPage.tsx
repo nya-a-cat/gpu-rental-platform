@@ -20,14 +20,16 @@ export function AuthPage({ kind }: { kind: "login" | "register" }) {
   const destination = (location.state as LocationState | null)?.from || "/";
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [postAuthDestination, setPostAuthDestination] = useState(destination);
 
-  if (user) return <Navigate replace to={destination} />;
+  if (user) return <Navigate replace to={postAuthDestination} />;
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const username = String(data.get("username") || "").trim();
     const password = String(data.get("password") || "");
+    setPostAuthDestination(destination);
     setSubmitting(true);
     setError(null);
     try {
@@ -42,13 +44,13 @@ export function AuthPage({ kind }: { kind: "login" | "register" }) {
   }
 
   async function enterDemo(username: "dispatcher" | "operator"): Promise<void> {
+    const target = username === "dispatcher" ? "/admin" : destination;
+    setPostAuthDestination(target);
     setSubmitting(true);
     setError(null);
     try {
       await login({ username, password: "demo-password" });
-      navigate(username === "dispatcher" ? "/admin" : destination, {
-        replace: true,
-      });
+      navigate(target, { replace: true });
     } catch (reason) {
       setError(readErrorMessage(reason));
     } finally {
@@ -92,25 +94,6 @@ export function AuthPage({ kind }: { kind: "login" | "register" }) {
                   Martin Brown / NASA / NARA
                 </a>
                 <span>PUBLIC DOMAIN (US)</span>
-              </figcaption>
-            </figure>
-            <figure>
-              <img
-                alt={tr("Lunokhod 1 月球车控制台", "Lunokhod 1 control panel")}
-                decoding="async"
-                loading="lazy"
-                referrerPolicy="no-referrer"
-                src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Lunokhod_control_panel_1.jpg/1280px-Lunokhod_control_panel_1.jpg"
-              />
-              <figcaption>
-                <a
-                  href="https://commons.wikimedia.org/wiki/File:Lunokhod_control_panel_1.jpg"
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  Regnard / Wikimedia Commons
-                </a>
-                <span>PUBLIC DOMAIN</span>
               </figcaption>
             </figure>
           </div>
