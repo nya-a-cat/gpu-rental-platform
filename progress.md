@@ -219,3 +219,41 @@
 - `apps/api/test/api.e2e-spec.ts`：增加不含凭据和业务数据的初始化耗时标记。
 - `progress.md`：追加本轮诊断范围、验证证据和回滚点。
 - 回滚方式：执行 `git revert <本轮诊断提交>`。
+
+## 2026-07-13 - Task: 修复 NestJS E2E 源码转译装饰器元数据阻塞
+
+### What was done
+
+- 将 API E2E 改为先构建 NestJS，再加载生产 `dist` 模块，避免 Vitest 源码转译丢失 decorator metadata 后卡在测试模块编译。
+- 保留真实 MongoDB、Redis、并发预订、会话撤销、退租和 RBAC 断言，不跳过或替换后端集成测试。
+
+### Testing
+
+- 已编译 `dist/app.module.js` 在本机 MongoDB 8.0 与 Redis 8 环境中完成 Nest TestingModule 编译，源码经 Vitest 转译时可稳定复现 60 秒阻塞。
+- 修复后的完整 5 项 E2E 先在本机同版本容器复验，再由下一轮 GitHub Actions 进行独立验证。
+
+### Notes
+
+- `apps/api/package.json`：让 E2E 生命周期先生成生产构建产物。
+- `apps/api/test/api.e2e-spec.ts`：改为导入编译后的 AppModule 和业务服务令牌，并移除临时阶段日志。
+- `docs/deployment.md`：记录 CI 使用生产编译产物执行真实后端 E2E。
+- `progress.md`：追加根因、修复、验证计划和回滚点。
+- 回滚方式：执行 `git revert <本轮修复提交>`。
+
+## 2026-07-13 - Task: 稳定并发 E2E 的真实监听端口
+
+### What was done
+
+- 让 NestJS 测试应用在本机随机端口统一监听，20 路并发请求复用同一 HTTP 服务，消除 Supertest 临时监听的端口竞态。
+- 测试数据通过同一测试 MongoDB 连接写入，业务结果仍全部通过真实 HTTP 接口断言。
+
+### Testing
+
+- 本机 MongoDB 8.0 与 Redis 8 环境执行 API E2E：5 项全部通过。
+- 并发预订验证 20 个请求中仅 1 个成功、19 个冲突，并确认数据库仅存在 1 个活跃订单。
+
+### Notes
+
+- `apps/api/test/api.e2e-spec.ts`：增加随机本机监听端口并使用测试数据库连接写入夹具。
+- `progress.md`：追加并发 E2E 稳定性修复及验证证据。
+- 回滚方式：执行 `git revert <本轮修复提交>`。
