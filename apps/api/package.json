@@ -14,7 +14,7 @@
     "predev": "pnpm run contracts:build",
     "prelint": "pnpm run contracts:build",
     "pretest": "pnpm run contracts:build",
-    "pretest:e2e": "pnpm run contracts:build",
+    "pretest:e2e": "pnpm run build",
     "pretypecheck": "pnpm run contracts:build",
     "start": "node dist/main.js",
     "test": "vitest run",

@@ -2,14 +2,17 @@ import type { INestApplication } from "@nestjs/common";
 import { ValidationPipe } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { getConnectionToken } from "@nestjs/mongoose";
-import { GpuListingStatus, OrderStatus } from "@gpu-rental/contracts";
+import {
+  GpuListingStatus,
+  OrderStatus,
+  ResourceMode,
+} from "@gpu-rental/contracts";
 import cookieParser from "cookie-parser";
 import { Types, type Connection } from "mongoose";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { AppModule } from "../src/app.module";
-import { GpuResourcesService } from "../src/gpu-resources/gpu-resources.service";
+import { AppModule } from "../dist/app.module.js";
 
 function getSessionCookie(response: request.Response): string {
   const header = response.headers["set-cookie"];
@@ -20,21 +23,37 @@ function getSessionCookie(response: request.Response): string {
   return cookie.split(";", 1)[0] ?? cookie;
 }
 
+async function insertTestResource(
+  mongo: Connection,
+  resource: {
+    name: string;
+    model: string;
+    memoryGb: number;
+    region: string;
+    hourlyPriceCents: number;
+    tags?: string[];
+  },
+): Promise<string> {
+  const timestamp = new Date();
+  const result = await mongo.collection("gpu_resources").insertOne({
+    ...resource,
+    tags: resource.tags ?? [],
+    listingStatus: GpuListingStatus.Online,
+    resourceMode: ResourceMode.Simulated,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+  return result.insertedId.toString();
+}
+
 describe("API with MongoDB and Redis", () => {
   let app: INestApplication;
   let mongo: Connection;
 
   beforeAll(async () => {
-    const startedAt = Date.now();
-    const checkpoint = (stage: string): void => {
-      console.info(`[e2e:init] ${stage} +${Date.now() - startedAt}ms`);
-    };
-
-    checkpoint("compile:start");
     const module = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
-    checkpoint("compile:done");
     app = module.createNestApplication();
     app.use(cookieParser());
     app.useGlobalPipes(
@@ -45,9 +64,8 @@ describe("API with MongoDB and Redis", () => {
       }),
     );
     app.setGlobalPrefix("api");
-    checkpoint("app:init:start");
     await app.init();
-    checkpoint("app:init:done");
+    await app.listen(0, "127.0.0.1");
 
     mongo = app.get<Connection>(getConnectionToken());
     if (!/(_ci|_test)$/.test(mongo.name)) {
@@ -60,7 +78,6 @@ describe("API with MongoDB and Redis", () => {
       mongo.collection("gpu_resources").deleteMany({}),
       mongo.collection("users").deleteMany({}),
     ]);
-    checkpoint("mongo:cleanup:done");
   });
 
   afterAll(async () => {
@@ -73,14 +90,13 @@ describe("API with MongoDB and Redis", () => {
       .send({ username: "concurrency_user", password: "secure-password" })
       .expect(201);
     const cookie = getSessionCookie(registration);
-    const resource = await app.get(GpuResourcesService).create({
+    const resourceId = await insertTestResource(mongo, {
       name: "ci-a100-01",
       model: "NVIDIA A100",
       memoryGb: 80,
       region: "ci-region",
       hourlyPriceCents: 2000,
       tags: ["80GB"],
-      listingStatus: GpuListingStatus.Online,
     });
 
     const responses = await Promise.all(
@@ -88,7 +104,7 @@ describe("API with MongoDB and Redis", () => {
         request(app.getHttpServer())
           .post("/api/orders")
           .set("Cookie", cookie)
-          .send({ gpuResourceId: resource.id, durationHours: 2 }),
+          .send({ gpuResourceId: resourceId, durationHours: 2 }),
       ),
     );
     expect(
@@ -99,7 +115,7 @@ describe("API with MongoDB and Redis", () => {
     ).toHaveLength(19);
     expect(
       await mongo.collection("orders").countDocuments({
-        gpuResourceId: new Types.ObjectId(resource.id),
+        gpuResourceId: new Types.ObjectId(resourceId),
         status: OrderStatus.Active,
       }),
     ).toBe(1);
@@ -166,18 +182,17 @@ describe("API with MongoDB and Redis", () => {
       .expect(201);
     const ownerCookie = getSessionCookie(ownerRegistration);
     const intruderCookie = getSessionCookie(intruderRegistration);
-    const resource = await app.get(GpuResourcesService).create({
+    const resourceId = await insertTestResource(mongo, {
       name: "ci-4090-02",
       model: "NVIDIA RTX 4090",
       memoryGb: 24,
       region: "ci-region",
       hourlyPriceCents: 600,
-      listingStatus: GpuListingStatus.Online,
     });
     const order = await request(app.getHttpServer())
       .post("/api/orders")
       .set("Cookie", ownerCookie)
-      .send({ gpuResourceId: resource.id, durationHours: 1 })
+      .send({ gpuResourceId: resourceId, durationHours: 1 })
       .expect(201);
     const orderId = order.body.id as string;
 

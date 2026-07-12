@@ -54,6 +54,8 @@ Pull requests and pushes to `main` run the frozen install, formatting, lint, typ
 
 On `main`, the Pages job builds the web application independently with `VITE_RUNTIME_MODE=demo` and the repository base path `/gpu-rental-platform/`. Backend quality checks remain visible and are not skipped, but a backend-only failure does not replace an already working static product walkthrough with a 404 page. The deployment token has only the `pages: write` and `id-token: write` permissions required by GitHub Pages.
 
+The API E2E step builds the NestJS application first and imports the compiled `dist` modules. This preserves TypeScript decorator metadata and exercises the same JavaScript artifacts used by the production container.
+
 To enable the public demo, set the repository's Pages source to **GitHub Actions**. The expected project URL is:
 
 ```text
