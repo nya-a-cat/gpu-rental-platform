@@ -140,3 +140,19 @@
 
 - `apps/api/vitest.e2e.config.ts`：只调整集成环境初始化时限，不改变测试断言或业务实现。
 - 回滚方式：执行 `git revert <本轮修复提交>`。
+
+## 2026-07-13 - Task: 解耦静态演示发布与后端质量门禁
+
+### What was done
+
+- 让 GitHub Pages 演示构建与后端质量 job 并行运行，后端 E2E 失败仍保持红色，但不再阻止纯静态演示资产上传。
+
+### Testing
+
+- GitHub Pages 已配置为 Actions 来源；下一次 main 推送将独立执行 Pages job。
+- 后端 quality job 未被删除、跳过或降级，仍继续执行真实 MongoDB/Redis E2E。
+
+### Notes
+
+- `.github/workflows/pipeline.yml`：移除 Pages 对 quality job 的依赖关系。
+- 回滚方式：执行 `git revert <本轮修复提交>`。
