@@ -1,0 +1,28 @@
+# GitHub Pages demo mode
+
+The GitHub Pages site is an interactive product demonstration. It is intentionally separate from the Docker profile and always displays that it is not connected to a real backend.
+
+## What it demonstrates
+
+- GPU model filtering and resource detail views
+- The user order and return workflow
+- Administrator inventory and order views
+- Role-based navigation and page access behavior
+- Desktop and mobile interface states
+
+The demo adapter uses deterministic sample inventory and browser-local state. Resetting the demo restores the original dataset, making the public walkthrough repeatable.
+
+## What it does not claim
+
+Demo mode does not allocate physical GPUs, start containers, accept payments, open SSH or notebook sessions, or report live utilization, temperature, IP addresses or host status. Any resource and order changes exist only in the current browser profile.
+
+No MongoDB, Redis or NestJS service runs on GitHub Pages. The static build must not send API requests. Backend behavior, session revocation and concurrent reservation safety must be verified through the real API profile and its integration tests.
+
+## Switching profiles
+
+The build-time `VITE_RUNTIME_MODE` value selects the data adapter:
+
+- `demo` uses the transparent browser-only adapter for GitHub Pages.
+- `api` uses same-origin `/api` requests for the Docker deployment.
+
+The mode is fixed when the web assets are built. It is not a user-facing switch, which prevents a public static deployment from appearing to connect to infrastructure that is not present.
