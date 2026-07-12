@@ -4,9 +4,9 @@
 
 ## 重要且紧急
 
-- [ ] 完成共享契约、认证、GPU 资源和订单主流程
-- [ ] 完成 React 双语界面与透明演示模式
-- [ ] 建立真实 MongoDB/Redis 端到端验证与并发预订测试
+- [x] 完成共享契约、认证、GPU 资源和订单主流程
+- [x] 完成 React 双语界面与透明演示模式
+- [x] 建立真实 MongoDB/Redis 端到端验证与并发预订测试
 - [ ] 发布 GitHub Actions 与 GitHub Pages
 
 ## 重要但不紧急
@@ -28,3 +28,5 @@
 
 - [x] 明确模拟 GPU 与真实控制面之间的产品边界
 - [x] 锁定模块化单体、React、NestJS、MongoDB、Redis 和 Pages 路线
+- [x] 完成复古机械组件、原创小资产与公有领域素材署名
+- [x] 完成 Docker Compose 与 GitHub Actions 发布配置

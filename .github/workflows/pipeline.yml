@@ -1,0 +1,148 @@
+name: Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  MONGO_DATABASE: gpu_rental_ci
+  MONGO_ROOT_USERNAME: gpu_ci
+  MONGO_ROOT_PASSWORD: ci_only_mongo_password
+  REDIS_PASSWORD: ci_only_redis_password
+  SESSION_TTL_SECONDS: "3600"
+  WEB_ORIGIN: http://localhost:8080
+  COOKIE_SECURE: "false"
+
+jobs:
+  quality:
+    name: Quality and container build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      mongo:
+        image: mongo:8.0
+        env:
+          MONGO_INITDB_DATABASE: gpu_rental_ci
+          MONGO_INITDB_ROOT_USERNAME: gpu_ci
+          MONGO_INITDB_ROOT_PASSWORD: ci_only_mongo_password
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --username gpu_ci --password ci_only_mongo_password --authenticationDatabase admin --eval 'quit(db.adminCommand({ ping: 1 }).ok ? 0 : 2)'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 20s
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+          --health-start-period 5s
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 固定 v6.0.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # 固定 v6.4.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Enable pnpm
+        run: corepack enable && pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Run unit tests
+        run: pnpm test
+
+      - name: Run API end-to-end tests
+        env:
+          MONGO_URI: mongodb://gpu_ci:ci_only_mongo_password@127.0.0.1:27017/gpu_rental_ci?authSource=admin
+          REDIS_URL: redis://127.0.0.1:6379
+        run: pnpm test:e2e
+
+      - name: Build workspace
+        run: pnpm build
+
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+
+      - name: Build container images
+        run: docker compose build
+
+  pages:
+    name: Build and deploy GitHub Pages demo
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 固定 v6.0.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # 固定 v6.4.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Enable pnpm
+        run: corepack enable && pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build transparent demo
+        env:
+          VITE_RUNTIME_MODE: demo
+          VITE_BASE_PATH: /gpu-rental-platform/
+        run: pnpm --filter @gpu-rental/web exec vite build --base=/gpu-rental-platform/
+
+      - name: Prepare single-page routing
+        run: |
+          cp apps/web/dist/index.html apps/web/dist/404.html
+          touch apps/web/dist/.nojekyll
+
+      - name: Configure Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # 固定 v5.0.0
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # 固定 v5.0.0
+        with:
+          path: apps/web/dist
+
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # 固定 v5.0.0

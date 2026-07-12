@@ -1,0 +1,53 @@
+{
+  "name": "@gpu-rental/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "cli": "tsx src/cli/main.ts",
+    "contracts:build": "pnpm --filter @gpu-rental/contracts run build",
+    "dev": "tsx watch src/main.ts",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "prebuild": "pnpm run contracts:build",
+    "precli": "pnpm run contracts:build",
+    "predev": "pnpm run contracts:build",
+    "prelint": "pnpm run contracts:build",
+    "pretest": "pnpm run contracts:build",
+    "pretest:e2e": "pnpm run contracts:build",
+    "pretypecheck": "pnpm run contracts:build",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@gpu-rental/contracts": "workspace:*",
+    "@nestjs/common": "11.1.6",
+    "@nestjs/config": "4.0.2",
+    "@nestjs/core": "11.1.6",
+    "@nestjs/mongoose": "11.0.3",
+    "@nestjs/platform-express": "11.1.6",
+    "@nestjs/schedule": "6.0.0",
+    "@nestjs/swagger": "11.2.0",
+    "argon2": "0.44.0",
+    "class-transformer": "0.5.1",
+    "class-validator": "0.14.2",
+    "cookie-parser": "1.4.7",
+    "ioredis": "5.7.0",
+    "mongoose": "8.18.0",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "11.1.6",
+    "@types/cookie-parser": "1.4.9",
+    "@types/express": "5.0.3",
+    "@types/node": "24.3.0",
+    "@types/supertest": "6.0.3",
+    "supertest": "7.1.4",
+    "tsx": "4.20.5",
+    "typescript": "5.9.2",
+    "vitest": "3.2.4"
+  }
+}
