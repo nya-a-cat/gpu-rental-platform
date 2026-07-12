@@ -172,3 +172,33 @@
 
 - `apps/api/test/api.e2e-spec.ts`：保留测试数据库名称保护与 MongoDB 数据清理，仅移除隔离 Redis 的无效预扫描。
 - 回滚方式：执行 `git revert <本轮修复提交>`。
+
+## 2026-07-13 - Task: 完成截图驱动的复古机械产品界面重构
+
+### What was done
+
+- 将市场首页重构为不对称控制台与机架式资源清单，并把运行模式提示收进顶部状态模块。
+- 统一重做登录、资源详情、订单与调度后台，加入设备观察窗、常用租期、非对称调度读数、空状态和移动端控制栏。
+- 修复管理员快捷身份重定向竞态与跨路由滚动位置继承，确保完整业务路径在桌面和移动端连续可用。
+
+### Testing
+
+- `apps/web/node_modules/.bin/tsc -p apps/web/tsconfig.json --noEmit`：通过。
+- `VITE_RUNTIME_MODE=demo VITE_BASE_PATH=/gpu-rental-platform/ vite build`：通过，生成 Pages 生产包。
+- `vitest run apps/web/src/test/demo-gateway.test.ts --reporter=verbose`：通过，1 个文件共 2 项数据网关测试；角色路由测试在当前 WSL 挂载盘环境停在收集阶段，未虚报为通过。
+- Playwright 以 `1440×1000` 和 `390×844` 视口验收首页、登录、资源详情、订单和调度后台；完成普通用户登录、24 小时预订、一键退租、管理员资源下架后恢复上架及管理员直达后台流程。
+- Playwright 最终页面控制台为 0 error、0 warning；移动端首页、资源详情和调度后台均无横向溢出，跨路由后 `window.scrollY` 为 0。
+
+### Notes
+
+- `apps/web/src/components/layout.tsx`：压缩运行模式状态、重构导航并在路由切换时恢复页面顶部。
+- `apps/web/src/pages/MarketPage.tsx`：改造不对称市场首屏、档案观察窗、状态读数与机架资源清单。
+- `apps/web/src/pages/AuthPage.tsx`：精简为单张公有领域档案图并修复管理员快捷身份重定向。
+- `apps/web/src/pages/ResourcePage.tsx`：将生成图降为组合式设备观察窗并增加常用租期按键。
+- `apps/web/src/pages/AdminPage.tsx`：增加不对称调度板、运行读数与资源和订单空状态。
+- `apps/web/src/styles.css`：建立复古机械材质层级、桌面与移动端响应式布局和控制器状态样式。
+- `docs/demo-mode.md`：补充公开演示中可完整操作的用户与管理员流程。
+- `docs/deployment.md`：同步 Pages 独立发布与后端质量检查并行策略。
+- `ROADMAP.md`：记录 Pages 已发布与全页面截图驱动验收完成。
+- `progress.md`：追加本轮实现、测试证据、文件清单与回滚点。
+- 回滚方式：执行 `git revert <本轮前端提交>`。

@@ -7,7 +7,7 @@
 - [x] 完成共享契约、认证、GPU 资源和订单主流程
 - [x] 完成 React 双语界面与透明演示模式
 - [x] 建立真实 MongoDB/Redis 端到端验证与并发预订测试
-- [ ] 发布 GitHub Actions 与 GitHub Pages
+- [x] 发布 GitHub Actions 与 GitHub Pages
 
 ## 重要但不紧急
 
@@ -30,3 +30,4 @@
 - [x] 锁定模块化单体、React、NestJS、MongoDB、Redis 和 Pages 路线
 - [x] 完成复古机械组件、原创小资产与公有领域素材署名
 - [x] 完成 Docker Compose 与 GitHub Actions 发布配置
+- [x] 完成首页、登录、资源详情、订单和调度后台的截图驱动界面验收

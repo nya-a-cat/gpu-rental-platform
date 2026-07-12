@@ -52,7 +52,7 @@ pnpm build
 
 Pull requests and pushes to `main` run the frozen install, formatting, lint, type checks, unit tests, workspace build, Compose validation and image build. The quality job also starts authenticated MongoDB 8 and an isolated Redis 8 service, then runs the API end-to-end suite against those real data stores. This suite includes 20 concurrent attempts to reserve one GPU and verifies that exactly one active order is created. Dependencies are installed from the committed lockfile.
 
-After the quality job succeeds on `main`, the Pages job builds the web application with `VITE_RUNTIME_MODE=demo` and the repository base path `/gpu-rental-platform/`. The deployment token has only the `pages: write` and `id-token: write` permissions required by GitHub Pages.
+On `main`, the Pages job builds the web application independently with `VITE_RUNTIME_MODE=demo` and the repository base path `/gpu-rental-platform/`. Backend quality checks remain visible and are not skipped, but a backend-only failure does not replace an already working static product walkthrough with a 404 page. The deployment token has only the `pages: write` and `id-token: write` permissions required by GitHub Pages.
 
 To enable the public demo, set the repository's Pages source to **GitHub Actions**. The expected project URL is:
 

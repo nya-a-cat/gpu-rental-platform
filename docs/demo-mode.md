@@ -5,12 +5,12 @@ The GitHub Pages site is an interactive product demonstration. It is intentional
 ## What it demonstrates
 
 - GPU model filtering and resource detail views
-- The user order and return workflow
-- Administrator inventory and order views
+- Operator login, duration presets, reservation confirmation and one-step return
+- Administrator overview, resource registration, listing state changes and order cancellation
 - Role-based navigation and page access behavior
 - Desktop and mobile interface states
 
-The demo adapter uses deterministic sample inventory and browser-local state. Resetting the demo restores the original dataset, making the public walkthrough repeatable.
+The demo adapter uses deterministic sample inventory and browser-local state. Operator and dispatcher shortcuts exercise the same page routes and state transitions as the API adapter. Resetting the demo restores the original dataset, making the public walkthrough repeatable.
 
 ## What it does not claim
 
