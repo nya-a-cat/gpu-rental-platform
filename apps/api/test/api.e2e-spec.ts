@@ -10,7 +10,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { AppModule } from "../src/app.module";
 import { GpuResourcesService } from "../src/gpu-resources/gpu-resources.service";
-import { RedisService } from "../src/redis/redis.service";
 
 function getSessionCookie(response: request.Response): string {
   const header = response.headers["set-cookie"];
@@ -24,7 +23,6 @@ function getSessionCookie(response: request.Response): string {
 describe("API with MongoDB and Redis", () => {
   let app: INestApplication;
   let mongo: Connection;
-  let redis: RedisService;
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -43,7 +41,6 @@ describe("API with MongoDB and Redis", () => {
     await app.init();
 
     mongo = app.get<Connection>(getConnectionToken());
-    redis = app.get(RedisService);
     if (!/(_ci|_test)$/.test(mongo.name)) {
       throw new Error(
         `Refusing to clean non-test MongoDB database: ${mongo.name}`,
@@ -54,13 +51,6 @@ describe("API with MongoDB and Redis", () => {
       mongo.collection("gpu_resources").deleteMany({}),
       mongo.collection("users").deleteMany({}),
     ]);
-    const keys = await redis.client.keys("session:*");
-    const registryKeys = await redis.client.keys("user-sessions:*");
-    const lockKeys = await redis.client.keys("lock:gpu-resource:*");
-    const disposableKeys = [...keys, ...registryKeys, ...lockKeys];
-    if (disposableKeys.length > 0) {
-      await redis.client.del(...disposableKeys);
-    }
   });
 
   afterAll(async () => {
