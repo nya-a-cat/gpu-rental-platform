@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { ConfigService } from "@nestjs/config";
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { UserRole } from "@gpu-rental/contracts";
 
 import { RedisService } from "./redis.service";
@@ -18,7 +18,7 @@ export class SessionService {
 
   constructor(
     private readonly redis: RedisService,
-    config: ConfigService,
+    @Inject(ConfigService) config: ConfigService,
   ) {
     this.ttlSeconds = config.get<number>("SESSION_TTL_SECONDS", 86_400);
   }

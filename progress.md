@@ -108,3 +108,19 @@
 
 - `apps/web/package.json`：补充统一的 `contracts:build` 前置步骤。
 - 回滚方式：执行 `git revert <本轮修复提交>`。
+
+## 2026-07-13 - Task: 修复 E2E 环境的会话配置注入
+
+### What was done
+
+- 为 Redis 会话服务的配置依赖增加显式 NestJS 注入令牌，避免 Vitest 转译环境缺少构造参数元数据。
+
+### Testing
+
+- 第二轮 GitHub Actions 已通过格式、lint、类型检查与单元测试，E2E 日志将失败定位到 `SessionService` 的 `ConfigService` 参数。
+- 修复后的真实 MongoDB/Redis E2E 由下一轮 Actions 复验。
+
+### Notes
+
+- `apps/api/src/redis/session.service.ts`：显式注入 `ConfigService`，未改变会话数据与 TTL 逻辑。
+- 回滚方式：执行 `git revert <本轮修复提交>`。
