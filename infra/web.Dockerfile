@@ -26,7 +26,7 @@ COPY apps/web apps/web
 COPY packages/contracts packages/contracts
 RUN pnpm --filter @gpu-rental/web... run build
 
-FROM nginx:1.29-alpine AS runtime
+FROM nginx:1.31-alpine AS runtime
 COPY infra/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /workspace/apps/web/dist /usr/share/nginx/html
 EXPOSE 80
