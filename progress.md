@@ -366,3 +366,26 @@
 - `ROADMAP.md`：在重要且紧急分区记录编号截断已修复。
 - `progress.md`：追加本轮实现、验证证据、文件清单与回滚点。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^fix: preserve demo resource records$' -1)"`。
+
+## 2026-07-13 - Task: 修复刷新后的页面语言元数据
+
+### What was done
+
+- 将文档语言同步到当前界面语言状态，使英文或中文偏好在首次加载和刷新后都更新可访问性语言元数据。
+- 保留原有浏览器本地语言偏好，不改变语言切换入口和可见文案逻辑。
+
+### Testing
+
+- Playwright 复现修复前英文界面刷新后文案仍为英文、但 `<html lang>` 回退为 `zh-CN`。
+- 在 `apps/web` 使用 Node.js 24 与单工作进程执行 `vitest run src/test/routing.test.tsx --reporter=verbose --maxWorkers=1 --no-file-parallelism`：1 个文件共 3 项测试全部通过，新增用例覆盖预存英文偏好后的首次渲染。
+- `tsc -p apps/web/tsconfig.json --noEmit` 与本轮改动文件的 Prettier 检查：通过。
+- 重启 Vite 清除 Windows 挂载盘缓存后，Playwright 验证切换英文并刷新前后均为英文文案、`lang="en"` 和本地偏好 `en`。
+
+### Notes
+
+- `apps/web/src/app-context.tsx`：按当前语言状态统一同步文档语言元数据。
+- `apps/web/src/test/routing.test.tsx`：增加已保存语言在刷新场景下的回归断言。
+- `docs/demo-mode.md`：记录双语偏好与文档语言元数据的持久化行为。
+- `ROADMAP.md`：在重要且紧急分区记录语言元数据缺陷已修复。
+- `progress.md`：追加本轮实现、验证计划、文件清单与回滚点。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^fix: restore document language$' -1)"`。
