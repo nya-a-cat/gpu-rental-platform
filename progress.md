@@ -434,3 +434,24 @@
 - `progress.md`：追加最终自动化、桌面业务闭环、移动端和浏览器控制台验收证据。
 - 本轮未新增产品代码；Playwright YAML、控制台日志和截图均为临时验证产物，已从仓库工作树清理。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^docs: record final product acceptance$' -1)"`。
+
+## 2026-07-13 - Task: 启用受保护入口的双版本 Pages
+
+### What was done
+
+- 保持 `main` 的 Classic 产品代码不变，只将 Pages 发布入口升级为同时组装冻结旧版和独立 Next 分支的双版本站点。
+- 根地址增加版本选择页；Pages 仅允许受保护的 `main` 发布，并提供从 `main` 手动拉取新版分支重新发布的命令。
+
+### Testing
+
+- 本地分别从 `ui-v1.0.0` 标签和 `ui/interactive-console-v2` 分支完成 Pages base path 生产构建，Classic 与 Next 均转换 59 个模块；按 Actions 目录结构组装后，根入口、两个子站点及两套资源路径检查通过。
+- Playwright 从本地版本选择页进入两版，确认 Classic 标识为 `GPU INVENTORY 2026`、Next 标识为 `LIVE ALLOCATION DESK / V2`，两边使用独立的 `v1` 与 `v2` 浏览器状态键。
+- Ruby YAML 解析、发布相关文件 Prettier 检查与 `git diff --check` 通过；GitHub 运行 `29252716657` 的诊断证明新版分支被 Pages 环境保护拒绝，因此发布条件限制到 `main`，未修改仓库保护规则。
+
+### Notes
+
+- `.github/workflows/pipeline.yml`：从固定标签与新版分支组装双路径站点，并将部署入口限制到受保护的 `main`。
+- `deploy/pages-index.html`：增加 Classic 与 Next 的根版本选择界面。
+- `docs/deployment.md`：记录构建来源、访问路径、状态隔离和手动重发命令。
+- `progress.md`：追加本轮实现、验证证据、文件清单与回滚点。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^ci: publish protected versioned previews$' -1)"`。
