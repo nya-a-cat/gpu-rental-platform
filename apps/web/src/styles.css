@@ -2077,6 +2077,8 @@ body {
 }
 
 .hero-archive img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   display: block;
@@ -2765,8 +2767,21 @@ body {
 
   .hero-copy {
     min-height: 0;
-    padding: 2.4rem 1.35rem 1.25rem;
+    padding: 1.7rem 1.2rem 1rem;
     border-right: 0;
+  }
+
+  .hero-kicker {
+    margin: 1.25rem 0 0.45rem;
+  }
+
+  .hero-copy > p:last-of-type {
+    margin-top: 0.85rem;
+    line-height: 1.55;
+  }
+
+  .hero-actions {
+    margin-top: 0.85rem;
   }
 
   .hero-copy::after {
@@ -2783,7 +2798,8 @@ body {
 
   .gauge-console {
     z-index: 4;
-    margin: -6rem 0.8rem 1rem;
+    margin: -4.25rem 0.65rem 0.75rem;
+    padding: 0.9rem;
     transform: none;
   }
 
@@ -2792,7 +2808,7 @@ body {
   }
 
   .hero-archive {
-    height: 280px;
+    height: 220px;
   }
 
   .hero-archive figcaption {
@@ -2804,21 +2820,95 @@ body {
   }
 
   .signal-bridge {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     margin: -1px 0.35rem 0;
   }
 
-  .signal-bridge > span:nth-child(even) {
+  .signal-bridge > span:nth-child(3n) {
     border-right: 0;
   }
 
   .signal-bridge > a {
-    grid-column: 1 / -1;
+    grid-column: auto;
+  }
+
+  .signal-bridge > span,
+  .signal-bridge > a {
+    padding: 0.5rem 0.55rem;
+  }
+
+  .calibration-strip {
+    display: none;
+  }
+
+  .console-action-rail {
+    gap: 0.3rem;
+    margin-bottom: 0.55rem;
+    padding: 0.4rem;
+  }
+
+  .console-action {
+    padding: 0.4rem;
+  }
+
+  .console-label-row {
+    padding-bottom: 0.55rem;
+  }
+
+  .gauge-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: 1fr;
+    gap: 0.35rem;
+    margin: 0.55rem 0;
+  }
+
+  .gauge-row .analog-gauge:first-child {
+    grid-row: auto;
+  }
+
+  .gauge-row .analog-gauge:first-child svg,
+  .analog-gauge svg {
+    max-width: 80px;
+  }
+
+  .gauge-row .analog-gauge:not(:first-child) {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    justify-items: center;
+  }
+
+  .gauge-row .analog-gauge:not(:first-child) svg {
+    width: 72px;
+    grid-row: auto;
+  }
+
+  .gauge-row .analog-gauge:not(:first-child) .gauge-display,
+  .gauge-row .analog-gauge:not(:first-child) .gauge-label {
+    align-self: auto;
+  }
+
+  .analog-gauge {
+    padding: 0.3rem;
+  }
+
+  .console-switches {
+    gap: 0.3rem;
+    padding: 0.4rem;
+  }
+
+  .rotary-control {
+    grid-template-columns: 28px minmax(0, 1fr);
+    padding: 0.3rem;
+  }
+
+  .rotary-control__knob {
+    width: 28px;
+    height: 28px;
   }
 
   .market-workbench {
     grid-template-columns: 1fr;
-    margin-top: 1.8rem;
+    margin-top: 1rem;
     padding: 0.55rem;
   }
 
@@ -2860,7 +2950,7 @@ body {
   }
 
   .hero-copy h1 {
-    font-size: clamp(2.8rem, 15vw, 4.6rem);
+    font-size: clamp(2.55rem, 12vw, 3.35rem);
   }
 
   .hero-copy h1 .hero-title-part {
@@ -2872,7 +2962,7 @@ body {
   }
 
   .gauge-row {
-    grid-template-columns: 1.2fr 0.8fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .resource-card {

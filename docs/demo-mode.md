@@ -17,6 +17,8 @@ The market console is not decorative. Its control-bus switch enables or disables
 
 The surrounding archive photograph, silver rack wall and service duct are bundled environmental layers. The status bridge mirrors the active control-bus state, availability, price ceiling, sorting mode and current inventory count; disconnecting the control bus visibly powers down the console without hiding the standard filters.
 
+The archive image is removed from grid sizing so the desktop hero remains within its 680–820 pixel design band. On narrow screens the photograph, gauges and status bridge use a compact layout while preserving all six interactive console controls.
+
 ## What it does not claim
 
 Demo mode does not allocate physical GPUs, start containers, accept payments, open SSH or notebook sessions, or report live utilization, temperature, IP addresses or host status. Any resource and order changes exist only in the current browser profile.
