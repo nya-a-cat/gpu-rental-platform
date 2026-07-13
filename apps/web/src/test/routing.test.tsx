@@ -103,4 +103,27 @@ describe("role routes", () => {
       );
     });
   });
+
+  it("restores the document language from the saved locale", async () => {
+    window.localStorage.setItem("gpu-rental-locale", "en");
+    const gateway = new DemoGateway(new MemoryStorage());
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <AppProviders gateway={gateway}>
+          <AppRoutes />
+        </AppProviders>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(document.documentElement.lang).toBe("en");
+    });
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: /FIND A GPU/,
+      }),
+    ).toBeInTheDocument();
+  });
 });

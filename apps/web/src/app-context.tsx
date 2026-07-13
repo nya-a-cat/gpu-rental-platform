@@ -69,10 +69,13 @@ export function AppProviders({
     void refreshSession();
   }, [gateway]);
 
+  useEffect(() => {
+    document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
+  }, [locale]);
+
   function setLocale(nextLocale: Locale): void {
     setLocaleState(nextLocale);
     window.localStorage.setItem("gpu-rental-locale", nextLocale);
-    document.documentElement.lang = nextLocale === "zh" ? "zh-CN" : "en";
   }
 
   const localeValue = useMemo<LocaleContextValue>(

@@ -13,6 +13,8 @@ The GitHub Pages site is an interactive product demonstration. It is intentional
 
 The demo adapter uses deterministic sample inventory and browser-local state. Operator and dispatcher shortcuts exercise the same page routes and state transitions as the API adapter. Resetting the demo restores the original dataset, making the public walkthrough repeatable.
 
+The Chinese or English interface preference persists in the browser. Reloading the site restores both the visible copy and the document language metadata.
+
 Seeded and administrator-created demo resources display their complete `GPU-<sequence>` record label. Real API object identifiers remain shortened to their final six characters in market cards.
 
 The market console is not decorative. Its control-bus switch enables or disables the quick-control bank, the availability lock updates the inventory filter, and the three rotary controls cycle availability, price ceiling and sort order. Their values stay synchronized with the standard form controls and inventory results.
