@@ -136,7 +136,7 @@ export function AuthPage({ kind }: { kind: "login" | "register" }) {
               maxLength={32}
               minLength={3}
               name="username"
-              pattern="[A-Za-z0-9_-]+"
+              pattern={"[A-Za-z0-9_\\-]+"}
               required
             />
           </label>

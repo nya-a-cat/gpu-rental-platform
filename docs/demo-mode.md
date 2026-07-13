@@ -15,6 +15,8 @@ The demo adapter uses deterministic sample inventory and browser-local state. Op
 
 The Chinese or English interface preference persists in the browser. Reloading the site restores both the visible copy and the document language metadata.
 
+New operator usernames accept ASCII letters, digits, underscores and hyphens. The browser validates this rule before registration is submitted.
+
 Seeded and administrator-created demo resources display their complete `GPU-<sequence>` record label. Real API object identifiers remain shortened to their final six characters in market cards.
 
 The market console is not decorative. Its control-bus switch enables or disables the quick-control bank, the availability lock updates the inventory filter, and the three rotary controls cycle availability, price ceiling and sort order. Their values stay synchronized with the standard form controls and inventory results.
