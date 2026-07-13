@@ -319,3 +319,26 @@
 - `ROADMAP.md`：记录沉浸式市场环境层已完成。
 - `progress.md`：追加本轮实现、验证证据、文件清单与回滚点。
 - 回滚方式：执行 `git revert <本轮沉浸式视觉提交>`。
+
+## 2026-07-13 - Task: 修复市场首屏高度回归并压缩移动端控制台
+
+### What was done
+
+- 将档案照片改为脱离 Grid 自动行尺寸计算的绝对定位环境层，使桌面 Hero 恢复既定的 680–820 像素高度范围。
+- 压缩窄屏标题、照片、仪表台和状态桥，将三个只读仪表改为横向紧凑排列，同时保留六个真实机械控件。
+- 纠正上一轮日志中的回滚占位符；上一轮沉浸式视觉提交的真实回滚命令为 `git revert 3149a1a`。
+
+### Testing
+
+- 在 `apps/web` 执行 `VITE_RUNTIME_MODE=demo VITE_BASE_PATH=/gpu-rental-platform/ node_modules/.bin/vite build`：通过，59 个模块完成生产构建。
+- Playwright 验证 `1366×768`、`1440×900`、`1920×1080`：Hero 高度分别约为 680、750、820 像素，第一张资源卡分别位于 1.30、1.19、1.06 屏，无横向溢出。
+- Playwright 验证 `390×844`：Hero 高度约 858 像素，第一张资源卡位于 1.61 屏，6 个机械控件全部可见且页面宽度保持 390 像素。
+- Playwright 在手机视口验证控制总线断开后 5 个从属控件禁用；重新接通并旋转资源状态后筛选值变为 `available`，资源数从 6 变为 5。
+
+### Notes
+
+- `apps/web/src/styles.css`：解除档案图固有比例对桌面 Grid 高度的影响，并增加手机端紧凑仪表和状态桥布局。
+- `docs/demo-mode.md`：记录桌面 Hero 高度边界与移动端控件保留原则。
+- `ROADMAP.md`：在重要且紧急分区记录首屏高度回归已修复。
+- `progress.md`：追加本轮实现、验证证据、文件清单和上一轮真实回滚点。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^fix: compact market hero$' -1)"`。
