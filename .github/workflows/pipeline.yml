@@ -1,6 +1,7 @@
 name: Pipeline
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -94,7 +95,9 @@ jobs:
 
   pages:
     name: Build and deploy versioned GitHub Pages demos
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ui/interactive-console-v2')
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:

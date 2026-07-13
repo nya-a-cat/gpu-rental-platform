@@ -486,3 +486,22 @@
 - `docs/deployment.md`：记录双版本构建来源、访问路径和状态隔离规则。
 - `progress.md`：追加本轮实现、验证证据、文件清单与回滚点。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^ci: publish classic and next previews$' -1)"`。
+
+## 2026-07-13 - Task: 遵循 Pages 环境保护发布双版本
+
+### What was done
+
+- 保留 GitHub Pages 现有分支保护，不放宽部署权限；将正式 Pages 发布限制为受保护的 `main` 分支。
+- 保留新版分支的完整质量检查，并增加从 `main` 手动重新组装 Classic 与 Next 的入口，使新版可在不合并界面代码的情况下更新公开预览。
+
+### Testing
+
+- GitHub Actions 运行 `29252716657` 的 Pages 任务在执行任何步骤前被环境规则拒绝，注解明确为 `Branch "ui/interactive-console-v2" is not allowed to deploy to github-pages due to environment protection rules.`。
+- Ruby YAML 解析、改动文件 Prettier 检查与 `git diff --check` 通过；Pages 条件只允许 `main` push 或以 `main` 为 ref 的手动派发。
+
+### Notes
+
+- `.github/workflows/pipeline.yml`：增加手动派发入口，并将 Pages 发布约束到受保护的 `main` 分支。
+- `docs/deployment.md`：记录双版本的规范发布入口与新版更新命令。
+- `progress.md`：追加环境保护问题、处理方式、验证证据与回滚点。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^fix: honor pages deployment protection$' -1)"`。
