@@ -50,9 +50,9 @@ pnpm build
 
 ## GitHub Actions
 
-Pull requests and pushes to `main` run the frozen install, formatting, lint, type checks, unit tests, workspace build, Compose validation and image build. The quality job also starts authenticated MongoDB 8 and an isolated Redis 8 service, then runs the API end-to-end suite against those real data stores. This suite includes 20 concurrent attempts to reserve one GPU and verifies that exactly one active order is created. Dependencies are installed from the committed lockfile.
+Pull requests and pushes to `main` or `ui/interactive-console-v2` run the frozen install, formatting, lint, type checks, unit tests, workspace build, Compose validation and image build. The quality job also starts authenticated MongoDB 8 and an isolated Redis 8 service, then runs the API end-to-end suite against those real data stores. This suite includes 20 concurrent attempts to reserve one GPU and verifies that exactly one active order is created. Dependencies are installed from the committed lockfile.
 
-On `main`, the Pages job builds the web application independently with `VITE_RUNTIME_MODE=demo` and the repository base path `/gpu-rental-platform/`. Backend quality checks remain visible and are not skipped, but a backend-only failure does not replace an already working static product walkthrough with a 404 page. The deployment token has only the `pages: write` and `id-token: write` permissions required by GitHub Pages.
+On either version branch, the Pages job builds two independent web bundles. The Classic bundle always checks out the frozen `ui-v1.0.0` tag and uses `/gpu-rental-platform/classic/`; the Next bundle checks out `ui/interactive-console-v2` and uses `/gpu-rental-platform/next/`. The job assembles both bundles with a root version selector before publishing one Pages artifact. Backend quality checks remain visible and are not skipped, but a backend-only failure does not replace an already working static product walkthrough with a 404 page. The deployment token has only the `pages: write` and `id-token: write` permissions required by GitHub Pages.
 
 The API E2E step builds the NestJS application first and imports the compiled `dist` modules. This preserves TypeScript decorator metadata and exercises the same JavaScript artifacts used by the production container.
 
@@ -61,6 +61,15 @@ To enable the public demo, set the repository's Pages source to **GitHub Actions
 ```text
 https://<github-account>.github.io/gpu-rental-platform/
 ```
+
+The version selector links to both public builds:
+
+```text
+https://<github-account>.github.io/gpu-rental-platform/classic/
+https://<github-account>.github.io/gpu-rental-platform/next/
+```
+
+Classic and Next use separate browser-local demo-state namespaces. Orders, sessions and inventory changes created in one preview do not modify the other preview.
 
 GitHub Pages hosts static assets only. It does not run the NestJS API, MongoDB or Redis; use the Docker profile to exercise the real backend.
 
