@@ -505,3 +505,22 @@
 - `docs/deployment.md`：记录双版本的规范发布入口与新版更新命令。
 - `progress.md`：追加环境保护问题、处理方式、验证证据与回滚点。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^fix: honor pages deployment protection$' -1)"`。
+
+## 2026-07-13 - Task: 修复 Classic 公网页面图标请求
+
+### What was done
+
+- 在双版本站点组装阶段为 Classic 产物加入本地 SVG 图标，消除浏览器对 GitHub Pages 域名根目录 `favicon.ico` 的无效请求。
+- 保持 `ui-v1.0.0` 标签和 Classic 产品源码不变，修复仅作用于临时发布产物。
+
+### Testing
+
+- Playwright 打开已发布的 Classic 页面，业务界面、1440 像素视口和旧版标识均正常，但控制台精确记录 1 条 `https://nya-a-cat.github.io/favicon.ico` 的 404，确认问题只来自缺失图标声明。
+- 对冻结标签的 `index.html` 执行与 Actions 相同的 `sed` 变换并检查 `rel="icon"`，结果通过；Ruby YAML 解析、改动文件 Prettier 检查与 `git diff --check` 通过。
+
+### Notes
+
+- `.github/workflows/pipeline.yml`：在 Classic 产物中复制本地图标、注入图标声明并加入构建校验。
+- `docs/deployment.md`：说明发布层图标补丁不会修改冻结标签。
+- `progress.md`：追加问题复现、修复边界、验证证据与回滚点。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^fix: provide classic preview favicon$' -1)"`。
