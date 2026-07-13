@@ -141,7 +141,6 @@ export function MarketPage() {
   const priceRatio = facets.maxHourlyPriceCents
     ? (maxPrice / facets.maxHourlyPriceCents) * 100
     : 0;
-  const modelRatio = Math.min(100, facets.models.length * 14);
   const priceStops = useMemo(() => {
     const ceiling = facets.maxHourlyPriceCents;
     if (!ceiling) return [0, 0, 0];
@@ -155,6 +154,10 @@ export function MarketPage() {
     () => [model, region, memoryGb, availability].filter(Boolean).length,
     [availability, memoryGb, model, region],
   );
+  const controlOffset =
+    activeFilterCount +
+    (maxPrice > 0 && maxPrice !== facets.maxHourlyPriceCents ? 1 : 0) +
+    (sort === "newest" ? 0 : 1);
   const availabilityPosition = AVAILABILITY_STOPS.indexOf(
     availability as (typeof AVAILABILITY_STOPS)[number],
   );
@@ -181,37 +184,49 @@ export function MarketPage() {
     setPage(1);
   }
 
-  function cycleAvailability(): void {
+  function cycleAvailability(direction: 1 | -1): void {
     const next =
       AVAILABILITY_STOPS[
-        (Math.max(0, availabilityPosition) + 1) % AVAILABILITY_STOPS.length
+        (Math.max(0, availabilityPosition) +
+          direction +
+          AVAILABILITY_STOPS.length) %
+          AVAILABILITY_STOPS.length
       ];
     setAvailability(next ?? "");
     setPage(1);
   }
 
-  function cyclePrice(): void {
+  function cyclePrice(direction: 1 | -1): void {
     if (!facets.maxHourlyPriceCents) return;
     setMaxPrice(
-      priceStops[(pricePosition + 1) % priceStops.length] ??
-        facets.maxHourlyPriceCents,
+      priceStops[
+        (pricePosition + direction + priceStops.length) % priceStops.length
+      ] ?? facets.maxHourlyPriceCents,
     );
     setPage(1);
   }
 
-  function cycleSort(): void {
-    setSort(SORT_STOPS[(sortPosition + 1) % SORT_STOPS.length] ?? "newest");
+  function cycleSort(direction: 1 | -1): void {
+    setSort(
+      SORT_STOPS[
+        (sortPosition + direction + SORT_STOPS.length) % SORT_STOPS.length
+      ] ?? "newest",
+    );
     setPage(1);
   }
 
   return (
     <div
-      className="page-frame market-page"
-      data-console-state={consoleArmed ? "armed" : "offline"}
+      className="page-frame market-page market-page--next"
+      data-console-state={
+        !consoleArmed ? "offline" : loading ? "calibrating" : "ready"
+      }
     >
       <section className="market-hero">
         <div className="hero-copy">
-          <span className="serial-label">KILOWORKS / GPU INVENTORY 2026</span>
+          <span className="serial-label">
+            KILOWORKS / LIVE ALLOCATION DESK / V2
+          </span>
           <p className="hero-kicker">
             {tr("GPU 资源租赁调度台", "GPU RESOURCE EXCHANGE")}
           </p>
@@ -236,8 +251,11 @@ export function MarketPage() {
             <a className="button button--orange" href="#inventory-grid">
               {tr("进入资源列阵", "Browse inventory")}
             </a>
-            <span className="plate-note">RESOURCE MODE / SIMULATED</span>
+            <span className="plate-note">
+              INTERACTIVE CONTROL / LIVE FILTER
+            </span>
           </div>
+          <QuickInventoryRack loading={loading} resources={resources} />
           <div className="hero-readouts">
             <div>
               <span>{tr("本页可租", "AVAILABLE")}</span>
@@ -287,6 +305,7 @@ export function MarketPage() {
         <MechanicalPanel
           className={`gauge-console ${consoleArmed ? "is-armed" : "is-offline"}`}
           eyebrow="INVENTORY STATUS"
+          title={tr("实时分配控制台", "Live allocation console")}
         >
           <div className="calibration-strip" aria-hidden="true">
             <img alt="" src={inspectionCalibrationPlate} />
@@ -295,6 +314,7 @@ export function MarketPage() {
           <div
             aria-label={tr("快速控制台", "Quick control console")}
             className="console-action-rail"
+            role="group"
           >
             <button
               aria-pressed={consoleArmed}
@@ -352,6 +372,40 @@ export function MarketPage() {
               tone={consoleArmed ? "good" : "neutral"}
             />
           </div>
+          <div className="console-transmission" aria-live="polite">
+            <span>
+              <small>{tr("匹配线路", "MATCHED CIRCUIT")}</small>
+              <strong>
+                {resources.total.toString().padStart(2, "0")} /{" "}
+                {tr("台资源", "UNITS")}
+              </strong>
+            </span>
+            <span className="console-transmission__bars" aria-hidden="true">
+              {Array.from({ length: 12 }, (_, index) => (
+                <i
+                  className={
+                    consoleArmed &&
+                    resources.items.length > 0 &&
+                    index < Math.max(1, Math.round(availabilityRatio / 8.34))
+                      ? "is-active"
+                      : undefined
+                  }
+                  key={index}
+                />
+              ))}
+            </span>
+            <span>
+              <small>{tr("筛选回路", "FILTER CIRCUIT")}</small>
+              <strong>
+                {activeFilterCount
+                  ? tr(
+                      `${activeFilterCount} 项启用`,
+                      `${activeFilterCount} ACTIVE`,
+                    )
+                  : tr("全域扫描", "FULL SWEEP")}
+              </strong>
+            </span>
+          </div>
           <div className="gauge-row">
             <AnalogGauge
               display={`${availableCount}/${resources.items.length}`}
@@ -368,14 +422,15 @@ export function MarketPage() {
               value={priceRatio}
             />
             <AnalogGauge
-              display={String(facets.models.length).padStart(2, "0")}
-              label={tr("可选型号", "MODEL OPTIONS")}
-              value={modelRatio}
+              display={`${controlOffset}/6`}
+              label={tr("控制偏移", "CONTROL OFFSET")}
+              value={(controlOffset / 6) * 100}
             />
           </div>
           <div
             aria-label={tr("库存旋钮组", "Inventory rotary controls")}
             className="console-switches"
+            role="group"
           >
             <RotaryControl
               disabled={!consoleArmed}
@@ -633,6 +688,80 @@ export function MarketPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+function QuickInventoryRack({
+  loading,
+  resources,
+}: {
+  loading: boolean;
+  resources: PaginatedResponse<GpuResourceView>;
+}) {
+  const { locale, tr } = useLocale();
+  const preview = resources.items.slice(0, 3);
+
+  return (
+    <section
+      aria-label={tr("实时资源快速入口", "Live inventory quick access")}
+      className="quick-rack"
+    >
+      <header>
+        <span>
+          <i aria-hidden="true" /> LIVE INVENTORY RACK
+        </span>
+        <strong>
+          {loading
+            ? tr("同步中", "SYNCING")
+            : tr(`${resources.total} 台匹配`, `${resources.total} MATCHED`)}
+        </strong>
+      </header>
+      <div className="quick-rack__rows">
+        {loading ? (
+          <span className="quick-rack__empty">
+            {tr("正在读取库存线路…", "Reading inventory circuit…")}
+          </span>
+        ) : null}
+        {!loading && preview.length === 0 ? (
+          <span className="quick-rack__empty">
+            {tr("当前回路没有匹配资源", "No units match this circuit")}
+          </span>
+        ) : null}
+        {preview.map((resource, index) => {
+          const available = resource.availability === GpuAvailability.Available;
+          return (
+            <Link
+              aria-label={tr(
+                `打开资源 ${resource.model}`,
+                `Open resource ${resource.model}`,
+              )}
+              className={`quick-rack__row${available ? " is-available" : " is-rented"}`}
+              key={resource.id}
+              to={`/resources/${resource.id}`}
+            >
+              <span>{(index + 1).toString().padStart(2, "0")}</span>
+              <span>
+                <strong>{resource.model}</strong>
+                <small>
+                  {resource.name} · {resource.region}
+                </small>
+              </span>
+              <span>
+                <strong>
+                  {formatMoney(resource.hourlyPriceCents, locale)}
+                </strong>
+                <small>
+                  {available
+                    ? tr("可预订", "AVAILABLE")
+                    : tr("租用中", "RENTED")}
+                </small>
+              </span>
+              <i aria-hidden="true" />
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

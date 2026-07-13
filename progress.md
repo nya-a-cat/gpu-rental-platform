@@ -435,26 +435,76 @@
 - 本轮未新增产品代码；Playwright YAML、控制台日志和截图均为临时验证产物，已从仓库工作树清理。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^docs: record final product acceptance$' -1)"`。
 
-## 2026-07-13 - Task: 启用受保护入口的双版本 Pages
+## 2026-07-13 - Task: 完成交互式机械调度台新版
 
 ### What was done
 
-- 保持 `main` 的 Classic 产品代码不变，只将 Pages 发布入口升级为同时组装冻结旧版和独立 Next 分支的双版本站点。
-- 根地址增加版本选择页；Pages 仅允许受保护的 `main` 发布，并提供从 `main` 手动拉取新版分支重新发布的命令。
+- 将市场首屏重排为紧凑的实时分配台，在首屏加入可直接进入资源详情的库存机架，并让匹配数量、价格、状态灯和控制偏移仪表共用真实筛选结果。
+- 保留六个现有机械控件的业务状态源，补充旋钮双向键盘操作、可访问仪表语义、断电反馈和移动端 44 像素触控下限，没有增加虚构温度、利用率或主机遥测。
+- 将新版浏览器演示状态切换到独立的 `v2` 命名空间，避免与冻结旧版的订单、身份和库存互相污染。
 
 ### Testing
 
-- 本地分别从 `ui-v1.0.0` 标签和 `ui/interactive-console-v2` 分支完成 Pages base path 生产构建，Classic 与 Next 均转换 59 个模块；按 Actions 目录结构组装后，根入口、两个子站点及两套资源路径检查通过。
-- Playwright 从本地版本选择页进入两版，确认 Classic 标识为 `GPU INVENTORY 2026`、Next 标识为 `LIVE ALLOCATION DESK / V2`，两边使用独立的 `v1` 与 `v2` 浏览器状态键。
-- Ruby YAML 解析、发布相关文件 Prettier 检查与 `git diff --check` 通过；GitHub 运行 `29252716657` 的诊断证明新版分支被 Pages 环境保护拒绝，因此发布条件限制到 `main`，未修改仓库保护规则。
+- 在 `apps/web` 使用 Node.js 24 串行执行 `vitest run src/test/routing.test.tsx src/test/demo-gateway.test.ts --reporter=verbose --maxWorkers=1 --no-file-parallelism`：2 个文件共 6 项测试全部通过。
+- `tsc -p apps/web/tsconfig.json --noEmit` 通过；Next Pages 配置生产构建通过，59 个模块完成转换。
+- Playwright `1440×900` 验证 Hero 高度为 580 像素、首张完整资源卡顶部为 890 像素、三条快速库存链接可用；可租锁定后匹配数量从 6 变为 5、控制偏移从 `0/6` 变为 `1/6`。
+- Playwright 验证控制总线断开后五个从属控件全部禁用、信号条归零；快速库存链接可进入对应资源详情。
+- Playwright `390×844` 验证页面宽度保持 390 像素、移动导航回到文档流、控制台不被遮挡、六个控件最小高度为 44 像素；浏览器控制台为 0 error、0 warning。
 
 ### Notes
 
-- `.github/workflows/pipeline.yml`：从固定标签与新版分支组装双路径站点，并将部署入口限制到受保护的 `main`。
-- `deploy/pages-index.html`：增加 Classic 与 Next 的根版本选择界面。
-- `docs/deployment.md`：记录构建来源、访问路径、状态隔离和手动重发命令。
+- `apps/web/index.html`：接入随 Pages base path 解析的本地站点图标。
+- `apps/web/public/favicon.svg`：增加与 Kiloworks 工业铭牌一致的矢量图标。
+- `apps/web/src/components/mechanical.tsx`：让仪表暴露 meter 语义，并让旋钮支持双向方向键。
+- `apps/web/src/data/demo-gateway.ts`：将新版演示状态隔离到 `gpu-rental-demo-state-v2`。
+- `apps/web/src/pages/MarketPage.tsx`：增加实时库存机架、数据线路反馈和紧凑控制台布局状态。
+- `apps/web/src/styles.css`：实现新版桌面与移动端控制台、库存机架、状态反馈和响应式布局。
+- `apps/web/src/test/demo-gateway.test.ts`：同步新版演示状态命名空间。
+- `apps/web/src/test/routing.test.tsx`：覆盖实时库存、控制偏移和旋钮反向操作。
+- `docs/demo-mode.md`：记录新版真实交互边界、状态隔离和响应式行为。
+- `ROADMAP.md`：在重要且紧急分区记录交互新版与双路径预览完成。
 - `progress.md`：追加本轮实现、验证证据、文件清单与回滚点。
-- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^ci: publish protected versioned previews$' -1)"`。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^feat: add interactive console preview$' -1)"`。
+
+## 2026-07-13 - Task: 建立 Classic 与 Next 双路径 Pages
+
+### What was done
+
+- 将 Pages 发布改为分别从冻结标签 `ui-v1.0.0` 和开发分支 `ui/interactive-console-v2` 构建，再合并为同一个版本化站点。
+- 根地址增加版本选择页，Classic 与 Next 使用独立子路径，后续任一发布分支触发时都会重新组装完整站点。
+
+### Testing
+
+- Ruby YAML 解析、改动文件 Prettier 检查、SVG XML 解析与 `git diff --check` 全部通过。
+- 本地从冻结标签和当前新版分别完成 59 模块生产构建，并按 Actions 同等目录结构组装 `pages-root`；入口页、Classic、Next 及两套 base path 检查全部通过。
+- Playwright 从版本选择页分别进入 Classic 与 Next，确认旧版序列标识为 `GPU INVENTORY 2026`、新版为 `LIVE ALLOCATION DESK / V2`；两边归零后同时存在互不覆盖的 `v1` 与 `v2` 状态键。
+
+### Notes
+
+- `.github/workflows/pipeline.yml`：增加显式 tag/branch 双 checkout、双构建、目录组装与 Pages 路径验证。
+- `deploy/pages-index.html`：增加 Classic 与 Next 的根版本选择界面。
+- `docs/deployment.md`：记录双版本构建来源、访问路径和状态隔离规则。
+- `progress.md`：追加本轮实现、验证证据、文件清单与回滚点。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^ci: publish classic and next previews$' -1)"`。
+
+## 2026-07-13 - Task: 遵循 Pages 环境保护发布双版本
+
+### What was done
+
+- 保留 GitHub Pages 现有分支保护，不放宽部署权限；将正式 Pages 发布限制为受保护的 `main` 分支。
+- 保留新版分支的完整质量检查，并增加从 `main` 手动重新组装 Classic 与 Next 的入口，使新版可在不合并界面代码的情况下更新公开预览。
+
+### Testing
+
+- GitHub Actions 运行 `29252716657` 的 Pages 任务在执行任何步骤前被环境规则拒绝，注解明确为 `Branch "ui/interactive-console-v2" is not allowed to deploy to github-pages due to environment protection rules.`。
+- Ruby YAML 解析、改动文件 Prettier 检查与 `git diff --check` 通过；Pages 条件只允许 `main` push 或以 `main` 为 ref 的手动派发。
+
+### Notes
+
+- `.github/workflows/pipeline.yml`：增加手动派发入口，并将 Pages 发布约束到受保护的 `main` 分支。
+- `docs/deployment.md`：记录双版本的规范发布入口与新版更新命令。
+- `progress.md`：追加环境保护问题、处理方式、验证证据与回滚点。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^fix: honor pages deployment protection$' -1)"`。
 
 ## 2026-07-13 - Task: 修复 Classic 公网页面图标请求
 
@@ -474,3 +524,26 @@
 - `docs/deployment.md`：说明发布层图标补丁不会修改冻结标签。
 - `progress.md`：追加问题复现、修复边界、验证证据与回滚点。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^fix: provide classic preview favicon$' -1)"`。
+
+## 2026-07-13 - Task: 将交互新版设为 Pages 默认入口
+
+### What was done
+
+- 按确认结果选定交互式机械调度台新版，并让仓库根 Pages 地址直接托管当前 `main` 发布产物，不经过版本选择或页面跳转。
+- 保留冻结标签 `ui-v1.0.0` 的 `/classic/` 入口，并让既有 `/next/` 地址继续加载同一新版入口，避免旧链接失效。
+- 将 Pages 当前版本来源切换为触发工作流的 `main` 提交，合并后不再依赖功能分支长期存在。
+
+### Testing
+
+- Ruby YAML 解析、发布相关文件 Prettier 检查与 `git diff --check` 通过。
+- 本地按 Actions 路径构建默认新版与冻结 Classic，各完成 59 个模块转换；组装产物验证根入口使用 `/gpu-rental-platform/` base、Classic 使用独立 base，且 `/next/` 与根入口内容一致。
+
+### Notes
+
+- `.github/workflows/pipeline.yml`：将当前 `main` 构建为 Pages 根入口，同时保留 Classic 与 Next 兼容路径。
+- `deploy/pages-index.html`：删除不再使用的版本选择页。
+- `docs/deployment.md`：记录默认新版、Classic 归档入口和手动重发方式。
+- `docs/demo-mode.md`：将新版状态命名空间说明更新为默认发布版本。
+- `ROADMAP.md`：记录新版已选定并成为默认入口。
+- `progress.md`：追加本轮实现、验证计划、文件清单与回滚点。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^ci: make interactive console the default$' -1)"`。
