@@ -524,3 +524,26 @@
 - `docs/deployment.md`：说明发布层图标补丁不会修改冻结标签。
 - `progress.md`：追加问题复现、修复边界、验证证据与回滚点。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^fix: provide classic preview favicon$' -1)"`。
+
+## 2026-07-13 - Task: 将交互新版设为 Pages 默认入口
+
+### What was done
+
+- 按确认结果选定交互式机械调度台新版，并让仓库根 Pages 地址直接托管当前 `main` 发布产物，不经过版本选择或页面跳转。
+- 保留冻结标签 `ui-v1.0.0` 的 `/classic/` 入口，并让既有 `/next/` 地址继续加载同一新版入口，避免旧链接失效。
+- 将 Pages 当前版本来源切换为触发工作流的 `main` 提交，合并后不再依赖功能分支长期存在。
+
+### Testing
+
+- Ruby YAML 解析、发布相关文件 Prettier 检查与 `git diff --check` 通过。
+- 本地按 Actions 路径构建默认新版与冻结 Classic，各完成 59 个模块转换；组装产物验证根入口使用 `/gpu-rental-platform/` base、Classic 使用独立 base，且 `/next/` 与根入口内容一致。
+
+### Notes
+
+- `.github/workflows/pipeline.yml`：将当前 `main` 构建为 Pages 根入口，同时保留 Classic 与 Next 兼容路径。
+- `deploy/pages-index.html`：删除不再使用的版本选择页。
+- `docs/deployment.md`：记录默认新版、Classic 归档入口和手动重发方式。
+- `docs/demo-mode.md`：将新版状态命名空间说明更新为默认发布版本。
+- `ROADMAP.md`：记录新版已选定并成为默认入口。
+- `progress.md`：追加本轮实现、验证计划、文件清单与回滚点。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^ci: make interactive console the default$' -1)"`。
