@@ -118,14 +118,34 @@ export function VentGrille({ label }: { label: string }) {
   );
 }
 
-export function RotaryMark({ active = false }: { active?: boolean }) {
+export function RotaryControl({
+  disabled = false,
+  label,
+  onChange,
+  position,
+  value,
+}: {
+  disabled?: boolean;
+  label: string;
+  onChange(): void;
+  position: number;
+  value: string;
+}) {
   return (
-    <span
-      className={`rotary-mark${active ? " is-active" : ""}`}
-      aria-hidden="true"
+    <button
+      aria-label={`${label}: ${value}`}
+      className="rotary-control"
+      data-position={position}
+      disabled={disabled}
+      onClick={onChange}
+      type="button"
     >
-      <span />
-    </span>
+      <span className="rotary-control__knob" aria-hidden="true">
+        <span />
+      </span>
+      <span className="rotary-control__label">{label}</span>
+      <strong aria-live="polite">{value}</strong>
+    </button>
   );
 }
 

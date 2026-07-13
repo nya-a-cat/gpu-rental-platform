@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { readErrorMessage, useApp, useLocale } from "../app-context";
-import mechanicalStatusPlate from "../assets/generated/mechanical-status-plate.webp";
+import inspectionCalibrationPlate from "../assets/generated/inspection-calibration-plate.webp";
 import {
   AnalogGauge,
   EmptyState,
@@ -16,7 +16,7 @@ import {
   LoadState,
   MechanicalPanel,
   Pagination,
-  RotaryMark,
+  RotaryControl,
   StatusLamp,
 } from "../components/mechanical";
 import { formatMoney } from "../format";
@@ -36,6 +36,23 @@ const EMPTY_PAGE: PaginatedResponse<GpuResourceView> = {
   total: 0,
 };
 
+const AVAILABILITY_STOPS = [
+  "",
+  GpuAvailability.Available,
+  GpuAvailability.Rented,
+] as const;
+const SORT_STOPS = ["newest", "priceAsc", "priceDesc"] as const;
+
+function closestStopIndex(stops: number[], value: number): number {
+  return stops.reduce(
+    (closest, stop, index) =>
+      Math.abs(stop - value) < Math.abs((stops[closest] ?? 0) - value)
+        ? index
+        : closest,
+    0,
+  );
+}
+
 export function MarketPage() {
   const { gateway } = useApp();
   const { locale, tr } = useLocale();
@@ -51,6 +68,7 @@ export function MarketPage() {
   );
   const [page, setPage] = useState(1);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [consoleArmed, setConsoleArmed] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
@@ -123,10 +141,34 @@ export function MarketPage() {
     ? (maxPrice / facets.maxHourlyPriceCents) * 100
     : 0;
   const modelRatio = Math.min(100, facets.models.length * 14);
+  const priceStops = useMemo(() => {
+    const ceiling = facets.maxHourlyPriceCents;
+    if (!ceiling) return [0, 0, 0];
+    return [
+      ceiling,
+      Math.max(100, Math.round((ceiling * 0.65) / 100) * 100),
+      Math.max(100, Math.round((ceiling * 0.4) / 100) * 100),
+    ];
+  }, [facets.maxHourlyPriceCents]);
   const activeFilterCount = useMemo(
     () => [model, region, memoryGb, availability].filter(Boolean).length,
     [availability, memoryGb, model, region],
   );
+  const availabilityPosition = AVAILABILITY_STOPS.indexOf(
+    availability as (typeof AVAILABILITY_STOPS)[number],
+  );
+  const pricePosition = closestStopIndex(priceStops, maxPrice);
+  const sortPosition = SORT_STOPS.indexOf(sort);
+
+  const availabilityReadout = availability
+    ? availabilityLabel(availability as GpuAvailability, tr)
+    : tr("全部", "ALL");
+  const sortReadout =
+    sort === "newest"
+      ? tr("最新", "NEWEST")
+      : sort === "priceAsc"
+        ? tr("低价", "LOW FIRST")
+        : tr("高价", "HIGH FIRST");
 
   function resetFilters(): void {
     setModel("");
@@ -135,6 +177,29 @@ export function MarketPage() {
     setAvailability("");
     setMaxPrice(facets.maxHourlyPriceCents);
     setSort("newest");
+    setPage(1);
+  }
+
+  function cycleAvailability(): void {
+    const next =
+      AVAILABILITY_STOPS[
+        (Math.max(0, availabilityPosition) + 1) % AVAILABILITY_STOPS.length
+      ];
+    setAvailability(next ?? "");
+    setPage(1);
+  }
+
+  function cyclePrice(): void {
+    if (!facets.maxHourlyPriceCents) return;
+    setMaxPrice(
+      priceStops[(pricePosition + 1) % priceStops.length] ??
+        facets.maxHourlyPriceCents,
+    );
+    setPage(1);
+  }
+
+  function cycleSort(): void {
+    setSort(SORT_STOPS[(sortPosition + 1) % SORT_STOPS.length] ?? "newest");
     setPage(1);
   }
 
@@ -216,17 +281,68 @@ export function MarketPage() {
           </figcaption>
         </figure>
         <MechanicalPanel className="gauge-console" eyebrow="INVENTORY STATUS">
-          <img
-            alt=""
-            aria-hidden="true"
-            className="console-art"
-            src={mechanicalStatusPlate}
-          />
+          <div className="calibration-strip" aria-hidden="true">
+            <img alt="" src={inspectionCalibrationPlate} />
+            <span>SELECTOR CALIBRATION / 00—100</span>
+          </div>
+          <div
+            aria-label={tr("快速控制台", "Quick control console")}
+            className="console-action-rail"
+          >
+            <button
+              aria-pressed={consoleArmed}
+              className="console-action console-action--power"
+              onClick={() => setConsoleArmed((value) => !value)}
+              type="button"
+            >
+              <span aria-hidden="true" />
+              <small>{tr("控制总线", "CONTROL BUS")}</small>
+              <strong>
+                {consoleArmed ? tr("接通", "ON") : tr("断开", "OFF")}
+              </strong>
+            </button>
+            <button
+              aria-pressed={availability === GpuAvailability.Available}
+              className="console-action console-action--available"
+              disabled={!consoleArmed}
+              onClick={() => {
+                setAvailability((current) =>
+                  current === GpuAvailability.Available
+                    ? ""
+                    : GpuAvailability.Available,
+                );
+                setPage(1);
+              }}
+              type="button"
+            >
+              <span aria-hidden="true" />
+              <small>{tr("可租锁定", "AVAILABLE LOCK")}</small>
+              <strong>
+                {availability === GpuAvailability.Available
+                  ? tr("启用", "ACTIVE")
+                  : tr("待机", "STANDBY")}
+              </strong>
+            </button>
+            <button
+              className="console-action console-action--reset"
+              disabled={!consoleArmed}
+              onClick={resetFilters}
+              type="button"
+            >
+              <span aria-hidden="true" />
+              <small>{tr("筛选归零", "RESET BANK")}</small>
+              <strong>{tr("执行", "PRESS")}</strong>
+            </button>
+          </div>
           <div className="console-label-row">
             <strong>{tr("库存状态", "INVENTORY STATUS")}</strong>
             <StatusLamp
-              label={tr("清单已连接", "LIST CONNECTED")}
-              tone="good"
+              label={
+                consoleArmed
+                  ? tr("控制台已接通", "CONSOLE ARMED")
+                  : tr("控制台已断开", "CONSOLE OFFLINE")
+              }
+              tone={consoleArmed ? "good" : "neutral"}
             />
           </div>
           <div className="gauge-row">
@@ -250,11 +366,35 @@ export function MarketPage() {
               value={modelRatio}
             />
           </div>
-          <div className="console-switches" aria-hidden="true">
-            <RotaryMark active />
-            <RotaryMark />
-            <RotaryMark active />
-            <span>CATALOG / ORDER / RETURN</span>
+          <div
+            aria-label={tr("库存旋钮组", "Inventory rotary controls")}
+            className="console-switches"
+          >
+            <RotaryControl
+              disabled={!consoleArmed}
+              label={tr("资源状态", "STATE")}
+              onChange={cycleAvailability}
+              position={Math.max(0, availabilityPosition)}
+              value={availabilityReadout}
+            />
+            <RotaryControl
+              disabled={!consoleArmed || !facets.maxHourlyPriceCents}
+              label={tr("价格上限", "PRICE")}
+              onChange={cyclePrice}
+              position={pricePosition}
+              value={
+                maxPrice
+                  ? formatMoney(maxPrice, locale).replace("CN¥", "¥")
+                  : "—"
+              }
+            />
+            <RotaryControl
+              disabled={!consoleArmed}
+              label={tr("排序方式", "SORT")}
+              onChange={cycleSort}
+              position={sortPosition}
+              value={sortReadout}
+            />
           </div>
         </MechanicalPanel>
       </section>
@@ -368,7 +508,7 @@ export function MarketPage() {
                 setMaxPrice(Number(event.target.value));
                 setPage(1);
               }}
-              step="100"
+              step="10"
               type="range"
               value={maxPrice}
             />
