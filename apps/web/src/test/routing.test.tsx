@@ -126,4 +126,24 @@ describe("role routes", () => {
       }),
     ).toBeInTheDocument();
   });
+
+  it("uses a browser-valid username pattern", async () => {
+    const gateway = new DemoGateway(new MemoryStorage());
+
+    render(
+      <MemoryRouter initialEntries={["/register"]}>
+        <AppProviders gateway={gateway}>
+          <AppRoutes />
+        </AppProviders>
+      </MemoryRouter>,
+    );
+
+    const username = await screen.findByRole("textbox", { name: "用户名" });
+    expect(username).toHaveAttribute("pattern", "[A-Za-z0-9_\\-]+");
+
+    fireEvent.change(username, { target: { value: "invalid user" } });
+    expect(username).toBeInvalid();
+    fireEvent.change(username, { target: { value: "valid_user-1" } });
+    expect(username).toBeValid();
+  });
 });

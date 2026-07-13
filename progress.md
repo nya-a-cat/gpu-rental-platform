@@ -389,3 +389,26 @@
 - `ROADMAP.md`：在重要且紧急分区记录语言元数据缺陷已修复。
 - `progress.md`：追加本轮实现、验证计划、文件清单与回滚点。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^fix: restore document language$' -1)"`。
+
+## 2026-07-13 - Task: 修复 Firefox 用户名格式校验
+
+### What was done
+
+- 将用户名输入规则中的连字符显式转义，使现代浏览器按 HTML `pattern` 的 Unicode Sets 规则正确编译并执行校验。
+- 保持用户名允许字母、数字、下划线和连字符的既有业务边界不变。
+
+### Testing
+
+- Playwright 在 Firefox 注册页复现修复前的非法 `pattern` 控制台错误。
+- 在 `apps/web` 使用 Node.js 24 与单工作进程执行 `vitest run src/test/routing.test.tsx --reporter=verbose --maxWorkers=1 --no-file-parallelism`：1 个文件共 4 项测试全部通过；新增用例覆盖非法空格用户名被拒绝、合法下划线和连字符用户名通过。
+- `tsc -p apps/web/tsconfig.json --noEmit` 与本轮改动文件的 Prettier 检查：通过。
+- 重启 Vite 后使用 Firefox 复验：输入规则为 `[A-Za-z0-9_\\-]+`，非法值触发 `patternMismatch`，合法值通过，控制台为 0 error、0 warning。
+
+### Notes
+
+- `apps/web/src/pages/AuthPage.tsx`：修正用户名输入的浏览器原生校验表达式。
+- `apps/web/src/test/routing.test.tsx`：增加用户名格式的有效与无效输入断言。
+- `docs/demo-mode.md`：记录演示身份的用户名字符规则。
+- `ROADMAP.md`：在重要且紧急分区记录 Firefox 格式校验缺陷已修复。
+- `progress.md`：追加本轮实现、验证计划、文件清单与回滚点。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^fix: validate usernames in firefox$' -1)"`。
