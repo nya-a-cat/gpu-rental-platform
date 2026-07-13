@@ -21,6 +21,6 @@
     "cli": "pnpm --filter @gpu-rental/api run cli"
   },
   "devDependencies": {
-    "prettier": "3.6.2"
+    "prettier": "3.9.5"
   }
 }
