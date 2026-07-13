@@ -257,3 +257,34 @@
 - `apps/api/test/api.e2e-spec.ts`：增加随机本机监听端口并使用测试数据库连接写入夹具。
 - `progress.md`：追加并发 E2E 稳定性修复及验证证据。
 - 回滚方式：执行 `git revert <本轮修复提交>`。
+
+## 2026-07-13 - Task: 将机械控制台接入真实交互
+
+### What was done
+
+- 将首页静态机械旋钮替换为控制总线、可租锁定、筛选归零和状态、价格、排序六个真实 HTML 控件。
+- 让机械控件与标准筛选器、仪表读数和库存结果共享同一业务状态，并修正价格滑杆无法精确落到最高价格的问题。
+- 增加原创窄幅校准铭牌、旋钮转位、按键压下、状态灯呼吸和低频扫描动效；统一使用 Barlow Condensed、IBM Plex Mono 与 Noto Sans SC 字体体系。
+
+### Testing
+
+- `apps/web/node_modules/.bin/tsc -p apps/web/tsconfig.json --noEmit`：通过。
+- `VITE_RUNTIME_MODE=demo VITE_BASE_PATH=/gpu-rental-platform/ vite build`：通过，校准铭牌构建产物约 26 KB。
+- `vitest run src/test/routing.test.tsx --reporter=verbose`：通过，2 项测试覆盖角色路由和机械控制台状态同步。
+- Playwright 在 `1440×1000` 与 `390×844` 视口逐项验证六个机械控件；可租筛选、租用中筛选、价格上限、低价排序、总线禁用和归零均产生对应业务状态变化。
+- Playwright 确认移动端 6 个控件全部可见且无横向溢出，旋钮、灯光和扫描动效处于生效状态，浏览器控制台为 0 error、0 warning。
+
+### Notes
+
+- `apps/web/index.html`：接入 Google Fonts 字体资源与预连接。
+- `apps/web/src/assets/generated/inspection-calibration-plate.webp`：增加原创小型校准铭牌资产。
+- `apps/web/src/components/mechanical.tsx`：将装饰旋钮升级为可访问的真实按钮组件。
+- `apps/web/src/pages/MarketPage.tsx`：增加六个控制台动作并同步筛选、读数和库存状态。
+- `apps/web/src/styles.css`：增加控件状态、动效、小资产合成和统一字体规则。
+- `apps/web/src/test/routing.test.tsx`：增加机械控制台点击与筛选同步测试。
+- `apps/web/src/test/setup.ts`：补齐 JSDOM 的滚动接口以保持测试输出干净。
+- `docs/demo-mode.md`：说明公开演示中机械控制台的真实行为。
+- `docs/asset-credits.md`：补充原创铭牌与 Google Fonts 授权来源。
+- `ROADMAP.md`：记录机械控件交互和视觉统一已完成。
+- `progress.md`：追加本轮实现、验证证据和回滚点。
+- 回滚方式：执行 `git revert <本轮交互提交>`。

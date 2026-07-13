@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { GpuAvailability } from "@gpu-rental/contracts";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { AppRoutes } from "../App";
 import { AppProviders } from "../app-context";
@@ -20,6 +21,13 @@ class MemoryStorage implements StorageLike {
 }
 
 describe("role routes", () => {
+  beforeEach(() => {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: new MemoryStorage(),
+    });
+  });
+
   it("redirects a signed-in operator away from the admin console", async () => {
     const storage = new MemoryStorage();
     const gateway = new DemoGateway(storage);
@@ -40,5 +48,59 @@ describe("role routes", () => {
     );
 
     expect(await screen.findByText("访问被拒绝")).toBeInTheDocument();
+  });
+
+  it("updates inventory filters through the mechanical console", async () => {
+    const gateway = new DemoGateway(new MemoryStorage());
+    await gateway.resetDemo();
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <AppProviders gateway={gateway}>
+          <AppRoutes />
+        </AppProviders>
+      </MemoryRouter>,
+    );
+
+    const stateControl = await screen.findByRole("button", {
+      name: "资源状态: 全部",
+    });
+    fireEvent.click(stateControl);
+
+    await waitFor(() => {
+      expect(
+        (screen.getByLabelText("资源状态") as HTMLSelectElement).value,
+      ).toBe(GpuAvailability.Available);
+    });
+    expect(
+      screen.getByRole("button", { name: "资源状态: 可预订" }),
+    ).toHaveAttribute("data-position", "1");
+
+    const priceControl = await screen.findByRole("button", {
+      name: "价格上限: ¥32.90",
+    });
+    const powerControl = screen.getByRole("button", {
+      name: "控制总线 接通",
+    });
+    fireEvent.click(powerControl);
+    expect(priceControl).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "控制总线 断开" }));
+    fireEvent.click(screen.getByRole("button", { name: "排序方式: 最新" }));
+    await waitFor(() => {
+      expect((screen.getByLabelText("排序") as HTMLSelectElement).value).toBe(
+        "priceAsc",
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "筛选归零 执行" }));
+    await waitFor(() => {
+      expect(
+        (screen.getByLabelText("资源状态") as HTMLSelectElement).value,
+      ).toBe("");
+      expect((screen.getByLabelText("排序") as HTMLSelectElement).value).toBe(
+        "newest",
+      );
+    });
   });
 });
