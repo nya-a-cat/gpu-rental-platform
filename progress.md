@@ -434,3 +434,55 @@
 - `progress.md`：追加最终自动化、桌面业务闭环、移动端和浏览器控制台验收证据。
 - 本轮未新增产品代码；Playwright YAML、控制台日志和截图均为临时验证产物，已从仓库工作树清理。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^docs: record final product acceptance$' -1)"`。
+
+## 2026-07-13 - Task: 完成交互式机械调度台新版
+
+### What was done
+
+- 将市场首屏重排为紧凑的实时分配台，在首屏加入可直接进入资源详情的库存机架，并让匹配数量、价格、状态灯和控制偏移仪表共用真实筛选结果。
+- 保留六个现有机械控件的业务状态源，补充旋钮双向键盘操作、可访问仪表语义、断电反馈和移动端 44 像素触控下限，没有增加虚构温度、利用率或主机遥测。
+- 将新版浏览器演示状态切换到独立的 `v2` 命名空间，避免与冻结旧版的订单、身份和库存互相污染。
+
+### Testing
+
+- 在 `apps/web` 使用 Node.js 24 串行执行 `vitest run src/test/routing.test.tsx src/test/demo-gateway.test.ts --reporter=verbose --maxWorkers=1 --no-file-parallelism`：2 个文件共 6 项测试全部通过。
+- `tsc -p apps/web/tsconfig.json --noEmit` 通过；Next Pages 配置生产构建通过，59 个模块完成转换。
+- Playwright `1440×900` 验证 Hero 高度为 580 像素、首张完整资源卡顶部为 890 像素、三条快速库存链接可用；可租锁定后匹配数量从 6 变为 5、控制偏移从 `0/6` 变为 `1/6`。
+- Playwright 验证控制总线断开后五个从属控件全部禁用、信号条归零；快速库存链接可进入对应资源详情。
+- Playwright `390×844` 验证页面宽度保持 390 像素、移动导航回到文档流、控制台不被遮挡、六个控件最小高度为 44 像素；浏览器控制台为 0 error、0 warning。
+
+### Notes
+
+- `apps/web/index.html`：接入随 Pages base path 解析的本地站点图标。
+- `apps/web/public/favicon.svg`：增加与 Kiloworks 工业铭牌一致的矢量图标。
+- `apps/web/src/components/mechanical.tsx`：让仪表暴露 meter 语义，并让旋钮支持双向方向键。
+- `apps/web/src/data/demo-gateway.ts`：将新版演示状态隔离到 `gpu-rental-demo-state-v2`。
+- `apps/web/src/pages/MarketPage.tsx`：增加实时库存机架、数据线路反馈和紧凑控制台布局状态。
+- `apps/web/src/styles.css`：实现新版桌面与移动端控制台、库存机架、状态反馈和响应式布局。
+- `apps/web/src/test/demo-gateway.test.ts`：同步新版演示状态命名空间。
+- `apps/web/src/test/routing.test.tsx`：覆盖实时库存、控制偏移和旋钮反向操作。
+- `docs/demo-mode.md`：记录新版真实交互边界、状态隔离和响应式行为。
+- `ROADMAP.md`：在重要且紧急分区记录交互新版与双路径预览完成。
+- `progress.md`：追加本轮实现、验证证据、文件清单与回滚点。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^feat: add interactive console preview$' -1)"`。
+
+## 2026-07-13 - Task: 建立 Classic 与 Next 双路径 Pages
+
+### What was done
+
+- 将 Pages 发布改为分别从冻结标签 `ui-v1.0.0` 和开发分支 `ui/interactive-console-v2` 构建，再合并为同一个版本化站点。
+- 根地址增加版本选择页，Classic 与 Next 使用独立子路径，后续任一发布分支触发时都会重新组装完整站点。
+
+### Testing
+
+- Ruby YAML 解析、改动文件 Prettier 检查、SVG XML 解析与 `git diff --check` 全部通过。
+- 本地从冻结标签和当前新版分别完成 59 模块生产构建，并按 Actions 同等目录结构组装 `pages-root`；入口页、Classic、Next 及两套 base path 检查全部通过。
+- Playwright 从版本选择页分别进入 Classic 与 Next，确认旧版序列标识为 `GPU INVENTORY 2026`、新版为 `LIVE ALLOCATION DESK / V2`；两边归零后同时存在互不覆盖的 `v1` 与 `v2` 状态键。
+
+### Notes
+
+- `.github/workflows/pipeline.yml`：增加显式 tag/branch 双 checkout、双构建、目录组装与 Pages 路径验证。
+- `deploy/pages-index.html`：增加 Classic 与 Next 的根版本选择界面。
+- `docs/deployment.md`：记录双版本构建来源、访问路径和状态隔离规则。
+- `progress.md`：追加本轮实现、验证证据、文件清单与回滚点。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^ci: publish classic and next previews$' -1)"`。
