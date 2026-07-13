@@ -14,6 +14,7 @@
 - [x] 修复 Firefox 无法执行用户名格式校验
 - [x] 完成交互式机械调度台新版并让首屏直接展示真实库存入口
 - [x] 建立 Classic 与 Next 双路径 GitHub Pages 预览
+- [x] 选定交互式机械调度台新版并设为 GitHub Pages 默认入口
 
 ## 重要但不紧急
 
