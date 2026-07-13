@@ -412,3 +412,25 @@
 - `ROADMAP.md`：在重要且紧急分区记录 Firefox 格式校验缺陷已修复。
 - `progress.md`：追加本轮实现、验证计划、文件清单与回滚点。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^fix: validate usernames in firefox$' -1)"`。
+
+## 2026-07-13 - Task: 完成公开演示全流程验收
+
+### What was done
+
+- 以全新浏览器状态完成双语、注册、会话撤销、普通用户预订与退租、管理员资源上下架、订单取消、角色访问控制和演示归零闭环。
+- 在桌面与手机视口复验机械控制台、固定导航、资源详情、订单和调度后台，并检查生产构建与全仓静态质量门槛。
+
+### Testing
+
+- Web 测试按文件执行：`routing.test.tsx` 4 项、`demo-gateway.test.ts` 2 项、`format.test.ts` 2 项，共 3 个文件 8 项全部通过；全量串行命令在本机 `/mnt/c` 的 JSDOM 初始化阶段达到 300 秒硬超时，已按文件补齐同配置验证。
+- Contracts、API 与 Web 的 TypeScript 检查通过，API 生产编译通过，全仓 Prettier 检查通过。
+- Pages 演示配置生产构建通过：59 个模块完成转换，生成本地档案照片、原创工业资产、CSS 与 JavaScript 构建产物。
+- Playwright 桌面闭环：注册普通用户，创建 24 小时 H100 订单并确认总价 ¥789.60，刷新后订单仍生效，一键退租释放资源；普通用户访问后台被拒绝。
+- Playwright 管理闭环：管理员登记下架资源、切换为已上架、市场卡片显示完整 `GPU-102` 记录；取消种子订单后 A100 恢复可预订，演示归零后恢复 6 条库存并退出身份。
+- Playwright `390×844`：首页、登录、资源详情、订单和调度后台均无横向溢出，底部导航可点击；6 个机械控件可见，断开总线后 5 个从属控件禁用；最终浏览器控制台为 0 error、0 warning。
+
+### Notes
+
+- `progress.md`：追加最终自动化、桌面业务闭环、移动端和浏览器控制台验收证据。
+- 本轮未新增产品代码；Playwright YAML、控制台日志和截图均为临时验证产物，已从仓库工作树清理。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^docs: record final product acceptance$' -1)"`。
