@@ -27,7 +27,7 @@ import type {
 } from "./gateway";
 import { GatewayError } from "./gateway";
 
-const STORAGE_KEY = "gpu-rental-demo-state-v1";
+const STORAGE_KEY = "gpu-rental-demo-state-v2";
 const DEMO_PASSWORD_HASH =
   "41bd876b085d6031cb0e04de35b88d77f83a4ba39f879fee40805ac19e356023";
 

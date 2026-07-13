@@ -46,8 +46,12 @@ export function AnalogGauge({
   return (
     <div
       className="analog-gauge"
-      role="img"
-      aria-label={`${label}: ${display}`}
+      role="meter"
+      aria-label={label}
+      aria-valuemax={100}
+      aria-valuemin={0}
+      aria-valuenow={percentage}
+      aria-valuetext={display}
     >
       <svg viewBox="0 0 140 92" aria-hidden="true">
         <path className="gauge-track" d="M 20 72 A 50 50 0 0 1 120 72" />
@@ -127,17 +131,28 @@ export function RotaryControl({
 }: {
   disabled?: boolean;
   label: string;
-  onChange(): void;
+  onChange(direction: 1 | -1): void;
   position: number;
   value: string;
 }) {
   return (
     <button
       aria-label={`${label}: ${value}`}
+      aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown"
       className="rotary-control"
       data-position={position}
       disabled={disabled}
-      onClick={onChange}
+      onClick={() => onChange(1)}
+      onKeyDown={(event) => {
+        if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+          event.preventDefault();
+          onChange(1);
+        }
+        if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+          event.preventDefault();
+          onChange(-1);
+        }
+      }}
       type="button"
     >
       <span className="rotary-control__knob" aria-hidden="true">
