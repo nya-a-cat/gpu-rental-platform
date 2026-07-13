@@ -1,5 +1,11 @@
 import { GpuAvailability } from "@gpu-rental/contracts";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -32,7 +38,7 @@ describe("role routes", () => {
     const storage = new MemoryStorage();
     const gateway = new DemoGateway(storage);
     await gateway.resetDemo();
-    const key = "gpu-rental-demo-state-v1";
+    const key = "gpu-rental-demo-state-v2";
     const state = JSON.parse(storage.getItem(key)!) as {
       currentUserId: string | null;
     };
@@ -65,6 +71,16 @@ describe("role routes", () => {
     const stateControl = await screen.findByRole("button", {
       name: "资源状态: 全部",
     });
+    const quickRack = screen.getByRole("region", {
+      name: "实时资源快速入口",
+    });
+    expect(
+      await within(quickRack).findAllByRole("link", { name: /打开资源/ }),
+    ).toHaveLength(3);
+    expect(screen.getByRole("meter", { name: "控制偏移" })).toHaveAttribute(
+      "aria-valuetext",
+      "0/6",
+    );
     fireEvent.click(stateControl);
 
     await waitFor(() => {
@@ -75,6 +91,21 @@ describe("role routes", () => {
     expect(
       screen.getByRole("button", { name: "资源状态: 可预订" }),
     ).toHaveAttribute("data-position", "1");
+    expect(await within(quickRack).findByText("5 台匹配")).toBeInTheDocument();
+    expect(screen.getByRole("meter", { name: "控制偏移" })).toHaveAttribute(
+      "aria-valuetext",
+      "1/6",
+    );
+
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "资源状态: 可预订" }),
+      { key: "ArrowLeft" },
+    );
+    await waitFor(() => {
+      expect(
+        (screen.getByLabelText("资源状态") as HTMLSelectElement).value,
+      ).toBe("");
+    });
 
     const priceControl = await screen.findByRole("button", {
       name: "价格上限: ¥32.90",

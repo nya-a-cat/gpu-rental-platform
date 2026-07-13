@@ -56,7 +56,7 @@ describe("DemoGateway", () => {
 });
 
 function setSession(storage: StorageLike, userId: string): void {
-  const key = "gpu-rental-demo-state-v1";
+  const key = "gpu-rental-demo-state-v2";
   const state = JSON.parse(storage.getItem(key)!) as {
     currentUserId: string | null;
   };
