@@ -288,3 +288,34 @@
 - `ROADMAP.md`：记录机械控件交互和视觉统一已完成。
 - `progress.md`：追加本轮实现、验证证据和回滚点。
 - 回滚方式：执行 `git revert <本轮交互提交>`。
+
+## 2026-07-13 - Task: 增强市场页银色工业沉浸感并本地化档案素材
+
+### What was done
+
+- 将 NASA/NARA 公有领域控制室照片下载为本地构建资产，并在市场首屏与身份页复用，消除核心氛围图对远程站点的运行时依赖。
+- 以原创银色机架墙和服务管线小资产构建环境层，增加动态状态桥、金属纵深、扫描光、离线降亮与机架式库存背景。
+- 保持机械总线、锁定、归零和三个旋钮为真实 HTML 控件；状态桥同步显示控制总线、资源状态、价格、排序和库存数量。
+- 调整手机首屏构图，让档案照片和机械控制台在首屏连续出现，并保持全部六个控件可见、可操作。
+
+### Testing
+
+- `apps/web/node_modules/.bin/tsc -p apps/web/tsconfig.json --noEmit`：通过。
+- 在 `apps/web` 执行 `node_modules/.bin/vitest run --reporter=verbose`：2 个文件共 4 项测试全部通过。
+- 在 `apps/web` 执行 `VITE_RUNTIME_MODE=demo VITE_BASE_PATH=/gpu-rental-platform/ node_modules/.bin/vite build`：通过；本地 NASA 照片、银色机架墙和服务管线均进入 Pages 生产包。
+- Playwright 在 `1440×1000` 与 `390×844` 视口复验：桌面和移动端均无横向溢出，6 个机械控件全部可见；断开总线后 5 个从属控件禁用，重新接通并旋转资源状态后标准筛选值与库存从 006 同步变为 005。
+- Playwright 确认市场页和身份页均加载本地 NASA 图片，浏览器控制台为 0 error、0 warning。
+
+### Notes
+
+- `apps/web/src/pages/MarketPage.tsx`：接入本地档案图、控制台通断状态和同步状态桥。
+- `apps/web/src/pages/AuthPage.tsx`：将身份页档案图切换为同一本地资产。
+- `apps/web/src/styles.css`：增加银色工业环境层、纵深光影、状态动画、离线反馈和移动端沉浸构图。
+- `apps/web/src/assets/archive/nasa-control-room-1976.jpg`：新增 Wikimedia Commons 公有领域档案图的本地构建副本。
+- `apps/web/src/assets/generated/silver-rack-wall.webp`：新增原创银色机架墙环境资产。
+- `apps/web/src/assets/generated/silver-service-duct.webp`：新增原创服务管线环境资产。
+- `docs/asset-credits.md`：记录档案图本地路径、来源授权与两项原创环境资产。
+- `docs/demo-mode.md`：说明环境层与动态状态桥的演示边界和真实交互关系。
+- `ROADMAP.md`：记录沉浸式市场环境层已完成。
+- `progress.md`：追加本轮实现、验证证据、文件清单与回滚点。
+- 回滚方式：执行 `git revert <本轮沉浸式视觉提交>`。

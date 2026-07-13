@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { readErrorMessage, useApp, useLocale } from "../app-context";
+import nasaControlRoom from "../assets/archive/nasa-control-room-1976.jpg";
 import inspectionCalibrationPlate from "../assets/generated/inspection-calibration-plate.webp";
 import {
   AnalogGauge,
@@ -204,7 +205,10 @@ export function MarketPage() {
   }
 
   return (
-    <div className="page-frame market-page">
+    <div
+      className="page-frame market-page"
+      data-console-state={consoleArmed ? "armed" : "offline"}
+    >
       <section className="market-hero">
         <div className="hero-copy">
           <span className="serial-label">KILOWORKS / GPU INVENTORY 2026</span>
@@ -267,7 +271,7 @@ export function MarketPage() {
             )}
             decoding="async"
             referrerPolicy="no-referrer"
-            src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/INSTRUMENT_PANELS_IN_CONTROL_ROOM_-_NARA_-_17447770.jpg/1280px-INSTRUMENT_PANELS_IN_CONTROL_ROOM_-_NARA_-_17447770.jpg"
+            src={nasaControlRoom}
           />
           <figcaption>
             <a
@@ -280,7 +284,10 @@ export function MarketPage() {
             <span>PUBLIC DOMAIN (US) · ARCHIVE REFERENCE</span>
           </figcaption>
         </figure>
-        <MechanicalPanel className="gauge-console" eyebrow="INVENTORY STATUS">
+        <MechanicalPanel
+          className={`gauge-console ${consoleArmed ? "is-armed" : "is-offline"}`}
+          eyebrow="INVENTORY STATUS"
+        >
           <div className="calibration-strip" aria-hidden="true">
             <img alt="" src={inspectionCalibrationPlate} />
             <span>SELECTOR CALIBRATION / 00—100</span>
@@ -398,6 +405,34 @@ export function MarketPage() {
           </div>
         </MechanicalPanel>
       </section>
+
+      <div className="signal-bridge" role="status">
+        <span className="signal-bridge__bus">
+          <i aria-hidden="true" />
+          <small>{tr("控制总线", "CONTROL BUS")}</small>
+          <strong>
+            {consoleArmed ? tr("接通", "ARMED") : tr("断开", "OFFLINE")}
+          </strong>
+        </span>
+        <span>
+          <small>{tr("资源状态", "STATE")}</small>
+          <strong>{availabilityReadout}</strong>
+        </span>
+        <span>
+          <small>{tr("价格上限", "PRICE CEILING")}</small>
+          <strong>
+            {maxPrice ? formatMoney(maxPrice, locale).replace("CN¥", "¥") : "—"}
+          </strong>
+        </span>
+        <span>
+          <small>{tr("排序方式", "SORT")}</small>
+          <strong>{sortReadout}</strong>
+        </span>
+        <a href="#inventory-grid">
+          <small>{tr("库存机架", "INVENTORY RACK")}</small>
+          <strong>{resources.total.toString().padStart(3, "0")} ↓</strong>
+        </a>
+      </div>
 
       <div className="market-workbench">
         <MechanicalPanel
