@@ -20,7 +20,7 @@ import {
   RotaryControl,
   StatusLamp,
 } from "../components/mechanical";
-import { formatMoney } from "../format";
+import { formatMoney, formatResourceRecord } from "../format";
 import { availabilityLabel, statusTone } from "../labels";
 
 const EMPTY_FACETS: GpuResourceFacets = {
@@ -687,7 +687,7 @@ function ResourceCard({
         </div>
         <div>
           <dt>{tr("资源记录", "RECORD")}</dt>
-          <dd>{resource.id.slice(-6).toUpperCase()}</dd>
+          <dd>{formatResourceRecord(resource.id)}</dd>
         </div>
       </dl>
       <div className="resource-card__price">
