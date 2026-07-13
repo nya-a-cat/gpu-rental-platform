@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import { readErrorMessage, useApp, useLocale } from "../app-context";
+import nasaControlRoom from "../assets/archive/nasa-control-room-1976.jpg";
 import {
   MechanicalPanel,
   StatusLamp,
@@ -83,7 +84,7 @@ export function AuthPage({ kind }: { kind: "login" | "register" }) {
                 decoding="async"
                 loading="lazy"
                 referrerPolicy="no-referrer"
-                src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/INSTRUMENT_PANELS_IN_CONTROL_ROOM_-_NARA_-_17447770.jpg/1280px-INSTRUMENT_PANELS_IN_CONTROL_ROOM_-_NARA_-_17447770.jpg"
+                src={nasaControlRoom}
               />
               <figcaption>
                 <a

@@ -15,6 +15,8 @@ The demo adapter uses deterministic sample inventory and browser-local state. Op
 
 The market console is not decorative. Its control-bus switch enables or disables the quick-control bank, the availability lock updates the inventory filter, and the three rotary controls cycle availability, price ceiling and sort order. Their values stay synchronized with the standard form controls and inventory results.
 
+The surrounding archive photograph, silver rack wall and service duct are bundled environmental layers. The status bridge mirrors the active control-bus state, availability, price ceiling, sorting mode and current inventory count; disconnecting the control bus visibly powers down the console without hiding the standard filters.
+
 ## What it does not claim
 
 Demo mode does not allocate physical GPUs, start containers, accept payments, open SSH or notebook sessions, or report live utilization, temperature, IP addresses or host status. Any resource and order changes exist only in the current browser profile.
