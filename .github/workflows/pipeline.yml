@@ -162,13 +162,17 @@ jobs:
           cp next-source/deploy/pages-index.html pages-root/index.html
           cp next-source/deploy/pages-index.html pages-root/404.html
           cp next-source/apps/web/dist/favicon.svg pages-root/favicon.svg
+          cp next-source/apps/web/dist/favicon.svg pages-root/classic/favicon.svg
+          sed -i '/<meta name="theme-color"/a\    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />' pages-root/classic/index.html
           touch pages-root/.nojekyll
 
       - name: Verify versioned site
         run: |
           test -f pages-root/index.html
           test -f pages-root/classic/index.html
+          test -f pages-root/classic/favicon.svg
           test -f pages-root/next/index.html
+          grep -q 'rel="icon"' pages-root/classic/index.html
           grep -q '/gpu-rental-platform/classic/' pages-root/classic/index.html
           grep -q '/gpu-rental-platform/next/' pages-root/next/index.html
 

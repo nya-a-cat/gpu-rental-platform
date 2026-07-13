@@ -77,6 +77,8 @@ https://<github-account>.github.io/gpu-rental-platform/next/
 
 Classic and Next use separate browser-local demo-state namespaces. Orders, sessions and inventory changes created in one preview do not modify the other preview.
 
+The Classic source tag remains immutable. During Pages assembly, the workflow adds only the shared local site icon to the generated Classic bundle so that the public preview does not fall back to a domain-root favicon request.
+
 GitHub Pages hosts static assets only. It does not run the NestJS API, MongoDB or Redis; use the Docker profile to exercise the real backend.
 
 ## Production considerations
