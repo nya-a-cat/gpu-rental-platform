@@ -50,11 +50,11 @@ pnpm build
 
 ## GitHub Actions
 
-Pull requests and pushes to `main` or `ui/interactive-console-v2` run the frozen install, formatting, lint, type checks, unit tests, workspace build, Compose validation and image build. The quality job also starts authenticated MongoDB 8 and an isolated Redis 8 service, then runs the API end-to-end suite against those real data stores. This suite includes 20 concurrent attempts to reserve one GPU and verifies that exactly one active order is created. Dependencies are installed from the committed lockfile.
+Pull requests and pushes to `main` run the frozen install, formatting, lint, type checks, unit tests, workspace build, Compose validation and image build. The quality job also starts authenticated MongoDB 8 and an isolated Redis 8 service, then runs the API end-to-end suite against those real data stores. This suite includes 20 concurrent attempts to reserve one GPU and verifies that exactly one active order is created. Dependencies are installed from the committed lockfile.
 
-Pages deployment runs only from the protected `main` branch, either on a push to `main` or by manually dispatching the workflow from `main`. The job builds two independent web bundles. The Classic bundle always checks out the frozen `ui-v1.0.0` tag and uses `/gpu-rental-platform/classic/`; the Next bundle checks out `ui/interactive-console-v2` and uses `/gpu-rental-platform/next/`. The job assembles both bundles with a root version selector before publishing one Pages artifact. Backend quality checks remain visible and are not skipped, but a backend-only failure does not replace an already working static product walkthrough with a 404 page. The deployment token has only the `pages: write` and `id-token: write` permissions required by GitHub Pages.
+Pages deployment runs only from the protected `main` branch, either on a push to `main` or by manually dispatching the workflow from `main`. The current `main` release is built directly for `/gpu-rental-platform/`, so the project root opens the selected interactive console without a redirect. The frozen `ui-v1.0.0` tag remains available under `/gpu-rental-platform/classic/`, while `/gpu-rental-platform/next/` serves the same current-release entry as a compatibility alias. Backend quality checks remain visible and are not skipped, but a backend-only failure does not replace an already working static product walkthrough with a 404 page. The deployment token has only the `pages: write` and `id-token: write` permissions required by GitHub Pages.
 
-After pushing a visual change to `ui/interactive-console-v2`, publish the latest Classic and Next snapshots without merging the visual branch by dispatching the workflow from `main`:
+To republish the current `main` release without a new commit, dispatch the workflow from `main`:
 
 ```bash
 gh workflow run pipeline.yml --ref main
@@ -68,14 +68,14 @@ To enable the public demo, set the repository's Pages source to **GitHub Actions
 https://<github-account>.github.io/gpu-rental-platform/
 ```
 
-The version selector links to both public builds:
+The selected release and frozen Classic build are available at:
 
 ```text
+https://<github-account>.github.io/gpu-rental-platform/
 https://<github-account>.github.io/gpu-rental-platform/classic/
-https://<github-account>.github.io/gpu-rental-platform/next/
 ```
 
-Classic and Next use separate browser-local demo-state namespaces. Orders, sessions and inventory changes created in one preview do not modify the other preview.
+The default release and Classic use separate browser-local demo-state namespaces. Orders, sessions and inventory changes created in one preview do not modify the other preview.
 
 The Classic source tag remains immutable. During Pages assembly, the workflow adds only the shared local site icon to the generated Classic bundle so that the public preview does not fall back to a domain-root favicon request.
 
