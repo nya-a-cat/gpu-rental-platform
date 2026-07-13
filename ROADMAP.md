@@ -9,6 +9,7 @@
 - [x] 建立真实 MongoDB/Redis 端到端验证与并发预订测试
 - [x] 发布 GitHub Actions 与 GitHub Pages
 - [x] 修复市场首屏高度回归并压缩移动端机械控制台
+- [x] 修复管理员新建演示资源的编号截断
 
 ## 重要但不紧急
 

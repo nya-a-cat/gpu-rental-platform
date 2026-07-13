@@ -16,3 +16,8 @@ export function formatDate(value: string, locale: "en" | "zh"): string {
 export function clampPercentage(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
+
+export function formatResourceRecord(resourceId: string): string {
+  const demoRecord = resourceId.match(/^demo-(gpu-\d+)$/i)?.[1];
+  return (demoRecord ?? resourceId.slice(-6)).toUpperCase();
+}

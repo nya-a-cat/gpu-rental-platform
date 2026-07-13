@@ -342,3 +342,27 @@
 - `ROADMAP.md`：在重要且紧急分区记录首屏高度回归已修复。
 - `progress.md`：追加本轮实现、验证证据、文件清单和上一轮真实回滚点。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^fix: compact market hero$' -1)"`。
+
+## 2026-07-13 - Task: 修复管理员新建演示资源的编号截断
+
+### What was done
+
+- 将市场卡片的资源记录格式化规则集中到现有格式化模块，完整显示 `demo-gpu-100` 对应的 `GPU-100`。
+- 保留真实后端 MongoDB ObjectId 只展示末六位的紧凑规则，避免长标识撑开资源卡片。
+- 增加精确回归测试，覆盖初始演示编号、新建演示编号和真实后端长标识。
+
+### Testing
+
+- 在 `apps/web` 执行 `node_modules/.bin/vitest run src/test/format.test.ts --reporter=verbose`：1 个文件共 2 项测试全部通过。
+- `apps/web/node_modules/.bin/tsc -p apps/web/tsconfig.json --noEmit`：通过。
+- Playwright 使用管理员登记并上架 `QA TEST UNIT`，市场筛选后确认新建记录显示为 `GPU-100`，不再显示为 `PU-100`。
+
+### Notes
+
+- `apps/web/src/format.ts`：增加演示编号与真实 ObjectId 的资源记录格式化规则。
+- `apps/web/src/pages/MarketPage.tsx`：资源卡片改用统一的记录格式化函数。
+- `apps/web/src/test/format.test.ts`：增加三类资源标识的回归断言。
+- `docs/demo-mode.md`：说明演示编号和真实后端标识的展示边界。
+- `ROADMAP.md`：在重要且紧急分区记录编号截断已修复。
+- `progress.md`：追加本轮实现、验证证据、文件清单与回滚点。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^fix: preserve demo resource records$' -1)"`。
