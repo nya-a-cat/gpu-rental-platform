@@ -7,6 +7,7 @@ import {
   IsMongoId,
   IsOptional,
   IsString,
+  IsUUID,
   Length,
   Max,
   Min,
@@ -37,6 +38,11 @@ export class CreateOrderDto implements CreateOrderInput {
   @IsString()
   @Length(2, 80)
   instanceName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsUUID()
+  projectId?: string;
 }
 
 export class OrderQueryDto extends PaginationDto {

@@ -1,26 +1,48 @@
 import {
   ConnectionMode,
+  BillingEntryType,
   GpuAvailability,
   GpuListingStatus,
   InstanceStatus,
+  NetworkProtocol,
+  NotificationType,
   OrderStatus,
   ResourceMode,
+  TeamRole,
   UserRole,
+  VolumeStatus,
+  type AddTeamMemberInput,
   type AdminOverview,
+  type ApiKeyView,
+  type AttachVolumeInput,
   type AuthResponse,
+  type CloudAccountView,
+  type CreateApiKeyInput,
   type CreateGpuResourceInput,
+  type CreateNetworkRuleInput,
   type CreateOrderInput,
+  type CreateProjectInput,
+  type CreateSnapshotInput,
+  type CreateSshKeyInput,
+  type CreateTeamInput,
+  type CreateVolumeInput,
   type EnvironmentTemplateView,
   type GpuResourceFacets,
   type GpuResourceView,
   type InstanceView,
   type LoginInput,
+  type NetworkRuleView,
+  type NotificationView,
   type OrderView,
   type PaginatedResponse,
   type RegisterInput,
   type SetGpuListingStatusInput,
+  type SshKeyView,
+  type TeamView,
+  type TopUpInput,
   type UpdateGpuResourceInput,
   type UserView,
+  type VolumeView,
 } from "@gpu-rental/contracts";
 
 import type {
@@ -43,14 +65,16 @@ export interface StorageLike {
 }
 
 interface DemoState {
+  accounts: Record<string, CloudAccountView>;
   credentials: Record<string, string>;
   currentUserId: string | null;
   instances: InstanceView[];
   orders: OrderView[];
   resources: GpuResourceView[];
   sequence: number;
+  teams: TeamView[];
   users: UserView[];
-  version: 2;
+  version: 3;
 }
 
 const DEMO_TEMPLATES: EnvironmentTemplateView[] = [
@@ -138,6 +162,7 @@ export class DemoGateway implements DataGateway {
       updatedAt: timestamp,
     };
     state.users.push(user);
+    state.accounts[user.id] = createDemoCloudAccount(timestamp);
     state.credentials[user.id] = await hashPassword(input.password);
     state.currentUserId = user.id;
     this.write(state);
@@ -152,6 +177,434 @@ export class DemoGateway implements DataGateway {
 
   logoutAll(): Promise<void> {
     return this.logout();
+  }
+
+  async getCloudAccount(): Promise<CloudAccountView> {
+    const state = this.read();
+    const user = requireUser(state);
+    return cloneValue(requireDemoAccount(state, user.id));
+  }
+
+  async topUp(input: TopUpInput): Promise<CloudAccountView> {
+    const state = this.read();
+    const user = requireUser(state);
+    const account = requireDemoAccount(state, user.id);
+    const timestamp = this.now().toISOString();
+    account.wallet.balanceCents += input.amountCents;
+    account.wallet.updatedAt = timestamp;
+    account.billingEntries.unshift({
+      id: `demo-billing-${state.sequence++}`,
+      type: BillingEntryType.TopUp,
+      amountCents: input.amountCents,
+      reference: `top-up:${state.sequence}`,
+      description: "Simulated wallet top-up",
+      createdAt: timestamp,
+    });
+    addDemoNotification(
+      state,
+      user.id,
+      NotificationType.Billing,
+      "Wallet topped up",
+      `${input.amountCents} cents were credited.`,
+      timestamp,
+    );
+    this.write(state);
+    return cloneValue(account);
+  }
+
+  async createSshKey(input: CreateSshKeyInput): Promise<SshKeyView> {
+    const state = this.read();
+    const user = requireUser(state);
+    const timestamp = this.now().toISOString();
+    const key: SshKeyView = {
+      id: `demo-ssh-${state.sequence++}`,
+      name: input.name.trim(),
+      fingerprint: `SHA256:demo-${state.sequence.toString(36)}`,
+      publicKey: input.publicKey.trim(),
+      createdAt: timestamp,
+    };
+    requireDemoAccount(state, user.id).sshKeys.unshift(key);
+    addDemoNotification(
+      state,
+      user.id,
+      NotificationType.Security,
+      "SSH key registered",
+      `${key.name} is ready for simulated instances.`,
+      timestamp,
+    );
+    this.write(state);
+    return cloneValue(key);
+  }
+
+  async deleteSshKey(keyId: string): Promise<void> {
+    const state = this.read();
+    const user = requireUser(state);
+    const account = requireDemoAccount(state, user.id);
+    const index = account.sshKeys.findIndex((key) => key.id === keyId);
+    if (index < 0) throw notFound("SSH_KEY_NOT_FOUND");
+    account.sshKeys.splice(index, 1);
+    this.write(state);
+  }
+
+  async createApiKey(input: CreateApiKeyInput): Promise<ApiKeyView> {
+    const state = this.read();
+    const user = requireUser(state);
+    const timestamp = this.now().toISOString();
+    const token = `gpr_demo_${crypto.randomUUID().replaceAll("-", "")}`;
+    const key: ApiKeyView = {
+      id: `demo-api-${state.sequence++}`,
+      name: input.name.trim(),
+      prefix: token.slice(0, 12),
+      token: null,
+      createdAt: timestamp,
+      lastUsedAt: null,
+    };
+    requireDemoAccount(state, user.id).apiKeys.unshift(key);
+    addDemoNotification(
+      state,
+      user.id,
+      NotificationType.Security,
+      "API key created",
+      `${key.name} was created. Its token is shown once.`,
+      timestamp,
+    );
+    this.write(state);
+    return { ...cloneValue(key), token };
+  }
+
+  async deleteApiKey(keyId: string): Promise<void> {
+    const state = this.read();
+    const user = requireUser(state);
+    const account = requireDemoAccount(state, user.id);
+    const index = account.apiKeys.findIndex((key) => key.id === keyId);
+    if (index < 0) throw notFound("API_KEY_NOT_FOUND");
+    account.apiKeys.splice(index, 1);
+    this.write(state);
+  }
+
+  async createNetworkRule(
+    input: CreateNetworkRuleInput,
+  ): Promise<NetworkRuleView> {
+    const state = this.read();
+    const user = requireUser(state);
+    findDemoInstance(state, input.instanceId, user.id);
+    const account = requireDemoAccount(state, user.id);
+    if (
+      account.networkRules.some(
+        (rule) =>
+          rule.instanceId === input.instanceId &&
+          rule.protocol === input.protocol &&
+          rule.port === input.port,
+      )
+    ) {
+      throw new GatewayError(
+        "The instance already has this protocol and port",
+        "NETWORK_RULE_EXISTS",
+        409,
+      );
+    }
+    const timestamp = this.now().toISOString();
+    const rule: NetworkRuleView = {
+      id: `demo-rule-${state.sequence++}`,
+      instanceId: input.instanceId,
+      name: input.name.trim(),
+      protocol: input.protocol,
+      port: input.port,
+      sourceCidr: input.sourceCidr,
+      simulated: true,
+      createdAt: timestamp,
+    };
+    account.networkRules.unshift(rule);
+    addDemoNotification(
+      state,
+      user.id,
+      NotificationType.Security,
+      "Port rule added",
+      `${rule.protocol.toUpperCase()} ${rule.port} was added to the simulated firewall.`,
+      timestamp,
+    );
+    this.write(state);
+    return cloneValue(rule);
+  }
+
+  async deleteNetworkRule(ruleId: string): Promise<void> {
+    const state = this.read();
+    const user = requireUser(state);
+    const account = requireDemoAccount(state, user.id);
+    const index = account.networkRules.findIndex((rule) => rule.id === ruleId);
+    if (index < 0) throw notFound("NETWORK_RULE_NOT_FOUND");
+    account.networkRules.splice(index, 1);
+    this.write(state);
+  }
+
+  async createVolume(input: CreateVolumeInput): Promise<VolumeView> {
+    const state = this.read();
+    const user = requireUser(state);
+    const timestamp = this.now().toISOString();
+    const volume: VolumeView = {
+      id: `demo-volume-${state.sequence++}`,
+      name: input.name.trim(),
+      sizeGb: input.sizeGb,
+      status: VolumeStatus.Available,
+      attachedInstanceId: null,
+      monthlyPriceCents: input.sizeGb * 25,
+      snapshots: [],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    requireDemoAccount(state, user.id).volumes.unshift(volume);
+    addDemoNotification(
+      state,
+      user.id,
+      NotificationType.Storage,
+      "Persistent volume created",
+      `${volume.name} (${volume.sizeGb} GB) is ready to attach.`,
+      timestamp,
+    );
+    this.write(state);
+    return cloneValue(volume);
+  }
+
+  async attachVolume(
+    volumeId: string,
+    input: AttachVolumeInput,
+  ): Promise<VolumeView> {
+    const state = this.read();
+    const user = requireUser(state);
+    findDemoInstance(state, input.instanceId, user.id);
+    const volume = findDemoVolume(state, user.id, volumeId);
+    if (volume.status === VolumeStatus.Deleted) {
+      throw new GatewayError("The volume was deleted", "VOLUME_DELETED", 409);
+    }
+    if (
+      volume.status === VolumeStatus.Attached &&
+      volume.attachedInstanceId !== input.instanceId
+    ) {
+      throw new GatewayError(
+        "The volume is attached to another instance",
+        "VOLUME_ALREADY_ATTACHED",
+        409,
+      );
+    }
+    volume.status = VolumeStatus.Attached;
+    volume.attachedInstanceId = input.instanceId;
+    volume.updatedAt = this.now().toISOString();
+    this.write(state);
+    return cloneValue(volume);
+  }
+
+  async detachVolume(volumeId: string): Promise<VolumeView> {
+    const state = this.read();
+    const user = requireUser(state);
+    const volume = findDemoVolume(state, user.id, volumeId);
+    if (volume.status === VolumeStatus.Deleted) {
+      throw new GatewayError("The volume was deleted", "VOLUME_DELETED", 409);
+    }
+    volume.status = VolumeStatus.Available;
+    volume.attachedInstanceId = null;
+    volume.updatedAt = this.now().toISOString();
+    this.write(state);
+    return cloneValue(volume);
+  }
+
+  async createSnapshot(
+    volumeId: string,
+    input: CreateSnapshotInput,
+  ): Promise<VolumeView> {
+    const state = this.read();
+    const user = requireUser(state);
+    const volume = findDemoVolume(state, user.id, volumeId);
+    if (volume.status === VolumeStatus.Deleted) {
+      throw new GatewayError("The volume was deleted", "VOLUME_DELETED", 409);
+    }
+    const timestamp = this.now().toISOString();
+    volume.snapshots.unshift({
+      id: `demo-snapshot-${state.sequence++}`,
+      name: input.name.trim(),
+      sizeGb: volume.sizeGb,
+      createdAt: timestamp,
+    });
+    volume.updatedAt = timestamp;
+    addDemoNotification(
+      state,
+      user.id,
+      NotificationType.Storage,
+      "Snapshot completed",
+      `${input.name.trim()} was captured from ${volume.name}.`,
+      timestamp,
+    );
+    this.write(state);
+    return cloneValue(volume);
+  }
+
+  async deleteVolume(volumeId: string): Promise<VolumeView> {
+    const state = this.read();
+    const user = requireUser(state);
+    const volume = findDemoVolume(state, user.id, volumeId);
+    if (volume.status === VolumeStatus.Attached) {
+      throw new GatewayError(
+        "Detach the volume before deleting it",
+        "VOLUME_ATTACHED",
+        409,
+      );
+    }
+    volume.status = VolumeStatus.Deleted;
+    volume.updatedAt = this.now().toISOString();
+    this.write(state);
+    return cloneValue(volume);
+  }
+
+  async markNotificationRead(
+    notificationId: string,
+  ): Promise<NotificationView> {
+    const state = this.read();
+    const user = requireUser(state);
+    const notification = requireDemoAccount(state, user.id).notifications.find(
+      (candidate) => candidate.id === notificationId,
+    );
+    if (!notification) throw notFound("NOTIFICATION_NOT_FOUND");
+    notification.readAt ??= this.now().toISOString();
+    this.write(state);
+    return cloneValue(notification);
+  }
+
+  async markAllNotificationsRead(): Promise<void> {
+    const state = this.read();
+    const user = requireUser(state);
+    const timestamp = this.now().toISOString();
+    for (const notification of requireDemoAccount(state, user.id)
+      .notifications) {
+      notification.readAt ??= timestamp;
+    }
+    this.write(state);
+  }
+
+  async listTeams(): Promise<TeamView[]> {
+    const state = this.read();
+    const user = requireUser(state);
+    return state.teams
+      .filter((team) =>
+        team.members.some((member) => member.userId === user.id),
+      )
+      .map((team) => demoTeamForUser(team, user.id));
+  }
+
+  async createTeam(input: CreateTeamInput): Promise<TeamView> {
+    const state = this.read();
+    const user = requireUser(state);
+    if (
+      state.teams.some(
+        (team) =>
+          team.members.some(
+            (member) =>
+              member.userId === user.id && member.role === TeamRole.Owner,
+          ) && team.name.toLowerCase() === input.name.trim().toLowerCase(),
+      )
+    ) {
+      throw new GatewayError(
+        "You already own a team with this name",
+        "TEAM_NAME_TAKEN",
+        409,
+      );
+    }
+    const timestamp = this.now().toISOString();
+    const team: TeamView = {
+      id: `demo-team-${state.sequence++}`,
+      name: input.name.trim(),
+      currentUserRole: TeamRole.Owner,
+      members: [
+        {
+          userId: user.id,
+          username: user.username,
+          role: TeamRole.Owner,
+          joinedAt: timestamp,
+        },
+      ],
+      projects: [],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    state.teams.unshift(team);
+    addDemoNotification(
+      state,
+      user.id,
+      NotificationType.Team,
+      "Team created",
+      `${team.name} is ready for members and projects.`,
+      timestamp,
+    );
+    this.write(state);
+    return cloneValue(team);
+  }
+
+  async addTeamMember(
+    teamId: string,
+    input: AddTeamMemberInput,
+  ): Promise<TeamView> {
+    const state = this.read();
+    const actor = requireUser(state);
+    const team = findManageableDemoTeam(state, teamId, actor.id);
+    const user = state.users.find(
+      (candidate) =>
+        candidate.username.toLowerCase() === input.username.toLowerCase(),
+    );
+    if (!user) throw notFound("TEAM_MEMBER_USER_NOT_FOUND");
+    if (team.members.some((member) => member.userId === user.id)) {
+      throw new GatewayError(
+        "The user is already a team member",
+        "TEAM_MEMBER_EXISTS",
+        409,
+      );
+    }
+    const timestamp = this.now().toISOString();
+    team.members.push({
+      userId: user.id,
+      username: user.username,
+      role: input.role,
+      joinedAt: timestamp,
+    });
+    team.updatedAt = timestamp;
+    addDemoNotification(
+      state,
+      user.id,
+      NotificationType.Team,
+      "Added to team",
+      `You joined ${team.name} as ${input.role}.`,
+      timestamp,
+    );
+    this.write(state);
+    return demoTeamForUser(team, actor.id);
+  }
+
+  async createProject(
+    teamId: string,
+    input: CreateProjectInput,
+  ): Promise<TeamView> {
+    const state = this.read();
+    const actor = requireUser(state);
+    const team = findManageableDemoTeam(state, teamId, actor.id);
+    if (
+      team.projects.some(
+        (project) => project.name.toLowerCase() === input.name.toLowerCase(),
+      )
+    ) {
+      throw new GatewayError(
+        "The team already has a project with this name",
+        "PROJECT_NAME_TAKEN",
+        409,
+      );
+    }
+    const timestamp = this.now().toISOString();
+    team.projects.push({
+      id: crypto.randomUUID(),
+      name: input.name.trim(),
+      monthlyBudgetCents: input.monthlyBudgetCents,
+      bookedCostCents: 0,
+      createdAt: timestamp,
+    });
+    team.updatedAt = timestamp;
+    this.write(state);
+    return demoTeamForUser(team, actor.id);
   }
 
   async listResources(
@@ -217,6 +670,7 @@ export class DemoGateway implements DataGateway {
       );
     }
     const template = resolveDemoTemplate(input.environmentTemplateId);
+    const project = resolveDemoProject(state, user.id, input.projectId);
     const startsAt = this.now();
     const timestamp = startsAt.toISOString();
     const order: OrderView = {
@@ -227,9 +681,13 @@ export class DemoGateway implements DataGateway {
       gpuModel: resource.model,
       gpuMemoryGb: resource.memoryGb,
       gpuCount: resource.gpuCount,
+      temporaryStorageGb: resource.storageGb,
       environmentTemplateId: template.id,
       environmentTemplateName: template.name,
       instanceName: input.instanceName?.trim() || `${resource.name} workload`,
+      projectId: project?.project.id ?? null,
+      projectName: project?.project.name ?? null,
+      teamName: project?.team.name ?? null,
       region: resource.region,
       hourlyPriceCents: resource.hourlyPriceCents,
       durationHours: input.durationHours,
@@ -244,6 +702,8 @@ export class DemoGateway implements DataGateway {
       createdAt: timestamp,
       updatedAt: timestamp,
     };
+    debitDemoOrder(state, order, startsAt);
+    if (project) project.project.bookedCostCents += order.totalPriceCents;
     state.orders.unshift(order);
     state.instances.unshift(
       createDemoInstance(
@@ -328,7 +788,7 @@ export class DemoGateway implements DataGateway {
     assertDemoInstanceMutable(instance);
     const now = this.now();
     if (now >= new Date(instance.endsAt)) {
-      terminateDemoInstance(instance, now);
+      terminateDemoInstance(state, instance, now);
       this.write(state);
       throw new GatewayError(
         "The instance lease has expired",
@@ -340,6 +800,14 @@ export class DemoGateway implements DataGateway {
     instance.runningSince = now.toISOString();
     instance.stoppedAt = null;
     instance.updatedAt = now.toISOString();
+    addDemoNotification(
+      state,
+      user.id,
+      NotificationType.Instance,
+      "Instance started",
+      `${instance.name} resumed billable runtime.`,
+      instance.updatedAt,
+    );
     this.write(state);
     return refreshDemoInstance(instance, now);
   }
@@ -357,6 +825,14 @@ export class DemoGateway implements DataGateway {
     instance.status = InstanceStatus.Stopped;
     instance.stoppedAt = now.toISOString();
     instance.updatedAt = now.toISOString();
+    addDemoNotification(
+      state,
+      user.id,
+      NotificationType.Instance,
+      "Instance stopped",
+      `${instance.name} stopped accruing runtime charges.`,
+      instance.updatedAt,
+    );
     this.write(state);
     return instance;
   }
@@ -366,7 +842,7 @@ export class DemoGateway implements DataGateway {
     const user = requireUser(state);
     const instance = findDemoInstance(state, instanceId, user.id);
     const now = this.now();
-    terminateDemoInstance(instance, now);
+    terminateDemoInstance(state, instance, now);
     const order = state.orders.find(
       (candidate) => candidate.id === instance.orderId,
     );
@@ -532,7 +1008,7 @@ export class DemoGateway implements DataGateway {
       state = raw
         ? (JSON.parse(raw) as DemoState)
         : createInitialState(this.now());
-      if (state.version !== 2) throw new Error("Unsupported demo state");
+      if (state.version !== 3) throw new Error("Unsupported demo state");
     } catch {
       state = createInitialState(this.now());
     }
@@ -627,6 +1103,30 @@ function createInitialState(now: Date): DemoState {
   ];
   const startsAt = new Date(now.getTime() - 45 * 60_000);
   const activeResource = resources[1]!;
+  const team: TeamView = {
+    id: "demo-team-01",
+    name: "Applied AI Lab",
+    currentUserRole: TeamRole.Owner,
+    members: [
+      {
+        userId: users[0]!.id,
+        username: users[0]!.username,
+        role: TeamRole.Owner,
+        joinedAt: timestamp,
+      },
+    ],
+    projects: [
+      {
+        id: "4d8f1ce1-02d2-4b99-8ff2-71b6d701f10d",
+        name: "Baseline training",
+        monthlyBudgetCents: 200_000,
+        bookedCostCents: 0,
+        createdAt: timestamp,
+      },
+    ],
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
   const order: OrderView = {
     id: "demo-order-01",
     userId: users[0]!.id,
@@ -635,9 +1135,13 @@ function createInitialState(now: Date): DemoState {
     gpuModel: activeResource.model,
     gpuMemoryGb: activeResource.memoryGb,
     gpuCount: activeResource.gpuCount,
+    temporaryStorageGb: activeResource.storageGb,
     environmentTemplateId: DEMO_TEMPLATES[0]!.id,
     environmentTemplateName: DEMO_TEMPLATES[0]!.name,
     instanceName: "baseline-training-run",
+    projectId: team.projects[0]!.id,
+    projectName: team.projects[0]!.name,
+    teamName: team.name,
     region: activeResource.region,
     hourlyPriceCents: activeResource.hourlyPriceCents,
     durationHours: 12,
@@ -657,19 +1161,27 @@ function createInitialState(now: Date): DemoState {
     DEMO_TEMPLATES[0]!,
     startsAt,
   );
-  return {
-    version: 2,
+  const state: DemoState = {
+    version: 3,
     sequence: 100,
     currentUserId: null,
     users,
     resources,
     orders: [order],
     instances: [instance],
+    teams: [team],
+    accounts: {
+      "demo-user": createDemoCloudAccount(timestamp),
+      "demo-admin": createDemoCloudAccount(timestamp),
+    },
     credentials: {
       "demo-user": DEMO_PASSWORD_HASH,
       "demo-admin": DEMO_PASSWORD_HASH,
     },
   };
+  debitDemoOrder(state, order, startsAt);
+  team.projects[0]!.bookedCostCents = order.totalPriceCents;
+  return state;
 }
 
 function createUser(
@@ -734,6 +1246,7 @@ function createDemoInstance(
     gpuModel: resource.model,
     gpuCount: resource.gpuCount,
     gpuMemoryGb: resource.memoryGb,
+    temporaryStorageGb: resource.storageGb,
     environmentTemplateId: template.id,
     environmentTemplateName: template.name,
     environmentImage: template.image,
@@ -840,7 +1353,11 @@ function refreshDemoInstance(instance: InstanceView, now: Date): InstanceView {
   };
 }
 
-function terminateDemoInstance(instance: InstanceView, now: Date): void {
+function terminateDemoInstance(
+  state: DemoState,
+  instance: InstanceView,
+  now: Date,
+): void {
   if (instance.status === InstanceStatus.Terminated) return;
   instance.billableSeconds = calculateDemoBillableSeconds(instance, now);
   instance.runningSince = null;
@@ -848,6 +1365,23 @@ function terminateDemoInstance(instance: InstanceView, now: Date): void {
   instance.status = InstanceStatus.Terminated;
   instance.terminatedAt = now.toISOString();
   instance.updatedAt = instance.terminatedAt;
+  refundDemoOrder(state, instance, now);
+  const account = requireDemoAccount(state, instance.userId);
+  for (const volume of account.volumes) {
+    if (volume.attachedInstanceId === instance.id) {
+      volume.status = VolumeStatus.Available;
+      volume.attachedInstanceId = null;
+      volume.updatedAt = now.toISOString();
+    }
+  }
+  addDemoNotification(
+    state,
+    instance.userId,
+    NotificationType.Instance,
+    "Instance terminated",
+    `${instance.name} was terminated and unused booked value was reconciled.`,
+    now.toISOString(),
+  );
 }
 
 function terminateDemoInstanceByOrder(
@@ -858,7 +1392,7 @@ function terminateDemoInstanceByOrder(
   const instance = state.instances.find(
     (candidate) => candidate.orderId === orderId,
   );
-  if (instance) terminateDemoInstance(instance, now);
+  if (instance) terminateDemoInstance(state, instance, now);
 }
 
 function filterResources(
@@ -940,6 +1474,188 @@ function expireDueOrders(state: DemoState, now: Date): boolean {
     }
   }
   return changed;
+}
+
+function createDemoCloudAccount(timestamp: string): CloudAccountView {
+  return {
+    wallet: {
+      balanceCents: 100_000,
+      currency: "CNY",
+      updatedAt: timestamp,
+    },
+    billingEntries: [
+      {
+        id: `opening-credit-${timestamp}`,
+        type: BillingEntryType.OpeningCredit,
+        amountCents: 100_000,
+        reference: "opening-credit",
+        description: "Simulated account opening credit",
+        createdAt: timestamp,
+      },
+    ],
+    sshKeys: [],
+    apiKeys: [],
+    networkRules: [],
+    volumes: [],
+    notifications: [
+      {
+        id: `account-ready-${timestamp}`,
+        type: NotificationType.Billing,
+        title: "Cloud account ready",
+        message: "Your simulated wallet and operations workspace are ready.",
+        readAt: null,
+        createdAt: timestamp,
+      },
+    ],
+  };
+}
+
+function requireDemoAccount(
+  state: DemoState,
+  userId: string,
+): CloudAccountView {
+  const account = state.accounts[userId];
+  if (!account) throw notFound("CLOUD_ACCOUNT_NOT_FOUND");
+  return account;
+}
+
+function debitDemoOrder(state: DemoState, order: OrderView, now: Date): void {
+  const account = requireDemoAccount(state, order.userId);
+  if (account.wallet.balanceCents < order.totalPriceCents) {
+    throw new GatewayError(
+      "The wallet balance is insufficient for this reservation",
+      "INSUFFICIENT_BALANCE",
+      402,
+    );
+  }
+  const timestamp = now.toISOString();
+  account.wallet.balanceCents -= order.totalPriceCents;
+  account.wallet.updatedAt = timestamp;
+  account.billingEntries.unshift({
+    id: `demo-billing-${state.sequence++}`,
+    type: BillingEntryType.OrderCharge,
+    amountCents: order.totalPriceCents,
+    reference: `order:${order.id}:charge`,
+    description: `Booked ${order.instanceName}`,
+    createdAt: timestamp,
+  });
+  addDemoNotification(
+    state,
+    order.userId,
+    NotificationType.Billing,
+    "Order charged",
+    `${order.totalPriceCents} cents were reserved for ${order.instanceName}.`,
+    timestamp,
+  );
+}
+
+function refundDemoOrder(
+  state: DemoState,
+  instance: InstanceView,
+  now: Date,
+): void {
+  const account = requireDemoAccount(state, instance.userId);
+  const reference = `order:${instance.orderId}:refund`;
+  if (account.billingEntries.some((entry) => entry.reference === reference)) {
+    return;
+  }
+  const amountCents = Math.max(
+    0,
+    instance.maximumCostCents - instance.accruedCostCents,
+  );
+  if (amountCents === 0) return;
+  const timestamp = now.toISOString();
+  account.wallet.balanceCents += amountCents;
+  account.wallet.updatedAt = timestamp;
+  account.billingEntries.unshift({
+    id: `demo-billing-${state.sequence++}`,
+    type: BillingEntryType.OrderRefund,
+    amountCents,
+    reference,
+    description: "Unused reservation value refunded",
+    createdAt: timestamp,
+  });
+  addDemoNotification(
+    state,
+    instance.userId,
+    NotificationType.Billing,
+    "Order refund completed",
+    `${amountCents} unused cents were returned to the wallet.`,
+    timestamp,
+  );
+}
+
+function addDemoNotification(
+  state: DemoState,
+  userId: string,
+  type: NotificationType,
+  title: string,
+  message: string,
+  createdAt: string,
+): void {
+  requireDemoAccount(state, userId).notifications.unshift({
+    id: `demo-notification-${state.sequence++}`,
+    type,
+    title,
+    message,
+    readAt: null,
+    createdAt,
+  });
+}
+
+function findDemoVolume(
+  state: DemoState,
+  userId: string,
+  volumeId: string,
+): VolumeView {
+  const volume = requireDemoAccount(state, userId).volumes.find(
+    (candidate) => candidate.id === volumeId,
+  );
+  if (!volume) throw notFound("VOLUME_NOT_FOUND");
+  return volume;
+}
+
+function findManageableDemoTeam(
+  state: DemoState,
+  teamId: string,
+  userId: string,
+): TeamView {
+  const team = state.teams.find((candidate) => candidate.id === teamId);
+  const member = team?.members.find((candidate) => candidate.userId === userId);
+  if (
+    !team ||
+    !member ||
+    (member.role !== TeamRole.Owner && member.role !== TeamRole.Admin)
+  ) {
+    throw notFound("TEAM_NOT_FOUND");
+  }
+  return team;
+}
+
+function demoTeamForUser(team: TeamView, userId: string): TeamView {
+  const member = team.members.find((candidate) => candidate.userId === userId);
+  if (!member) throw notFound("TEAM_NOT_FOUND");
+  return cloneValue({ ...team, currentUserRole: member.role });
+}
+
+function resolveDemoProject(
+  state: DemoState,
+  userId: string,
+  projectId?: string,
+): { team: TeamView; project: TeamView["projects"][number] } | null {
+  if (!projectId) return null;
+  for (const team of state.teams) {
+    if (!team.members.some((member) => member.userId === userId)) continue;
+    const project = team.projects.find(
+      (candidate) => candidate.id === projectId,
+    );
+    if (project) return { team, project };
+  }
+  throw notFound("PROJECT_NOT_FOUND");
+}
+
+function cloneValue<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
 function notFound(code: string): GatewayError {

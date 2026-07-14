@@ -1,8 +1,19 @@
 import type {
   AdminOverview,
+  AddTeamMemberInput,
+  ApiKeyView,
+  AttachVolumeInput,
   AuthResponse,
+  CloudAccountView,
+  CreateApiKeyInput,
   CreateGpuResourceInput,
+  CreateNetworkRuleInput,
   CreateOrderInput,
+  CreateProjectInput,
+  CreateSnapshotInput,
+  CreateSshKeyInput,
+  CreateTeamInput,
+  CreateVolumeInput,
   EnvironmentTemplateView,
   GpuAvailability,
   GpuListingStatus,
@@ -11,13 +22,19 @@ import type {
   InstanceStatus,
   InstanceView,
   LoginInput,
+  NetworkRuleView,
+  NotificationView,
   OrderStatus,
   OrderView,
   PaginatedResponse,
   RegisterInput,
   SetGpuListingStatusInput,
+  SshKeyView,
+  TeamView,
+  TopUpInput,
   UpdateGpuResourceInput,
   UserView,
+  VolumeView,
 } from "@gpu-rental/contracts";
 
 import { ApiGateway } from "./api-gateway";
@@ -55,8 +72,26 @@ export interface InstanceQuery {
 export interface DataGateway {
   readonly mode: RuntimeMode;
   cancelOrder(orderId: string): Promise<OrderView>;
+  addTeamMember(teamId: string, input: AddTeamMemberInput): Promise<TeamView>;
+  attachVolume(volumeId: string, input: AttachVolumeInput): Promise<VolumeView>;
+  createApiKey(input: CreateApiKeyInput): Promise<ApiKeyView>;
+  createNetworkRule(input: CreateNetworkRuleInput): Promise<NetworkRuleView>;
   createOrder(input: CreateOrderInput): Promise<OrderView>;
+  createProject(teamId: string, input: CreateProjectInput): Promise<TeamView>;
   createResource(input: CreateGpuResourceInput): Promise<GpuResourceView>;
+  createSnapshot(
+    volumeId: string,
+    input: CreateSnapshotInput,
+  ): Promise<VolumeView>;
+  createSshKey(input: CreateSshKeyInput): Promise<SshKeyView>;
+  createTeam(input: CreateTeamInput): Promise<TeamView>;
+  createVolume(input: CreateVolumeInput): Promise<VolumeView>;
+  deleteApiKey(keyId: string): Promise<void>;
+  deleteNetworkRule(ruleId: string): Promise<void>;
+  deleteSshKey(keyId: string): Promise<void>;
+  deleteVolume(volumeId: string): Promise<VolumeView>;
+  detachVolume(volumeId: string): Promise<VolumeView>;
+  getCloudAccount(): Promise<CloudAccountView>;
   getInstance(instanceId: string): Promise<InstanceView>;
   getAdminOverview(): Promise<AdminOverview>;
   getFacets(): Promise<GpuResourceFacets>;
@@ -68,6 +103,7 @@ export interface DataGateway {
     query?: AdminResourceQuery,
   ): Promise<PaginatedResponse<GpuResourceView>>;
   listMyOrders(query?: OrderQuery): Promise<PaginatedResponse<OrderView>>;
+  listTeams(): Promise<TeamView[]>;
   listMyInstances(
     query?: InstanceQuery,
   ): Promise<PaginatedResponse<InstanceView>>;
@@ -77,11 +113,14 @@ export interface DataGateway {
   login(input: LoginInput): Promise<AuthResponse>;
   logout(): Promise<void>;
   logoutAll(): Promise<void>;
+  markAllNotificationsRead(): Promise<void>;
+  markNotificationRead(notificationId: string): Promise<NotificationView>;
   register(input: RegisterInput): Promise<AuthResponse>;
   resetDemo(): Promise<void>;
   startInstance(instanceId: string): Promise<InstanceView>;
   stopInstance(instanceId: string): Promise<InstanceView>;
   terminateInstance(instanceId: string): Promise<InstanceView>;
+  topUp(input: TopUpInput): Promise<CloudAccountView>;
   returnOrder(orderId: string): Promise<OrderView>;
   setListingStatus(
     resourceId: string,

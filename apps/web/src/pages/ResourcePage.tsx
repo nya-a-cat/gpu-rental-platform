@@ -3,6 +3,7 @@ import {
   type EnvironmentTemplateView,
   type GpuResourceView,
   type OrderView,
+  type TeamView,
 } from "@gpu-rental/contracts";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
@@ -29,7 +30,9 @@ export function ResourcePage() {
   const [resource, setResource] = useState<GpuResourceView | null>(null);
   const [durationHours, setDurationHours] = useState(8);
   const [templates, setTemplates] = useState<EnvironmentTemplateView[]>([]);
+  const [teams, setTeams] = useState<TeamView[]>([]);
   const [templateId, setTemplateId] = useState("pytorch-jupyter");
+  const [projectId, setProjectId] = useState("");
   const [instanceName, setInstanceName] = useState("");
   const [order, setOrder] = useState<OrderView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,11 +47,13 @@ export function ResourcePage() {
     void Promise.all([
       gateway.getResource(resourceId),
       gateway.listEnvironmentTemplates(),
+      user ? gateway.listTeams() : Promise.resolve([]),
     ])
-      .then(([nextResource, nextTemplates]) => {
+      .then(([nextResource, nextTemplates, nextTeams]) => {
         if (!active) return;
         setResource(nextResource);
         setTemplates(nextTemplates);
+        setTeams(nextTeams);
         setInstanceName(
           (current) => current || `${nextResource.name} workload`,
         );
@@ -67,7 +72,7 @@ export function ResourcePage() {
     return () => {
       active = false;
     };
-  }, [gateway, resourceId, revision]);
+  }, [gateway, resourceId, revision, user]);
 
   async function reserve(): Promise<void> {
     if (!resource) return;
@@ -83,6 +88,7 @@ export function ResourcePage() {
         durationHours,
         environmentTemplateId: templateId,
         instanceName,
+        projectId: projectId || undefined,
       });
       setOrder(created);
       setResource({ ...resource, availability: GpuAvailability.Rented });
@@ -284,6 +290,25 @@ export function ResourcePage() {
                 }
               </span>
             </div>
+          ) : null}
+          {teams.some((team) => team.projects.length > 0) ? (
+            <label className="stack-field">
+              <span>{tr("成本归属项目", "Cost attribution project")}</span>
+              <select
+                disabled={!available || Boolean(order)}
+                onChange={(event) => setProjectId(event.target.value)}
+                value={projectId}
+              >
+                <option value="">{tr("个人账户", "Personal account")}</option>
+                {teams.flatMap((team) =>
+                  team.projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {team.name} / {project.name}
+                    </option>
+                  )),
+                )}
+              </select>
+            </label>
           ) : null}
           <label className="range-control">
             <span>

@@ -1,7 +1,11 @@
 import {
+  BillingEntryType,
   GpuAvailability,
   InstanceStatus,
+  NetworkProtocol,
   OrderStatus,
+  TeamRole,
+  VolumeStatus,
 } from "@gpu-rental/contracts";
 import { describe, expect, it } from "vitest";
 
@@ -81,6 +85,90 @@ describe("DemoGateway", () => {
       code: "FORBIDDEN",
       status: 403,
     });
+  });
+
+  it("supports the simulated P1 cloud account workspace", async () => {
+    const storage = new MemoryStorage();
+    let now = new Date("2026-07-13T08:00:00.000Z");
+    const gateway = new DemoGateway(storage, () => now);
+    await gateway.resetDemo();
+    setSession(storage, "demo-user");
+
+    const originalBalance = (await gateway.getCloudAccount()).wallet
+      .balanceCents;
+    expect(
+      (await gateway.topUp({ amountCents: 5_000 })).wallet.balanceCents,
+    ).toBe(originalBalance + 5_000);
+    expect(
+      await gateway.createSshKey({
+        name: "demo laptop",
+        publicKey:
+          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDemoRentalPlatformKey user",
+      }),
+    ).toMatchObject({ name: "demo laptop" });
+    const apiKey = await gateway.createApiKey({ name: "demo automation" });
+    expect(apiKey.token).toMatch(/^gpr_demo_/);
+
+    const team = await gateway.createTeam({ name: "Demo inference lab" });
+    const projectTeam = await gateway.createProject(team.id, {
+      name: "Serving",
+      monthlyBudgetCents: 50_000,
+    });
+    await gateway.addTeamMember(team.id, {
+      username: "dispatcher",
+      role: TeamRole.Member,
+    });
+    const project = projectTeam.projects[0]!;
+    const resource = (
+      await gateway.listResources({
+        availability: GpuAvailability.Available,
+      })
+    ).items[0]!;
+    const order = await gateway.createOrder({
+      gpuResourceId: resource.id,
+      durationHours: 2,
+      instanceName: "p1-demo-instance",
+      projectId: project.id,
+    });
+    expect(order.projectName).toBe("Serving");
+    const instance = (await gateway.listMyInstances()).items.find(
+      (candidate) => candidate.orderId === order.id,
+    )!;
+    await gateway.createNetworkRule({
+      instanceId: instance.id,
+      name: "tensorboard",
+      protocol: NetworkProtocol.Tcp,
+      port: 6006,
+      sourceCidr: "0.0.0.0/0",
+    });
+    const volume = await gateway.createVolume({
+      name: "demo-model-cache",
+      sizeGb: 100,
+    });
+    await gateway.attachVolume(volume.id, { instanceId: instance.id });
+    await gateway.createSnapshot(volume.id, { name: "checkpoint" });
+
+    now = new Date("2026-07-13T08:30:00.000Z");
+    await gateway.terminateInstance(instance.id);
+    const account = await gateway.getCloudAccount();
+    expect(
+      account.billingEntries.some(
+        (entry) => entry.type === BillingEntryType.OrderRefund,
+      ),
+    ).toBe(true);
+    expect(
+      account.volumes.find((candidate) => candidate.id === volume.id),
+    ).toMatchObject({
+      status: VolumeStatus.Available,
+      attachedInstanceId: null,
+    });
+    expect(account.networkRules).toHaveLength(1);
+    await gateway.markAllNotificationsRead();
+    expect(
+      (await gateway.getCloudAccount()).notifications.every(
+        (notification) => notification.readAt,
+      ),
+    ).toBe(true);
   });
 });
 

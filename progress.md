@@ -620,3 +620,61 @@
 
 - `progress.md`：追加 P0 的 GitHub Actions 正式验证证据。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^docs: record p0 actions verification$' -1)"`。
+
+## 2026-07-14 - Task: 完成 P1 云账户、存储网络与团队协作
+
+### What was done
+
+- 增加带开户体验金、模拟充值、订单预扣和按实际运行费用自动退款的钱包账本；余额不足会在实例创建前拒绝订单。
+- 增加 SSH 公钥、一次性展示的 API 密钥、实例端口规则和来源 CIDR 管理；API 密钥仅保存摘要。
+- 增加持久卷、实例挂载、卸载、快照和删除状态机；实例终止时自动释放已挂载卷，实例临时磁盘继续随资源规格交付。
+- 增加团队 Owner/Admin/Member 权限、成员管理、项目月预算和订单成本归属；项目累计展示已预订金额。
+- 增加账单、实例、安全、存储和团队通知，并支持单条及全部已读。
+- 在真实 API 与浏览器 Demo 中实现相同业务能力，增加统一云账户操作台、资源预订项目选择以及 API E2E 和 Demo 回归测试。
+
+### Testing
+
+- 对本轮全部代码和文档执行仓库锁定版本 Prettier：通过。
+- `git diff --check`：通过。
+- 本机 `pnpm --config.engine-strict=false typecheck` 在执行前被仓库引擎约束拒绝，本机 pnpm 为 11.7.0，仓库要求 `>=10.34.5 <11`；完整验证交由 Draft PR #7 的 GitHub Actions 执行。
+
+### Notes
+
+- `packages/contracts/src/index.ts`：增加钱包、账本、密钥、端口规则、卷、快照、通知、团队和项目契约，并扩展订单成本归属。
+- `apps/api/src/cloud-accounts/cloud-account.schema.ts`：定义用户云账户聚合文档及嵌入业务记录。
+- `apps/api/src/cloud-accounts/cloud-accounts.dto.ts`：增加充值、密钥、端口、卷和快照输入校验。
+- `apps/api/src/cloud-accounts/cloud-accounts.service.ts`：实现钱包原子扣款、幂等退款、凭据、网络、存储和通知业务。
+- `apps/api/src/cloud-accounts/cloud-accounts.controller.ts`：暴露云账户操作接口。
+- `apps/api/src/cloud-accounts/cloud-accounts.module.ts`：注册并导出云账户业务模块。
+- `apps/api/src/teams/team.schema.ts`：定义团队成员和项目持久化模型。
+- `apps/api/src/teams/teams.dto.ts`：增加团队、成员和项目输入校验。
+- `apps/api/src/teams/teams.service.ts`：实现角色授权、成员管理、项目解析和预订成本累计。
+- `apps/api/src/teams/teams.controller.ts`：暴露团队与项目接口。
+- `apps/api/src/teams/teams.module.ts`：注册并导出团队业务模块。
+- `apps/api/src/app.module.ts`：注册云账户和团队模块。
+- `apps/api/src/orders/order.schema.ts`：保存临时磁盘及团队项目成本归属快照。
+- `apps/api/src/orders/orders.dto.ts`：校验可选项目标识。
+- `apps/api/src/orders/orders.service.ts`：解析用户可访问项目并写入订单快照。
+- `apps/api/src/orders/orders.controller.ts`：在实例创建前完成钱包扣款并处理失败补偿与项目成本记录。
+- `apps/api/src/orders/orders.module.ts`：接入云账户和团队模块。
+- `apps/api/src/instances/instance.schema.ts`：保存实例临时磁盘规格。
+- `apps/api/src/instances/instances.service.ts`：联动退款、卷释放和实例生命周期通知。
+- `apps/api/src/instances/instances.module.ts`：接入云账户模块。
+- `apps/api/test/api.e2e-spec.ts`：覆盖 P1 钱包、密钥、团队项目、端口、卷快照、退款和通知流程。
+- `apps/web/src/data/gateway.ts`：扩展 P1 前端数据网关契约。
+- `apps/web/src/data/api-gateway.ts`：接入云账户和团队 API。
+- `apps/web/src/data/demo-gateway.ts`：实现 Demo 云账户、团队、订单计费退款和存储网络状态机。
+- `apps/web/src/pages/CloudAccountPage.tsx`：增加钱包、凭据、端口、卷、团队项目和通知统一操作台。
+- `apps/web/src/pages/ResourcePage.tsx`：支持选择成本归属项目。
+- `apps/web/src/pages/InstancesPage.tsx`：展示实例临时磁盘。
+- `apps/web/src/pages/OrdersPage.tsx`：展示实例环境和团队项目成本归属。
+- `apps/web/src/App.tsx`：注册云账户受保护路由。
+- `apps/web/src/components/layout.tsx`：增加云账户导航入口。
+- `apps/web/src/styles.css`：增加云账户操作台、记录、卷、项目和通知响应式样式。
+- `apps/web/src/test/demo-gateway.test.ts`：覆盖 Demo P1 全业务闭环。
+- `README.md`：更新 P1 产品工作流和模拟边界。
+- `docs/architecture.md`：记录云账户、退款、凭据、存储和团队协作架构。
+- `docs/demo-mode.md`：记录 Demo 状态版本 3 与 P1 模拟边界。
+- `ROADMAP.md`：记录 P1 业务能力闭环已完成。
+- `progress.md`：追加本轮实现、验证计划、文件清单与回滚点。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^feat: complete p1 cloud operations$' -1)"`。

@@ -188,6 +188,22 @@ export function OrdersPage() {
                       <dd>{order.region}</dd>
                     </div>
                     <div>
+                      <dt>{tr("实例", "INSTANCE")}</dt>
+                      <dd>{order.instanceName}</dd>
+                    </div>
+                    <div>
+                      <dt>{tr("环境", "ENVIRONMENT")}</dt>
+                      <dd>{order.environmentTemplateName}</dd>
+                    </div>
+                    <div>
+                      <dt>{tr("成本归属", "COST ATTRIBUTION")}</dt>
+                      <dd>
+                        {order.projectName
+                          ? `${order.teamName} / ${order.projectName}`
+                          : tr("个人账户", "Personal account")}
+                      </dd>
+                    </div>
+                    <div>
                       <dt>{tr("租期", "DURATION")}</dt>
                       <dd>{order.durationHours} h</dd>
                     </div>

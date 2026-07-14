@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
 
 import { AuthModule } from "../auth/auth.module";
+import { CloudAccountsModule } from "../cloud-accounts/cloud-accounts.module";
 import { EnvironmentTemplatesModule } from "../environment-templates/environment-templates.module";
 import { Order, OrderSchema } from "../orders/order.schema";
 import { Instance, InstanceSchema } from "./instance.schema";
@@ -11,6 +12,7 @@ import { InstancesService } from "./instances.service";
 @Module({
   imports: [
     AuthModule,
+    CloudAccountsModule,
     EnvironmentTemplatesModule,
     MongooseModule.forFeature([
       { name: Instance.name, schema: InstanceSchema },

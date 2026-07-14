@@ -16,6 +16,7 @@ import type { DataGateway } from "./data/gateway";
 import { resolveRuntimeMode } from "./data/gateway";
 import { AdminPage } from "./pages/AdminPage";
 import { AuthPage } from "./pages/AuthPage";
+import { CloudAccountPage } from "./pages/CloudAccountPage";
 import { MarketPage } from "./pages/MarketPage";
 import { InstancesPage } from "./pages/InstancesPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
@@ -47,6 +48,14 @@ export function AppRoutes() {
           element={
             <ProtectedRoute>
               <InstancesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="cloud-account"
+          element={
+            <ProtectedRoute>
+              <CloudAccountPage />
             </ProtectedRoute>
           }
         />

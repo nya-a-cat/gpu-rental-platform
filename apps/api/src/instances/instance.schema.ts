@@ -28,6 +28,9 @@ export class Instance {
   @Prop({ type: Number, required: true, min: 1 })
   gpuMemoryGb!: number;
 
+  @Prop({ type: Number, required: true, min: 1, default: 100 })
+  temporaryStorageGb!: number;
+
   @Prop({ type: String, required: true })
   environmentTemplateId!: string;
 
