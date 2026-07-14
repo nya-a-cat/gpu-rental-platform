@@ -731,3 +731,21 @@
 
 - `progress.md`：追加 P1 最终 GitHub Actions 验证证据。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^docs: record p1 actions verification$' -1)"`。
+
+## 2026-07-14 - Task: 修复订单创建失败时的孤儿实例补偿
+
+### What was done
+
+- 审阅订单、实例、通知和退款的跨域失败路径，发现实例已持久化但通知写入失败时可能留下孤儿运行实例。
+- 将订单创建失败补偿改为始终按订单查询并终止已存在实例；仅在不存在实例且钱包已经扣款时执行直接全额退款。
+
+### Testing
+
+- 代码路径审阅确认三类失败结果：扣款前失败不退款、扣款后实例创建前失败直接退款、实例持久化后失败通过实例终止执行幂等退款。
+- 本轮文件 Prettier 与 `git diff --check` 通过；完整回归交由 PR #7 的 GitHub Actions 验证。
+
+### Notes
+
+- `apps/api/src/orders/orders.controller.ts`：消除依赖方法返回时机的实例创建标志，改用订单关联实例查询作为补偿依据。
+- `progress.md`：记录合并前审阅发现、修复和验证计划。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^fix: clean up partially created instances$' -1)"`。

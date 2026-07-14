@@ -42,19 +42,18 @@ export class OrdersController {
   ): Promise<OrderView> {
     const order = await this.orders.create(user.userId, input);
     let charged = false;
-    let instanceCreated = false;
     try {
       await this.accounts.chargeOrder(order);
       charged = true;
       await this.instances.createForOrder(order);
-      instanceCreated = true;
       await this.teams.recordBooking(order.projectId, order.totalPriceCents);
       return order;
     } catch (error) {
       await this.orders.cancelOrder(order.id);
-      if (instanceCreated) {
-        await this.instances.terminateByOrderId(order.id);
-      } else if (charged) {
+      const terminatedInstance = await this.instances.terminateByOrderId(
+        order.id,
+      );
+      if (!terminatedInstance && charged) {
         await this.accounts.refundUnused(
           order.userId,
           order.id,
