@@ -163,6 +163,24 @@ describe("DemoGateway", () => {
       attachedInstanceId: null,
     });
     expect(account.networkRules).toHaveLength(1);
+    const refundedBalance = account.wallet.balanceCents;
+    await gateway.terminateInstance(instance.id);
+    const retryAccount = await gateway.getCloudAccount();
+    expect(retryAccount.wallet.balanceCents).toBe(refundedBalance);
+    expect(
+      retryAccount.billingEntries.filter(
+        (entry) =>
+          entry.type === BillingEntryType.OrderRefund &&
+          entry.reference === `order:${order.id}:refund`,
+      ),
+    ).toHaveLength(1);
+    await expect(
+      gateway.createOrder({
+        gpuResourceId: resource.id,
+        durationHours: 720,
+        instanceName: "unfunded-instance",
+      }),
+    ).rejects.toMatchObject({ code: "INSUFFICIENT_BALANCE", status: 402 });
     await gateway.markAllNotificationsRead();
     expect(
       (await gateway.getCloudAccount()).notifications.every(

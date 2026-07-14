@@ -380,6 +380,44 @@ describe("API with MongoDB and Redis", () => {
       status: VolumeStatus.Available,
       attachedInstanceId: null,
     });
+    const refundedBalance = account.body.wallet.balanceCents as number;
+    await request(app.getHttpServer())
+      .post(`/api/instances/${instance.id}/terminate`)
+      .set("Cookie", cookie)
+      .expect(200);
+    await request(app.getHttpServer())
+      .get("/api/cloud-account")
+      .set("Cookie", cookie)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.wallet.balanceCents).toBe(refundedBalance);
+        expect(
+          body.billingEntries.filter(
+            (entry: { type: BillingEntryType; reference: string }) =>
+              entry.type === BillingEntryType.OrderRefund &&
+              entry.reference === `order:${order.body.id}:refund`,
+          ),
+        ).toHaveLength(1);
+      });
+
+    const expensiveResourceId = await insertTestResource(mongo, {
+      name: "ci-p1-insufficient-01",
+      model: "NVIDIA B200",
+      memoryGb: 192,
+      region: "ci-region",
+      hourlyPriceCents: 200_000,
+    });
+    await request(app.getHttpServer())
+      .post("/api/orders")
+      .set("Cookie", cookie)
+      .send({ gpuResourceId: expensiveResourceId, durationHours: 1 })
+      .expect(402);
+    expect(
+      await mongo.collection("orders").countDocuments({
+        gpuResourceId: new Types.ObjectId(expensiveResourceId),
+        status: OrderStatus.Active,
+      }),
+    ).toBe(0);
 
     await request(app.getHttpServer())
       .get("/api/teams/me")
