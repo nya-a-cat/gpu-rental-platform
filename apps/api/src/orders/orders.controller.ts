@@ -16,6 +16,7 @@ import { CurrentUser } from "../auth/current-user.decorator";
 import { SESSION_COOKIE_NAME } from "../auth/session-cookie";
 import { SessionAuthGuard } from "../auth/session-auth.guard";
 import type { SessionIdentity } from "../redis/session.service";
+import { InstancesService } from "../instances/instances.service";
 import { CreateOrderDto, OrderQueryDto } from "./orders.dto";
 import { OrdersService } from "./orders.service";
 
@@ -24,15 +25,25 @@ import { OrdersService } from "./orders.service";
 @UseGuards(SessionAuthGuard)
 @Controller("orders")
 export class OrdersController {
-  constructor(private readonly orders: OrdersService) {}
+  constructor(
+    private readonly orders: OrdersService,
+    private readonly instances: InstancesService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: "Reserve an online GPU resource" })
-  create(
+  async create(
     @CurrentUser() user: SessionIdentity,
     @Body() input: CreateOrderDto,
   ): Promise<OrderView> {
-    return this.orders.create(user.userId, input);
+    const order = await this.orders.create(user.userId, input);
+    try {
+      await this.instances.createForOrder(order);
+      return order;
+    } catch (error) {
+      await this.orders.cancelOrder(order.id);
+      throw error;
+    }
   }
 
   @Get("me")
@@ -46,10 +57,12 @@ export class OrdersController {
   @Post(":id/return")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Return an active order" })
-  returnOrder(
+  async returnOrder(
     @CurrentUser() user: SessionIdentity,
     @Param("id") orderId: string,
   ): Promise<OrderView> {
-    return this.orders.returnOrder(orderId, user.userId);
+    const order = await this.orders.returnOrder(orderId, user.userId);
+    await this.instances.terminateByOrderId(orderId);
+    return order;
   }
 }

@@ -30,6 +30,7 @@ import {
   UpdateGpuResourceDto,
 } from "../gpu-resources/gpu-resources.dto";
 import { GpuResourcesService } from "../gpu-resources/gpu-resources.service";
+import { InstancesService } from "../instances/instances.service";
 import { AdminOrderQueryDto } from "../orders/orders.dto";
 import { OrdersService } from "../orders/orders.service";
 import { AdminService } from "./admin.service";
@@ -44,6 +45,7 @@ export class AdminController {
     private readonly admin: AdminService,
     private readonly resources: GpuResourcesService,
     private readonly orders: OrdersService,
+    private readonly instances: InstancesService,
   ) {}
 
   @Get("overview")
@@ -91,7 +93,9 @@ export class AdminController {
 
   @Post("orders/:id/cancel")
   @HttpCode(HttpStatus.OK)
-  cancelOrder(@Param("id") id: string): Promise<OrderView> {
-    return this.orders.cancelOrder(id);
+  async cancelOrder(@Param("id") id: string): Promise<OrderView> {
+    const order = await this.orders.cancelOrder(id);
+    await this.instances.terminateByOrderId(id);
+    return order;
   }
 }

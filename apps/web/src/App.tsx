@@ -17,6 +17,7 @@ import { resolveRuntimeMode } from "./data/gateway";
 import { AdminPage } from "./pages/AdminPage";
 import { AuthPage } from "./pages/AuthPage";
 import { MarketPage } from "./pages/MarketPage";
+import { InstancesPage } from "./pages/InstancesPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { ResourcePage } from "./pages/ResourcePage";
@@ -41,6 +42,14 @@ export function AppRoutes() {
         <Route path="resources/:resourceId" element={<ResourcePage />} />
         <Route path="login" element={<AuthPage kind="login" />} />
         <Route path="register" element={<AuthPage kind="register" />} />
+        <Route
+          path="instances"
+          element={
+            <ProtectedRoute>
+              <InstancesPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="orders"
           element={

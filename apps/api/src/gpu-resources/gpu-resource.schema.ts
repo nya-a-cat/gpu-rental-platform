@@ -13,6 +13,30 @@ export class GpuResource {
   @Prop({ type: Number, required: true, min: 1, index: true })
   memoryGb!: number;
 
+  @Prop({ type: Number, required: true, min: 1, default: 1 })
+  gpuCount!: number;
+
+  @Prop({ type: Number, required: true, min: 1, default: 16 })
+  cpuCores!: number;
+
+  @Prop({ type: Number, required: true, min: 1, default: 64 })
+  systemMemoryGb!: number;
+
+  @Prop({ type: Number, required: true, min: 1, default: 100 })
+  storageGb!: number;
+
+  @Prop({ type: String, required: true, trim: true, default: "12.4" })
+  cudaVersion!: string;
+
+  @Prop({ type: String, required: true, trim: true, default: "550" })
+  driverVersion!: string;
+
+  @Prop({ type: Number, required: true, min: 1, default: 1000 })
+  bandwidthMbps!: number;
+
+  @Prop({ type: Number, required: true, min: 0, max: 100, default: 99.9 })
+  reliabilityPercent!: number;
+
   @Prop({ type: String, required: true, trim: true, index: true })
   region!: string;
 

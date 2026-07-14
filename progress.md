@@ -547,3 +547,60 @@
 - `ROADMAP.md`：记录新版已选定并成为默认入口。
 - `progress.md`：追加本轮实现、验证计划、文件清单与回滚点。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^ci: make interactive console the default$' -1)"`。
+
+## 2026-07-14 - Task: 完成 P0 GPU 实例交付与运行管理
+
+### What was done
+
+- 扩展 GPU 资源规格，增加 GPU 数量、CPU、系统内存、本地磁盘、CUDA、驱动、网络带宽和可靠性字段，并在管理员登记与资源详情中形成业务闭环。
+- 增加 PyTorch、CUDA 开发和 vLLM 三类环境模板；预订时保存环境、实例名称和资源规格快照。
+- 将商业订单与运行实例分离，增加运行、停止、重启、终止和到期回收状态流转；订单退租或取消会同步终止实例，实例终止会同步退租有效订单。
+- 增加运行秒数与累计费用计算，并通过 `.simulated.invalid` 地址透明展示 SSH、Jupyter 和 Web Terminal 交付契约。
+- 在 API 与浏览器 Demo 两种模式中实现相同业务行为，并补充 Demo 单元测试和真实 MongoDB/Redis 端到端测试。
+
+### Testing
+
+- 对本轮全部代码和文档执行仓库锁定版本 Prettier：通过。
+- `git diff --check`：通过。
+- 本机直接调用 TypeScript 5.9.2 时，现有 Windows 依赖链接缺少可解析的 `@types/node`，在业务代码编译前停止；Corepack 还因本机旧签名密钥报错 `Cannot find matching keyid`，因此完整类型检查、单元测试、API E2E、构建和容器构建交由本轮 Draft PR 的 GitHub Actions 执行。
+
+### Notes
+
+- `packages/contracts/src/index.ts`：扩展资源、订单、环境模板和实例共享契约。
+- `apps/api/src/gpu-resources/gpu-resource.schema.ts`：持久化扩展资源规格。
+- `apps/api/src/gpu-resources/gpu-resources.dto.ts`：增加扩展规格输入校验和 OpenAPI 元数据。
+- `apps/api/src/gpu-resources/gpu-resources.service.ts`：创建、更新和读取完整资源规格并兼容旧记录。
+- `apps/api/src/environment-templates/environment-templates.controller.ts`：暴露环境模板查询接口。
+- `apps/api/src/environment-templates/environment-templates.module.ts`：注册环境模板模块。
+- `apps/api/src/environment-templates/environment-templates.service.ts`：提供三类受控环境模板。
+- `apps/api/src/orders/order.schema.ts`：保存订单的 GPU、环境和实例名称快照。
+- `apps/api/src/orders/orders.dto.ts`：校验环境模板和实例名称输入。
+- `apps/api/src/orders/orders.service.ts`：在预订事务中解析模板并生成商业快照。
+- `apps/api/src/orders/orders.controller.ts`：预订后创建实例，退租时终止实例。
+- `apps/api/src/orders/orders.module.ts`：连接订单、环境模板和实例模块。
+- `apps/api/src/instances/instance.schema.ts`：增加实例状态、使用时长、价格和交付数据模型。
+- `apps/api/src/instances/instances.dto.ts`：增加实例状态筛选输入。
+- `apps/api/src/instances/instances.service.ts`：实现实例创建、状态转换、到期终止、使用时长和费用计算。
+- `apps/api/src/instances/instances.controller.ts`：暴露用户实例查询和生命周期操作接口。
+- `apps/api/src/instances/instances.module.ts`：注册实例业务模块。
+- `apps/api/src/admin/admin.controller.ts`：管理员取消订单时同步终止实例。
+- `apps/api/src/admin/admin.module.ts`：接入实例服务。
+- `apps/api/src/app.module.ts`：注册环境模板和实例模块。
+- `apps/api/test/api.e2e-spec.ts`：覆盖真实后端的实例创建、停止、重启、终止和订单联动。
+- `apps/web/src/data/gateway.ts`：扩展前端数据网关接口。
+- `apps/web/src/data/api-gateway.ts`：接入环境模板和实例 API。
+- `apps/web/src/data/demo-gateway.ts`：实现浏览器本地实例、费用和订单联动状态机。
+- `apps/web/src/pages/ResourcePage.tsx`：展示完整规格并支持选择环境和实例名称。
+- `apps/web/src/pages/InstancesPage.tsx`：增加实例列表、用量费用、交付信息和生命周期操作页。
+- `apps/web/src/pages/AdminPage.tsx`：支持登记完整 GPU 主机规格。
+- `apps/web/src/App.tsx`：注册实例页面路由。
+- `apps/web/src/components/layout.tsx`：增加实例和订单导航入口。
+- `apps/web/src/labels.ts`：增加实例状态双语标签和色调映射。
+- `apps/web/src/styles.css`：增加资源模板、实例卡片和实例操作布局。
+- `apps/web/src/test/demo-gateway.test.ts`：覆盖 Demo 实例生命周期、模拟地址和费用累计。
+- `README.md`：更新 P0 产品工作流和透明模拟边界。
+- `docs/architecture.md`：记录订单与实例边界、状态流转和费用模型。
+- `docs/demo-mode.md`：记录 Demo 状态版本、实例能力和 `.invalid` 边界。
+- `ROADMAP.md`：记录 P0 业务能力闭环已完成。
+- `progress.md`：追加本轮实现、验证计划、文件清单与回滚点。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^feat: complete p0 instance lifecycle$' -1)"`。

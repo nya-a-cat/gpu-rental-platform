@@ -19,6 +19,18 @@ export class Order {
   @Prop({ type: Number, required: true, min: 1 })
   gpuMemoryGb!: number;
 
+  @Prop({ type: Number, required: true, min: 1, default: 1 })
+  gpuCount!: number;
+
+  @Prop({ type: String, required: true, default: "pytorch-jupyter" })
+  environmentTemplateId!: string;
+
+  @Prop({ type: String, required: true, default: "PyTorch + JupyterLab" })
+  environmentTemplateName!: string;
+
+  @Prop({ type: String, required: true, trim: true, default: "GPU workload" })
+  instanceName!: string;
+
   @Prop({ type: String, required: true })
   region!: string;
 

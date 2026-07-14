@@ -10,6 +10,7 @@ import {
 import { Types, type FilterQuery, type Model } from "mongoose";
 
 import { DomainException } from "../common/domain-exception";
+import { EnvironmentTemplatesService } from "../environment-templates/environment-templates.service";
 import { isMongoDuplicateKeyError } from "../common/mongo-error";
 import {
   GpuResource,
@@ -30,6 +31,7 @@ export class OrdersService implements OnModuleInit {
     @InjectModel(GpuResource.name)
     private readonly resources: Model<GpuResource>,
     private readonly locks: DistributedLockService,
+    private readonly templates: EnvironmentTemplatesService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -37,6 +39,7 @@ export class OrdersService implements OnModuleInit {
   }
 
   async create(userId: string, input: CreateOrderDto): Promise<OrderView> {
+    const template = this.templates.getById(input.environmentTemplateId);
     try {
       return await this.locks.withResourceLock(
         input.gpuResourceId,
@@ -83,6 +86,11 @@ export class OrdersService implements OnModuleInit {
             gpuName: resource.name,
             gpuModel: resource.model,
             gpuMemoryGb: resource.memoryGb,
+            gpuCount: resource.gpuCount ?? 1,
+            environmentTemplateId: template.id,
+            environmentTemplateName: template.name,
+            instanceName:
+              input.instanceName?.trim() || `${resource.name} workload`,
             region: resource.region,
             hourlyPriceCents: resource.hourlyPriceCents,
             durationHours: input.durationHours,
@@ -227,6 +235,11 @@ export class OrdersService implements OnModuleInit {
       gpuName: order.gpuName,
       gpuModel: order.gpuModel,
       gpuMemoryGb: order.gpuMemoryGb,
+      gpuCount: order.gpuCount ?? 1,
+      environmentTemplateId: order.environmentTemplateId ?? "pytorch-jupyter",
+      environmentTemplateName:
+        order.environmentTemplateName ?? "PyTorch + JupyterLab",
+      instanceName: order.instanceName ?? `${order.gpuName} workload`,
       region: order.region,
       hourlyPriceCents: order.hourlyPriceCents,
       durationHours: order.durationHours,

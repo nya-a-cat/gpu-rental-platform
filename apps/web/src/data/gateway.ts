@@ -3,10 +3,13 @@ import type {
   AuthResponse,
   CreateGpuResourceInput,
   CreateOrderInput,
+  EnvironmentTemplateView,
   GpuAvailability,
   GpuListingStatus,
   GpuResourceFacets,
   GpuResourceView,
+  InstanceStatus,
+  InstanceView,
   LoginInput,
   OrderStatus,
   OrderView,
@@ -43,20 +46,31 @@ export interface OrderQuery {
   status?: OrderStatus;
 }
 
+export interface InstanceQuery {
+  page?: number;
+  pageSize?: number;
+  status?: InstanceStatus;
+}
+
 export interface DataGateway {
   readonly mode: RuntimeMode;
   cancelOrder(orderId: string): Promise<OrderView>;
   createOrder(input: CreateOrderInput): Promise<OrderView>;
   createResource(input: CreateGpuResourceInput): Promise<GpuResourceView>;
+  getInstance(instanceId: string): Promise<InstanceView>;
   getAdminOverview(): Promise<AdminOverview>;
   getFacets(): Promise<GpuResourceFacets>;
   getResource(resourceId: string): Promise<GpuResourceView>;
   getSession(): Promise<UserView | null>;
+  listEnvironmentTemplates(): Promise<EnvironmentTemplateView[]>;
   listAdminOrders(query?: OrderQuery): Promise<PaginatedResponse<OrderView>>;
   listAdminResources(
     query?: AdminResourceQuery,
   ): Promise<PaginatedResponse<GpuResourceView>>;
   listMyOrders(query?: OrderQuery): Promise<PaginatedResponse<OrderView>>;
+  listMyInstances(
+    query?: InstanceQuery,
+  ): Promise<PaginatedResponse<InstanceView>>;
   listResources(
     query?: ResourceQuery,
   ): Promise<PaginatedResponse<GpuResourceView>>;
@@ -65,6 +79,9 @@ export interface DataGateway {
   logoutAll(): Promise<void>;
   register(input: RegisterInput): Promise<AuthResponse>;
   resetDemo(): Promise<void>;
+  startInstance(instanceId: string): Promise<InstanceView>;
+  stopInstance(instanceId: string): Promise<InstanceView>;
+  terminateInstance(instanceId: string): Promise<InstanceView>;
   returnOrder(orderId: string): Promise<OrderView>;
   setListingStatus(
     resourceId: string,

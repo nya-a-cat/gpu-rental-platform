@@ -7,6 +7,7 @@ import {
   GpuResourceSchema,
 } from "../gpu-resources/gpu-resource.schema";
 import { GpuResourcesModule } from "../gpu-resources/gpu-resources.module";
+import { InstancesModule } from "../instances/instances.module";
 import { Order, OrderSchema } from "../orders/order.schema";
 import { OrdersModule } from "../orders/orders.module";
 import { User, UserSchema } from "../users/user.schema";
@@ -17,6 +18,7 @@ import { AdminService } from "./admin.service";
   imports: [
     AuthModule,
     GpuResourcesModule,
+    InstancesModule,
     OrdersModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },

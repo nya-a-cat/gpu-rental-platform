@@ -1,6 +1,8 @@
 import {
+  ConnectionMode,
   GpuAvailability,
   GpuListingStatus,
+  InstanceStatus,
   OrderStatus,
   ResourceMode,
   UserRole,
@@ -8,8 +10,10 @@ import {
   type AuthResponse,
   type CreateGpuResourceInput,
   type CreateOrderInput,
+  type EnvironmentTemplateView,
   type GpuResourceFacets,
   type GpuResourceView,
+  type InstanceView,
   type LoginInput,
   type OrderView,
   type PaginatedResponse,
@@ -22,6 +26,7 @@ import {
 import type {
   AdminResourceQuery,
   DataGateway,
+  InstanceQuery,
   OrderQuery,
   ResourceQuery,
 } from "./gateway";
@@ -40,12 +45,44 @@ export interface StorageLike {
 interface DemoState {
   credentials: Record<string, string>;
   currentUserId: string | null;
+  instances: InstanceView[];
   orders: OrderView[];
   resources: GpuResourceView[];
   sequence: number;
   users: UserView[];
-  version: 1;
+  version: 2;
 }
+
+const DEMO_TEMPLATES: EnvironmentTemplateView[] = [
+  {
+    id: "pytorch-jupyter",
+    name: "PyTorch + JupyterLab",
+    description: "CUDA-enabled PyTorch workspace with JupyterLab access.",
+    image: "pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime",
+    category: "training",
+    connectionModes: [
+      ConnectionMode.Jupyter,
+      ConnectionMode.Ssh,
+      ConnectionMode.WebTerminal,
+    ],
+  },
+  {
+    id: "cuda-development",
+    name: "CUDA Development",
+    description: "Minimal CUDA development image for custom workloads.",
+    image: "nvidia/cuda:12.8.1-devel-ubuntu24.04",
+    category: "development",
+    connectionModes: [ConnectionMode.Ssh, ConnectionMode.WebTerminal],
+  },
+  {
+    id: "vllm-inference",
+    name: "vLLM Inference",
+    description: "OpenAI-compatible model serving environment based on vLLM.",
+    image: "vllm/vllm-openai:v0.10.0",
+    category: "inference",
+    connectionModes: [ConnectionMode.Ssh, ConnectionMode.WebTerminal],
+  },
+];
 
 export class DemoGateway implements DataGateway {
   readonly mode = "demo" as const;
@@ -144,6 +181,10 @@ export class DemoGateway implements DataGateway {
     };
   }
 
+  async listEnvironmentTemplates(): Promise<EnvironmentTemplateView[]> {
+    return DEMO_TEMPLATES.map((template) => ({ ...template }));
+  }
+
   async getResource(resourceId: string): Promise<GpuResourceView> {
     const state = this.read();
     const resource = state.resources.find(
@@ -175,6 +216,7 @@ export class DemoGateway implements DataGateway {
         409,
       );
     }
+    const template = resolveDemoTemplate(input.environmentTemplateId);
     const startsAt = this.now();
     const timestamp = startsAt.toISOString();
     const order: OrderView = {
@@ -184,6 +226,10 @@ export class DemoGateway implements DataGateway {
       gpuName: resource.name,
       gpuModel: resource.model,
       gpuMemoryGb: resource.memoryGb,
+      gpuCount: resource.gpuCount,
+      environmentTemplateId: template.id,
+      environmentTemplateName: template.name,
+      instanceName: input.instanceName?.trim() || `${resource.name} workload`,
       region: resource.region,
       hourlyPriceCents: resource.hourlyPriceCents,
       durationHours: input.durationHours,
@@ -199,6 +245,15 @@ export class DemoGateway implements DataGateway {
       updatedAt: timestamp,
     };
     state.orders.unshift(order);
+    state.instances.unshift(
+      createDemoInstance(
+        `demo-instance-${state.sequence++}`,
+        order,
+        resource,
+        template,
+        startsAt,
+      ),
+    );
     this.write(state);
     return order;
   }
@@ -231,8 +286,97 @@ export class DemoGateway implements DataGateway {
     order.status = OrderStatus.Returned;
     order.returnedAt = this.now().toISOString();
     order.updatedAt = order.returnedAt;
+    terminateDemoInstanceByOrder(state, order.id, this.now());
     this.write(state);
     return order;
+  }
+
+  async listMyInstances(
+    query: InstanceQuery = {},
+  ): Promise<PaginatedResponse<InstanceView>> {
+    const state = this.read();
+    const user = requireUser(state);
+    const instances = state.instances
+      .filter(
+        (instance) =>
+          instance.userId === user.id &&
+          (!query.status || instance.status === query.status),
+      )
+      .map((instance) => refreshDemoInstance(instance, this.now()))
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    return paginate(instances, query);
+  }
+
+  async getInstance(instanceId: string): Promise<InstanceView> {
+    const state = this.read();
+    const user = requireUser(state);
+    const instance = state.instances.find(
+      (candidate) =>
+        candidate.id === instanceId && candidate.userId === user.id,
+    );
+    if (!instance) throw notFound("INSTANCE_NOT_FOUND");
+    return refreshDemoInstance(instance, this.now());
+  }
+
+  async startInstance(instanceId: string): Promise<InstanceView> {
+    const state = this.read();
+    const user = requireUser(state);
+    const instance = findDemoInstance(state, instanceId, user.id);
+    if (instance.status === InstanceStatus.Running) {
+      return refreshDemoInstance(instance, this.now());
+    }
+    assertDemoInstanceMutable(instance);
+    const now = this.now();
+    if (now >= new Date(instance.endsAt)) {
+      terminateDemoInstance(instance, now);
+      this.write(state);
+      throw new GatewayError(
+        "The instance lease has expired",
+        "INSTANCE_LEASE_EXPIRED",
+        409,
+      );
+    }
+    instance.status = InstanceStatus.Running;
+    instance.runningSince = now.toISOString();
+    instance.stoppedAt = null;
+    instance.updatedAt = now.toISOString();
+    this.write(state);
+    return refreshDemoInstance(instance, now);
+  }
+
+  async stopInstance(instanceId: string): Promise<InstanceView> {
+    const state = this.read();
+    const user = requireUser(state);
+    const instance = findDemoInstance(state, instanceId, user.id);
+    if (instance.status === InstanceStatus.Stopped) return instance;
+    assertDemoInstanceMutable(instance);
+    const now = this.now();
+    instance.billableSeconds = calculateDemoBillableSeconds(instance, now);
+    instance.runningSince = null;
+    instance.accruedCostCents = calculateDemoAccruedCost(instance, now);
+    instance.status = InstanceStatus.Stopped;
+    instance.stoppedAt = now.toISOString();
+    instance.updatedAt = now.toISOString();
+    this.write(state);
+    return instance;
+  }
+
+  async terminateInstance(instanceId: string): Promise<InstanceView> {
+    const state = this.read();
+    const user = requireUser(state);
+    const instance = findDemoInstance(state, instanceId, user.id);
+    const now = this.now();
+    terminateDemoInstance(instance, now);
+    const order = state.orders.find(
+      (candidate) => candidate.id === instance.orderId,
+    );
+    if (order?.status === OrderStatus.Active) {
+      order.status = OrderStatus.Returned;
+      order.returnedAt = now.toISOString();
+      order.updatedAt = order.returnedAt;
+    }
+    this.write(state);
+    return instance;
   }
 
   async getAdminOverview(): Promise<AdminOverview> {
@@ -290,6 +434,14 @@ export class DemoGateway implements DataGateway {
       name: input.name,
       model: input.model,
       memoryGb: input.memoryGb,
+      gpuCount: input.gpuCount ?? 1,
+      cpuCores: input.cpuCores ?? 16,
+      systemMemoryGb: input.systemMemoryGb ?? 64,
+      storageGb: input.storageGb ?? 100,
+      cudaVersion: input.cudaVersion ?? "12.4",
+      driverVersion: input.driverVersion ?? "550",
+      bandwidthMbps: input.bandwidthMbps ?? 1000,
+      reliabilityPercent: input.reliabilityPercent ?? 99.9,
       region: input.region,
       hourlyPriceCents: input.hourlyPriceCents,
       tags: input.tags ?? [],
@@ -363,6 +515,7 @@ export class DemoGateway implements DataGateway {
     order.status = OrderStatus.Cancelled;
     order.cancelledAt = this.now().toISOString();
     order.updatedAt = order.cancelledAt;
+    terminateDemoInstanceByOrder(state, order.id, this.now());
     this.write(state);
     return order;
   }
@@ -379,7 +532,7 @@ export class DemoGateway implements DataGateway {
       state = raw
         ? (JSON.parse(raw) as DemoState)
         : createInitialState(this.now());
-      if (state.version !== 1) throw new Error("Unsupported demo state");
+      if (state.version !== 2) throw new Error("Unsupported demo state");
     } catch {
       state = createInitialState(this.now());
     }
@@ -481,6 +634,10 @@ function createInitialState(now: Date): DemoState {
     gpuName: activeResource.name,
     gpuModel: activeResource.model,
     gpuMemoryGb: activeResource.memoryGb,
+    gpuCount: activeResource.gpuCount,
+    environmentTemplateId: DEMO_TEMPLATES[0]!.id,
+    environmentTemplateName: DEMO_TEMPLATES[0]!.name,
+    instanceName: "baseline-training-run",
     region: activeResource.region,
     hourlyPriceCents: activeResource.hourlyPriceCents,
     durationHours: 12,
@@ -493,13 +650,21 @@ function createInitialState(now: Date): DemoState {
     createdAt: startsAt.toISOString(),
     updatedAt: startsAt.toISOString(),
   };
+  const instance = createDemoInstance(
+    "demo-instance-01",
+    order,
+    activeResource,
+    DEMO_TEMPLATES[0]!,
+    startsAt,
+  );
   return {
-    version: 1,
+    version: 2,
     sequence: 100,
     currentUserId: null,
     users,
     resources,
     orders: [order],
+    instances: [instance],
     credentials: {
       "demo-user": DEMO_PASSWORD_HASH,
       "demo-admin": DEMO_PASSWORD_HASH,
@@ -531,6 +696,14 @@ function createResource(
     name,
     model,
     memoryGb,
+    gpuCount: 1,
+    cpuCores: memoryGb >= 80 ? 32 : 16,
+    systemMemoryGb: memoryGb >= 80 ? 128 : 64,
+    storageGb: memoryGb >= 80 ? 250 : 100,
+    cudaVersion: model.includes("AMD") ? "ROCm 6.3" : "12.4",
+    driverVersion: model.includes("AMD") ? "6.8" : "550.54",
+    bandwidthMbps: 10_000,
+    reliabilityPercent: 99.9,
     region,
     hourlyPriceCents,
     tags,
@@ -540,6 +713,152 @@ function createResource(
     createdAt: timestamp,
     updatedAt: timestamp,
   };
+}
+
+function createDemoInstance(
+  id: string,
+  order: OrderView,
+  resource: GpuResourceView,
+  template: EnvironmentTemplateView,
+  startsAt: Date,
+): InstanceView {
+  const host = `${id}.simulated.invalid`;
+  const modes = new Set(template.connectionModes);
+  return {
+    id,
+    orderId: order.id,
+    userId: order.userId,
+    gpuResourceId: resource.id,
+    name: order.instanceName,
+    gpuName: resource.name,
+    gpuModel: resource.model,
+    gpuCount: resource.gpuCount,
+    gpuMemoryGb: resource.memoryGb,
+    environmentTemplateId: template.id,
+    environmentTemplateName: template.name,
+    environmentImage: template.image,
+    status: InstanceStatus.Running,
+    simulated: true,
+    startsAt: startsAt.toISOString(),
+    endsAt: order.endsAt,
+    runningSince: startsAt.toISOString(),
+    stoppedAt: null,
+    terminatedAt: null,
+    billableSeconds: 0,
+    accruedCostCents: 0,
+    maximumCostCents: order.totalPriceCents,
+    access: {
+      sshCommand: modes.has(ConnectionMode.Ssh) ? `ssh operator@${host}` : null,
+      jupyterUrl: modes.has(ConnectionMode.Jupyter)
+        ? `https://${host}/jupyter`
+        : null,
+      webTerminalUrl: modes.has(ConnectionMode.WebTerminal)
+        ? `https://${host}/terminal`
+        : null,
+      notice:
+        "Simulation only. These .invalid endpoints cannot connect to physical infrastructure.",
+    },
+    createdAt: startsAt.toISOString(),
+    updatedAt: startsAt.toISOString(),
+  };
+}
+
+function resolveDemoTemplate(id?: string): EnvironmentTemplateView {
+  const template = DEMO_TEMPLATES.find(
+    (candidate) => candidate.id === (id ?? DEMO_TEMPLATES[0]!.id),
+  );
+  if (!template) throw notFound("ENVIRONMENT_TEMPLATE_NOT_FOUND");
+  return template;
+}
+
+function findDemoInstance(
+  state: DemoState,
+  instanceId: string,
+  userId: string,
+): InstanceView {
+  const instance = state.instances.find(
+    (candidate) => candidate.id === instanceId && candidate.userId === userId,
+  );
+  if (!instance) throw notFound("INSTANCE_NOT_FOUND");
+  return instance;
+}
+
+function assertDemoInstanceMutable(instance: InstanceView): void {
+  if (
+    instance.status === InstanceStatus.Terminated ||
+    instance.status === InstanceStatus.Failed
+  ) {
+    throw new GatewayError(
+      "A terminal instance cannot change status",
+      "INSTANCE_TERMINAL",
+      409,
+    );
+  }
+}
+
+function calculateDemoBillableSeconds(
+  instance: InstanceView,
+  now: Date,
+): number {
+  const currentSegment = instance.runningSince
+    ? Math.max(
+        0,
+        Math.ceil(
+          (now.getTime() - new Date(instance.runningSince).getTime()) / 1000,
+        ),
+      )
+    : 0;
+  const leaseSeconds = Math.ceil(
+    (new Date(instance.endsAt).getTime() -
+      new Date(instance.startsAt).getTime()) /
+      1000,
+  );
+  return Math.min(leaseSeconds, instance.billableSeconds + currentSegment);
+}
+
+function calculateDemoAccruedCost(instance: InstanceView, now: Date): number {
+  const orderHours = Math.max(
+    1,
+    (new Date(instance.endsAt).getTime() -
+      new Date(instance.startsAt).getTime()) /
+      3_600_000,
+  );
+  const hourlyPriceCents = instance.maximumCostCents / orderHours;
+  return Math.min(
+    instance.maximumCostCents,
+    Math.ceil(
+      (hourlyPriceCents * calculateDemoBillableSeconds(instance, now)) / 3600,
+    ),
+  );
+}
+
+function refreshDemoInstance(instance: InstanceView, now: Date): InstanceView {
+  return {
+    ...instance,
+    billableSeconds: calculateDemoBillableSeconds(instance, now),
+    accruedCostCents: calculateDemoAccruedCost(instance, now),
+  };
+}
+
+function terminateDemoInstance(instance: InstanceView, now: Date): void {
+  if (instance.status === InstanceStatus.Terminated) return;
+  instance.billableSeconds = calculateDemoBillableSeconds(instance, now);
+  instance.runningSince = null;
+  instance.accruedCostCents = calculateDemoAccruedCost(instance, now);
+  instance.status = InstanceStatus.Terminated;
+  instance.terminatedAt = now.toISOString();
+  instance.updatedAt = instance.terminatedAt;
+}
+
+function terminateDemoInstanceByOrder(
+  state: DemoState,
+  orderId: string,
+  now: Date,
+): void {
+  const instance = state.instances.find(
+    (candidate) => candidate.orderId === orderId,
+  );
+  if (instance) terminateDemoInstance(instance, now);
 }
 
 function filterResources(
@@ -616,6 +935,7 @@ function expireDueOrders(state: DemoState, now: Date): boolean {
     if (order.status === OrderStatus.Active && new Date(order.endsAt) <= now) {
       order.status = OrderStatus.Expired;
       order.updatedAt = now.toISOString();
+      terminateDemoInstanceByOrder(state, order.id, now);
       changed = true;
     }
   }
