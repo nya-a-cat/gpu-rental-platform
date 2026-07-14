@@ -604,3 +604,19 @@
 - `ROADMAP.md`：记录 P0 业务能力闭环已完成。
 - `progress.md`：追加本轮实现、验证计划、文件清单与回滚点。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^feat: complete p0 instance lifecycle$' -1)"`。
+
+## 2026-07-14 - Task: 验证 P0 GPU 实例交付与运行管理
+
+### What was done
+
+- 通过 Draft PR #7 触发完整 GitHub Actions 质量门禁，并确认 P0 代码、测试、构建和容器交付链路全部通过。
+
+### Testing
+
+- GitHub Actions `Pipeline` 运行 `29345532682`：`Quality and container build` 在 1 分 29 秒内成功。
+- 通过项包括依赖安装、Prettier、Lint、TypeScript、单元测试、MongoDB/Redis API E2E、工作区生产构建、Compose 配置校验和 Docker 镜像构建。
+
+### Notes
+
+- `progress.md`：追加 P0 的 GitHub Actions 正式验证证据。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^docs: record p0 actions verification$' -1)"`。
