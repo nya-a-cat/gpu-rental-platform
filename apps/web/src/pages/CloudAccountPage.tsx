@@ -466,7 +466,7 @@ export function CloudAccountPage() {
                       volume.status === VolumeStatus.Attached
                         ? "good"
                         : volume.status === VolumeStatus.Deleted
-                          ? "muted"
+                          ? "neutral"
                           : "warn"
                     }
                   />
