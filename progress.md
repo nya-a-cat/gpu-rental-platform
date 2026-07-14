@@ -695,3 +695,22 @@
 - `apps/web/src/pages/CloudAccountPage.tsx`：使用状态灯已声明的中性色调。
 - `progress.md`：记录首轮 P1 Actions 错误和修复。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^fix: use supported volume status tone$' -1)"`。
+
+## 2026-07-14 - Task: 补强 P1 账务幂等与余额门禁验证
+
+### What was done
+
+- 增加 API 与 Demo 的重复终止断言，确保同一订单只产生一条退款且余额不会重复增加。
+- 增加余额不足场景，确认订单返回 402 并且资源不会留下有效占用。
+
+### Testing
+
+- GitHub Actions `29346932105` 已通过 P1 格式、Lint、类型、单元测试、API E2E、生产构建、Compose 和 Docker 镜像构建。
+- 新增账务断言已通过 Prettier 与 `git diff --check`，完整回归交由下一轮 GitHub Actions 验证。
+
+### Notes
+
+- `apps/api/test/api.e2e-spec.ts`：增加重复退款幂等和余额不足不占用资源断言。
+- `apps/web/src/test/demo-gateway.test.ts`：增加 Demo 重复退款和余额不足断言。
+- `progress.md`：记录 P1 第二轮 Actions 结果和账务门禁补强。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^test: cover p1 billing safeguards$' -1)"`。
