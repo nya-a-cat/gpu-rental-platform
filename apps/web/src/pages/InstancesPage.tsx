@@ -162,6 +162,10 @@ export function InstancesPage() {
                 <dd>{instance.environmentTemplateName}</dd>
               </div>
               <div>
+                <dt>{tr("临时磁盘", "TEMPORARY DISK")}</dt>
+                <dd>{instance.temporaryStorageGb} GB</dd>
+              </div>
+              <div>
                 <dt>{tr("累计运行", "BILLABLE TIME")}</dt>
                 <dd>{formatDuration(instance.billableSeconds, tr)}</dd>
               </div>

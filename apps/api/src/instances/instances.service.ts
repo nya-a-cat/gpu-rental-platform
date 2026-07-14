@@ -4,6 +4,7 @@ import { Interval } from "@nestjs/schedule";
 import {
   ConnectionMode,
   InstanceStatus,
+  NotificationType,
   OrderStatus,
   type EnvironmentTemplateView,
   type InstanceView,
@@ -13,6 +14,7 @@ import {
 import { Types, type FilterQuery, type Model } from "mongoose";
 
 import { DomainException } from "../common/domain-exception";
+import { CloudAccountsService } from "../cloud-accounts/cloud-accounts.service";
 import { EnvironmentTemplatesService } from "../environment-templates/environment-templates.service";
 import { Order } from "../orders/order.schema";
 import type { InstanceQueryDto } from "./instances.dto";
@@ -24,6 +26,7 @@ export class InstancesService implements OnModuleInit {
     @InjectModel(Instance.name) private readonly instances: Model<Instance>,
     @InjectModel(Order.name) private readonly orders: Model<Order>,
     private readonly templates: EnvironmentTemplatesService,
+    private readonly accounts: CloudAccountsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -46,6 +49,7 @@ export class InstancesService implements OnModuleInit {
       gpuModel: order.gpuModel,
       gpuCount: order.gpuCount,
       gpuMemoryGb: order.gpuMemoryGb,
+      temporaryStorageGb: order.temporaryStorageGb,
       environmentTemplateId: template.id,
       environmentTemplateName: template.name,
       environmentImage: template.image,
@@ -59,7 +63,14 @@ export class InstancesService implements OnModuleInit {
       runningSince: now,
       accumulatedRunSeconds: 0,
     })) as InstanceDocument;
-    return this.toView(instance, now);
+    const view = this.toView(instance, now);
+    await this.accounts.addNotification(
+      order.userId,
+      NotificationType.Instance,
+      "Instance running",
+      `${order.instanceName} is ready with simulated access details.`,
+    );
+    return view;
   }
 
   async listMine(
@@ -125,6 +136,12 @@ export class InstancesService implements OnModuleInit {
     instance.runningSince = now;
     instance.stoppedAt = null;
     await instance.save();
+    await this.accounts.addNotification(
+      userId,
+      NotificationType.Instance,
+      "Instance started",
+      `${instance.name} resumed billable runtime.`,
+    );
     return this.toView(instance, now);
   }
 
@@ -139,6 +156,12 @@ export class InstancesService implements OnModuleInit {
     instance.status = InstanceStatus.Stopped;
     instance.stoppedAt = now;
     await instance.save();
+    await this.accounts.addNotification(
+      userId,
+      NotificationType.Instance,
+      "Instance stopped",
+      `${instance.name} stopped accruing runtime charges.`,
+    );
     return this.toView(instance, now);
   }
 
@@ -149,13 +172,15 @@ export class InstancesService implements OnModuleInit {
     return this.toView(instance, now);
   }
 
-  async terminateByOrderId(orderId: string): Promise<void> {
-    if (!Types.ObjectId.isValid(orderId)) return;
+  async terminateByOrderId(orderId: string): Promise<InstanceView | null> {
+    if (!Types.ObjectId.isValid(orderId)) return null;
     const instance = (await this.instances
       .findOne({ orderId: new Types.ObjectId(orderId) })
       .exec()) as InstanceDocument | null;
-    if (!instance) return;
-    await this.terminateDocument(instance, new Date(), false);
+    if (!instance) return null;
+    const now = new Date();
+    await this.terminateDocument(instance, now, false);
+    return this.toView(instance, now);
   }
 
   @Interval(60_000)
@@ -178,11 +203,13 @@ export class InstancesService implements OnModuleInit {
     now: Date,
     returnOrder: boolean,
   ): Promise<void> {
+    let transitioned = false;
     if (instance.status !== InstanceStatus.Terminated) {
       this.accumulateRunningTime(instance, now);
       instance.status = InstanceStatus.Terminated;
       instance.terminatedAt = now;
       await instance.save();
+      transitioned = true;
     }
     if (returnOrder) {
       await this.orders.updateOne(
@@ -194,6 +221,22 @@ export class InstancesService implements OnModuleInit {
         {
           $set: { status: OrderStatus.Returned, returnedAt: now },
         },
+      );
+    }
+    const view = this.toView(instance, now);
+    await this.accounts.refundUnused(
+      view.userId,
+      view.orderId,
+      view.maximumCostCents,
+      view.accruedCostCents,
+    );
+    await this.accounts.releaseInstanceResources(view.userId, view.id);
+    if (transitioned) {
+      await this.accounts.addNotification(
+        view.userId,
+        NotificationType.Instance,
+        "Instance terminated",
+        `${view.name} was terminated and unused booked value was reconciled.`,
       );
     }
   }
@@ -268,6 +311,7 @@ export class InstancesService implements OnModuleInit {
       gpuModel: instance.gpuModel,
       gpuCount: instance.gpuCount,
       gpuMemoryGb: instance.gpuMemoryGb,
+      temporaryStorageGb: instance.temporaryStorageGb ?? 100,
       environmentTemplateId: instance.environmentTemplateId,
       environmentTemplateName: instance.environmentTemplateName,
       environmentImage: instance.environmentImage,
