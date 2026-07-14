@@ -678,3 +678,20 @@
 - `ROADMAP.md`：记录 P1 业务能力闭环已完成。
 - `progress.md`：追加本轮实现、验证计划、文件清单与回滚点。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^feat: complete p1 cloud operations$' -1)"`。
+
+## 2026-07-14 - Task: 修复 P1 持久卷状态灯类型
+
+### What was done
+
+- 将已删除持久卷的状态灯色调切换为组件支持的中性色，消除 Web TypeScript 类型错误。
+
+### Testing
+
+- GitHub Actions `29346820227` 精确定位到 `CloudAccountPage.tsx(465,21)` 的 `muted` 色调不属于组件联合类型；代码已改用 `neutral`。
+- 本轮文件 Prettier 与 `git diff --check` 通过；修复结果交由下一轮 GitHub Actions 验证。
+
+### Notes
+
+- `apps/web/src/pages/CloudAccountPage.tsx`：使用状态灯已声明的中性色调。
+- `progress.md`：记录首轮 P1 Actions 错误和修复。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^fix: use supported volume status tone$' -1)"`。
