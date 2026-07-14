@@ -749,3 +749,19 @@
 - `apps/api/src/orders/orders.controller.ts`：消除依赖方法返回时机的实例创建标志，改用订单关联实例查询作为补偿依据。
 - `progress.md`：记录合并前审阅发现、修复和验证计划。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^fix: clean up partially created instances$' -1)"`。
+
+## 2026-07-14 - Task: 验证合并前审阅修复
+
+### What was done
+
+- 完成 PR #7 合并前阻断问题修复的 GitHub Actions 全量回归验证。
+
+### Testing
+
+- GitHub Actions `Pipeline` 运行 `29347676877`：提交 `fb4a51e` 的 `Quality and container build` 在 1 分 30 秒内成功。
+- 通过项包括依赖安装、Prettier、Lint、TypeScript、单元测试、MongoDB/Redis API E2E、工作区生产构建、Compose 配置校验和 Docker 镜像构建。
+
+### Notes
+
+- `progress.md`：追加合并前审阅修复的 GitHub Actions 验证证据。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^docs: record merge review verification$' -1)"`。
