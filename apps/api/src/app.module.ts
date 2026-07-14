@@ -17,7 +17,9 @@ import { validateEnvironment } from "./common/environment";
 import { HttpExceptionFilter } from "./common/http-exception.filter";
 import { RequestIdMiddleware } from "./common/request-id.middleware";
 import { GpuResourcesModule } from "./gpu-resources/gpu-resources.module";
+import { EnvironmentTemplatesModule } from "./environment-templates/environment-templates.module";
 import { HealthModule } from "./health/health.module";
+import { InstancesModule } from "./instances/instances.module";
 import { OrdersModule } from "./orders/orders.module";
 import { RedisModule } from "./redis/redis.module";
 import { UsersModule } from "./users/users.module";
@@ -44,7 +46,9 @@ import { UsersModule } from "./users/users.module";
     RedisModule,
     AuthModule,
     UsersModule,
+    EnvironmentTemplatesModule,
     GpuResourcesModule,
+    InstancesModule,
     OrdersModule,
     AdminModule,
     HealthModule,

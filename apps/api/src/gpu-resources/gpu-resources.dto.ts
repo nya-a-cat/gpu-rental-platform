@@ -14,6 +14,7 @@ import {
 import { Type } from "class-transformer";
 import {
   IsArray,
+  IsNumber,
   IsEnum,
   IsInt,
   IsOptional,
@@ -83,6 +84,61 @@ export class CreateGpuResourceDto implements CreateGpuResourceInput {
   @Min(1)
   @Max(1024)
   memoryGb!: number;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(8)
+  gpuCount?: number;
+
+  @ApiPropertyOptional({ example: 16 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(512)
+  cpuCores?: number;
+
+  @ApiPropertyOptional({ example: 64 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(4096)
+  systemMemoryGb?: number;
+
+  @ApiPropertyOptional({ example: 100 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(16384)
+  storageGb?: number;
+
+  @ApiPropertyOptional({ example: "12.4" })
+  @IsOptional()
+  @IsString()
+  @Length(1, 20)
+  cudaVersion?: string;
+
+  @ApiPropertyOptional({ example: "550.54" })
+  @IsOptional()
+  @IsString()
+  @Length(1, 30)
+  driverVersion?: string;
+
+  @ApiPropertyOptional({ example: 1000 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(1_000_000)
+  bandwidthMbps?: number;
+
+  @ApiPropertyOptional({ example: 99.9 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @Min(0)
+  @Max(100)
+  reliabilityPercent?: number;
 
   @ApiProperty({ example: "cn-east" })
   @IsString()

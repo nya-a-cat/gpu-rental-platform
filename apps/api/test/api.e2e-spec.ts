@@ -4,6 +4,7 @@ import { Test } from "@nestjs/testing";
 import { getConnectionToken } from "@nestjs/mongoose";
 import {
   GpuListingStatus,
+  InstanceStatus,
   OrderStatus,
   ResourceMode,
 } from "@gpu-rental/contracts";
@@ -76,6 +77,7 @@ describe("API with MongoDB and Redis", () => {
     await Promise.all([
       mongo.collection("orders").deleteMany({}),
       mongo.collection("gpu_resources").deleteMany({}),
+      mongo.collection("instances").deleteMany({}),
       mongo.collection("users").deleteMany({}),
     ]);
   });
@@ -140,6 +142,70 @@ describe("API with MongoDB and Redis", () => {
       .get("/api/auth/me")
       .set("Cookie", cookie)
       .expect(401);
+  });
+
+  it("creates and manages a simulated instance for an order", async () => {
+    const registration = await request(app.getHttpServer())
+      .post("/api/auth/register")
+      .send({ username: "instance_user", password: "secure-password" })
+      .expect(201);
+    const cookie = getSessionCookie(registration);
+    const resourceId = await insertTestResource(mongo, {
+      name: "ci-h100-instance-01",
+      model: "NVIDIA H100",
+      memoryGb: 80,
+      region: "ci-region",
+      hourlyPriceCents: 3000,
+    });
+
+    const order = await request(app.getHttpServer())
+      .post("/api/orders")
+      .set("Cookie", cookie)
+      .send({
+        gpuResourceId: resourceId,
+        durationHours: 4,
+        environmentTemplateId: "cuda-development",
+        instanceName: "ci-training-run",
+      })
+      .expect(201);
+
+    const list = await request(app.getHttpServer())
+      .get("/api/instances/me")
+      .set("Cookie", cookie)
+      .expect(200);
+    const instance = list.body.items.find(
+      (candidate: { orderId: string }) => candidate.orderId === order.body.id,
+    ) as { id: string; status: InstanceStatus } | undefined;
+    expect(instance?.status).toBe(InstanceStatus.Running);
+
+    await request(app.getHttpServer())
+      .post(`/api/instances/${instance!.id}/stop`)
+      .set("Cookie", cookie)
+      .expect(200)
+      .expect(({ body }) => expect(body.status).toBe(InstanceStatus.Stopped));
+    await request(app.getHttpServer())
+      .post(`/api/instances/${instance!.id}/start`)
+      .set("Cookie", cookie)
+      .expect(200)
+      .expect(({ body }) => expect(body.status).toBe(InstanceStatus.Running));
+    await request(app.getHttpServer())
+      .post(`/api/instances/${instance!.id}/terminate`)
+      .set("Cookie", cookie)
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body.status).toBe(InstanceStatus.Terminated),
+      );
+
+    await request(app.getHttpServer())
+      .get("/api/orders/me")
+      .set("Cookie", cookie)
+      .expect(200)
+      .expect(({ body }) => {
+        const returnedOrder = body.items.find(
+          (candidate: { id: string }) => candidate.id === order.body.id,
+        );
+        expect(returnedOrder.status).toBe(OrderStatus.Returned);
+      });
   });
 
   it("revokes every session after a password change", async () => {

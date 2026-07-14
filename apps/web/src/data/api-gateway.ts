@@ -3,8 +3,10 @@ import type {
   AuthResponse,
   CreateGpuResourceInput,
   CreateOrderInput,
+  EnvironmentTemplateView,
   GpuResourceFacets,
   GpuResourceView,
+  InstanceView,
   LoginInput,
   OrderView,
   PaginatedResponse,
@@ -17,6 +19,7 @@ import type {
 import type {
   AdminResourceQuery,
   DataGateway,
+  InstanceQuery,
   OrderQuery,
   ResourceQuery,
 } from "./gateway";
@@ -71,6 +74,10 @@ export class ApiGateway implements DataGateway {
     return this.request("/gpu-resources/facets");
   }
 
+  listEnvironmentTemplates(): Promise<EnvironmentTemplateView[]> {
+    return this.request("/environment-templates");
+  }
+
   getResource(resourceId: string): Promise<GpuResourceView> {
     return this.request(`/gpu-resources/${encodeURIComponent(resourceId)}`);
   }
@@ -81,6 +88,35 @@ export class ApiGateway implements DataGateway {
 
   listMyOrders(query: OrderQuery = {}): Promise<PaginatedResponse<OrderView>> {
     return this.request(`/orders/me${toQueryString(query)}`);
+  }
+
+  listMyInstances(
+    query: InstanceQuery = {},
+  ): Promise<PaginatedResponse<InstanceView>> {
+    return this.request(`/instances/me${toQueryString(query)}`);
+  }
+
+  getInstance(instanceId: string): Promise<InstanceView> {
+    return this.request(`/instances/${encodeURIComponent(instanceId)}`);
+  }
+
+  startInstance(instanceId: string): Promise<InstanceView> {
+    return this.request(`/instances/${encodeURIComponent(instanceId)}/start`, {
+      method: "POST",
+    });
+  }
+
+  stopInstance(instanceId: string): Promise<InstanceView> {
+    return this.request(`/instances/${encodeURIComponent(instanceId)}/stop`, {
+      method: "POST",
+    });
+  }
+
+  terminateInstance(instanceId: string): Promise<InstanceView> {
+    return this.request(
+      `/instances/${encodeURIComponent(instanceId)}/terminate`,
+      { method: "POST" },
+    );
   }
 
   returnOrder(orderId: string): Promise<OrderView> {

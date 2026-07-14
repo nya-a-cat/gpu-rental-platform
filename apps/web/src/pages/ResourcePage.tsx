@@ -1,5 +1,6 @@
 import {
   GpuAvailability,
+  type EnvironmentTemplateView,
   type GpuResourceView,
   type OrderView,
 } from "@gpu-rental/contracts";
@@ -27,6 +28,9 @@ export function ResourcePage() {
   const navigate = useNavigate();
   const [resource, setResource] = useState<GpuResourceView | null>(null);
   const [durationHours, setDurationHours] = useState(8);
+  const [templates, setTemplates] = useState<EnvironmentTemplateView[]>([]);
+  const [templateId, setTemplateId] = useState("pytorch-jupyter");
+  const [instanceName, setInstanceName] = useState("");
   const [order, setOrder] = useState<OrderView | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -37,10 +41,22 @@ export function ResourcePage() {
     let active = true;
     setLoading(true);
     setError(null);
-    void gateway
-      .getResource(resourceId)
-      .then((result) => {
-        if (active) setResource(result);
+    void Promise.all([
+      gateway.getResource(resourceId),
+      gateway.listEnvironmentTemplates(),
+    ])
+      .then(([nextResource, nextTemplates]) => {
+        if (!active) return;
+        setResource(nextResource);
+        setTemplates(nextTemplates);
+        setInstanceName(
+          (current) => current || `${nextResource.name} workload`,
+        );
+        setTemplateId((current) =>
+          nextTemplates.some((template) => template.id === current)
+            ? current
+            : (nextTemplates[0]?.id ?? ""),
+        );
       })
       .catch((reason: unknown) => {
         if (active) setError(readErrorMessage(reason));
@@ -65,6 +81,8 @@ export function ResourcePage() {
       const created = await gateway.createOrder({
         gpuResourceId: resource.id,
         durationHours,
+        environmentTemplateId: templateId,
+        instanceName,
       });
       setOrder(created);
       setResource({ ...resource, availability: GpuAvailability.Rented });
@@ -162,7 +180,33 @@ export function ResourcePage() {
           <dl className="detail-specs">
             <div>
               <dt>{tr("显存容量", "Memory capacity")}</dt>
-              <dd>{resource.memoryGb} GB</dd>
+              <dd>
+                {resource.gpuCount} × {resource.memoryGb} GB
+              </dd>
+            </div>
+            <div>
+              <dt>{tr("主机配置", "Host allocation")}</dt>
+              <dd>
+                {resource.cpuCores} vCPU · {resource.systemMemoryGb} GB RAM
+              </dd>
+            </div>
+            <div>
+              <dt>{tr("本地磁盘", "Local storage")}</dt>
+              <dd>{resource.storageGb} GB</dd>
+            </div>
+            <div>
+              <dt>CUDA / DRIVER</dt>
+              <dd>
+                {resource.cudaVersion} / {resource.driverVersion}
+              </dd>
+            </div>
+            <div>
+              <dt>{tr("网络带宽", "Network bandwidth")}</dt>
+              <dd>{resource.bandwidthMbps} Mbps</dd>
+            </div>
+            <div>
+              <dt>{tr("演示可靠性", "Demo reliability")}</dt>
+              <dd>{resource.reliabilityPercent}%</dd>
             </div>
             <div>
               <dt>{tr("资源区域", "Region")}</dt>
@@ -184,8 +228,8 @@ export function ResourcePage() {
           </div>
           <p className="truth-note">
             {tr(
-              "该条目用于验证订单流程，不代表一台可远程连接的实体 GPU。平台不会生成 SSH、Notebook、IP、温度或利用率信息。",
-              "This item validates the order workflow; it is not a remotely accessible physical GPU. The platform does not invent SSH, notebook, IP, temperature or utilization data.",
+              "该条目用于验证完整租用流程。实例连接入口使用 .invalid 保留域名，仅展示交付界面，不会连接实体 GPU。",
+              "This item validates the complete rental workflow. Instance access uses reserved .invalid domains to demonstrate delivery without connecting to physical GPUs.",
             )}
           </p>
         </MechanicalPanel>
@@ -200,6 +244,47 @@ export function ResourcePage() {
             label={tr("租用时长", "DURATION")}
             value={(durationHours / 720) * 100}
           />
+          <label className="stack-field">
+            <span>{tr("实例名称", "Instance name")}</span>
+            <input
+              disabled={!available || Boolean(order)}
+              maxLength={80}
+              minLength={2}
+              onChange={(event) => setInstanceName(event.target.value)}
+              required
+              value={instanceName}
+            />
+          </label>
+          <label className="stack-field">
+            <span>{tr("运行环境", "Environment template")}</span>
+            <select
+              disabled={!available || Boolean(order)}
+              onChange={(event) => setTemplateId(event.target.value)}
+              value={templateId}
+            >
+              {templates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {templates.find((template) => template.id === templateId) ? (
+            <div className="template-summary">
+              <strong>
+                {
+                  templates.find((template) => template.id === templateId)!
+                    .image
+                }
+              </strong>
+              <span>
+                {
+                  templates.find((template) => template.id === templateId)!
+                    .description
+                }
+              </span>
+            </div>
+          ) : null}
           <label className="range-control">
             <span>
               {tr("租用时长", "Duration")}
@@ -247,18 +332,23 @@ export function ResourcePage() {
               <strong>{order.id}</strong>
               <p>
                 {tr(
-                  "预订已写入订单列表。",
-                  "Reservation added to your order list.",
+                  "预订已写入订单列表，模拟实例已开始运行。",
+                  "Reservation recorded and the simulated instance is running.",
                 )}
               </p>
-              <Link className="button button--orange" to="/orders">
-                {tr("查看我的订单", "View my orders")}
+              <Link className="button button--orange" to="/instances">
+                {tr("管理实例", "Manage instance")}
               </Link>
             </div>
           ) : (
             <button
               className="button button--orange button--wide"
-              disabled={submitting || !available}
+              disabled={
+                submitting ||
+                !available ||
+                !templateId ||
+                instanceName.trim().length < 2
+              }
               onClick={() => void reserve()}
               type="button"
             >

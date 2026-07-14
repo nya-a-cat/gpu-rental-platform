@@ -25,6 +25,20 @@ export enum OrderStatus {
   Cancelled = "cancelled",
 }
 
+export enum InstanceStatus {
+  Provisioning = "provisioning",
+  Running = "running",
+  Stopped = "stopped",
+  Failed = "failed",
+  Terminated = "terminated",
+}
+
+export enum ConnectionMode {
+  Ssh = "ssh",
+  Jupyter = "jupyter",
+  WebTerminal = "web-terminal",
+}
+
 export interface UserView {
   id: string;
   username: string;
@@ -57,6 +71,14 @@ export interface GpuResourceView {
   name: string;
   model: string;
   memoryGb: number;
+  gpuCount: number;
+  cpuCores: number;
+  systemMemoryGb: number;
+  storageGb: number;
+  cudaVersion: string;
+  driverVersion: string;
+  bandwidthMbps: number;
+  reliabilityPercent: number;
   region: string;
   hourlyPriceCents: number;
   tags: string[];
@@ -71,6 +93,14 @@ export interface CreateGpuResourceInput {
   name: string;
   model: string;
   memoryGb: number;
+  gpuCount?: number;
+  cpuCores?: number;
+  systemMemoryGb?: number;
+  storageGb?: number;
+  cudaVersion?: string;
+  driverVersion?: string;
+  bandwidthMbps?: number;
+  reliabilityPercent?: number;
   region: string;
   hourlyPriceCents: number;
   tags?: string[];
@@ -81,6 +111,14 @@ export interface UpdateGpuResourceInput {
   name?: string;
   model?: string;
   memoryGb?: number;
+  gpuCount?: number;
+  cpuCores?: number;
+  systemMemoryGb?: number;
+  storageGb?: number;
+  cudaVersion?: string;
+  driverVersion?: string;
+  bandwidthMbps?: number;
+  reliabilityPercent?: number;
   region?: string;
   hourlyPriceCents?: number;
   tags?: string[];
@@ -100,6 +138,8 @@ export interface GpuResourceFacets {
 export interface CreateOrderInput {
   gpuResourceId: string;
   durationHours: number;
+  environmentTemplateId?: string;
+  instanceName?: string;
 }
 
 export interface OrderView {
@@ -109,6 +149,10 @@ export interface OrderView {
   gpuName: string;
   gpuModel: string;
   gpuMemoryGb: number;
+  gpuCount: number;
+  environmentTemplateId: string;
+  environmentTemplateName: string;
+  instanceName: string;
   region: string;
   hourlyPriceCents: number;
   durationHours: number;
@@ -118,6 +162,50 @@ export interface OrderView {
   endsAt: string;
   returnedAt: string | null;
   cancelledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EnvironmentTemplateView {
+  id: string;
+  name: string;
+  description: string;
+  image: string;
+  category: string;
+  connectionModes: ConnectionMode[];
+}
+
+export interface InstanceAccessView {
+  sshCommand: string | null;
+  jupyterUrl: string | null;
+  webTerminalUrl: string | null;
+  notice: string;
+}
+
+export interface InstanceView {
+  id: string;
+  orderId: string;
+  userId: string;
+  gpuResourceId: string;
+  name: string;
+  gpuName: string;
+  gpuModel: string;
+  gpuCount: number;
+  gpuMemoryGb: number;
+  environmentTemplateId: string;
+  environmentTemplateName: string;
+  environmentImage: string;
+  status: InstanceStatus;
+  simulated: boolean;
+  startsAt: string;
+  endsAt: string;
+  runningSince: string | null;
+  stoppedAt: string | null;
+  terminatedAt: string | null;
+  billableSeconds: number;
+  accruedCostCents: number;
+  maximumCostCents: number;
+  access: InstanceAccessView;
   createdAt: string;
   updatedAt: string;
 }
