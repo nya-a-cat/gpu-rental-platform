@@ -714,3 +714,20 @@
 - `apps/web/src/test/demo-gateway.test.ts`：增加 Demo 重复退款和余额不足断言。
 - `progress.md`：记录 P1 第二轮 Actions 结果和账务门禁补强。
 - 回滚方式：执行 `git revert "$(git log --format=%H --grep='^test: cover p1 billing safeguards$' -1)"`。
+
+## 2026-07-14 - Task: 验证 P1 全业务闭环
+
+### What was done
+
+- 通过 Draft PR #7 完成 P1 云账户、密钥、网络、存储、团队项目、通知和账务保护的完整 GitHub Actions 验证。
+
+### Testing
+
+- GitHub Actions `Pipeline` 运行 `29347113162`：`Quality and container build` 在 1 分 25 秒内成功。
+- 通过项包括依赖安装、Prettier、Lint、TypeScript、单元测试、MongoDB/Redis API E2E、工作区生产构建、Compose 配置校验和 Docker 镜像构建。
+- 新增 E2E 已验证余额不足返回 402 且不保留有效订单；API 与 Demo 均验证重复终止只产生一次退款。
+
+### Notes
+
+- `progress.md`：追加 P1 最终 GitHub Actions 验证证据。
+- 回滚方式：执行 `git revert "$(git log --format=%H --grep='^docs: record p1 actions verification$' -1)"`。
