@@ -9,8 +9,11 @@ A portfolio-grade GPU resource rental control plane built with React, NestJS, Ty
 ## Product workflow
 
 - Filter simulated GPU inventory by model, region, memory, availability and price.
-- Reserve a resource, follow explicit order states and return it with one action.
-- Manage listings and orders through role-protected administrator routes.
+- Select a workload environment, reserve a resource and receive a separate simulated instance.
+- Start, stop and terminate instances while tracking billable runtime and accrued cost.
+- Use a simulated wallet with booked charges and automatic unused-value refunds.
+- Manage SSH/API keys, firewall rules, persistent volumes, snapshots, teams and cost-attributed projects.
+- Manage detailed hardware specifications, listings and orders through role-protected administrator routes.
 - Switch between Chinese and English across desktop and mobile layouts.
 - Explore a transparent browser-only Pages demo without pretending to provision hardware.
 
@@ -43,7 +46,7 @@ See [deployment.md](docs/deployment.md) for verification and security notes.
 
 ## Honest demo boundary
 
-Only GPU inventory is simulated. The Docker profile uses the real NestJS API, MongoDB documents, Redis sessions and Redis reservation lock. The project does not claim physical provisioning, payment, SSH, notebook access or live GPU telemetry.
+GPU inventory, instance delivery, wallet movements and cloud operations are simulated. The Docker profile uses the real NestJS API, MongoDB documents, Redis sessions and Redis reservation lock. Delivered SSH, web terminal and notebook addresses use the reserved `.invalid` domain and are intentionally unreachable. API keys, firewall rules, volumes and snapshots exercise durable control-plane workflows without changing infrastructure. The project does not claim physical provisioning, real payment processing or live GPU telemetry.
 
 GitHub Pages runs a clearly labelled local-browser demo adapter because static hosting cannot run the backend. Backend concurrency and session behavior are tested against real MongoDB and Redis in CI.
 

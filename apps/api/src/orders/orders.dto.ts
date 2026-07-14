@@ -6,6 +6,9 @@ import {
   IsInt,
   IsMongoId,
   IsOptional,
+  IsString,
+  IsUUID,
+  Length,
   Max,
   Min,
 } from "class-validator";
@@ -23,6 +26,23 @@ export class CreateOrderDto implements CreateOrderInput {
   @Min(1)
   @Max(720)
   durationHours!: number;
+
+  @ApiProperty({ required: false, example: "pytorch-jupyter" })
+  @IsOptional()
+  @IsString()
+  @Length(2, 80)
+  environmentTemplateId?: string;
+
+  @ApiProperty({ required: false, example: "training-run-01" })
+  @IsOptional()
+  @IsString()
+  @Length(2, 80)
+  instanceName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsUUID()
+  projectId?: string;
 }
 
 export class OrderQueryDto extends PaginationDto {

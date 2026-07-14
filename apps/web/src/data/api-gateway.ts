@@ -1,22 +1,42 @@
 import type {
   AdminOverview,
+  AddTeamMemberInput,
+  ApiKeyView,
+  AttachVolumeInput,
   AuthResponse,
+  CloudAccountView,
+  CreateApiKeyInput,
   CreateGpuResourceInput,
+  CreateNetworkRuleInput,
   CreateOrderInput,
+  CreateProjectInput,
+  CreateSnapshotInput,
+  CreateSshKeyInput,
+  CreateTeamInput,
+  CreateVolumeInput,
+  EnvironmentTemplateView,
   GpuResourceFacets,
   GpuResourceView,
+  InstanceView,
   LoginInput,
+  NetworkRuleView,
+  NotificationView,
   OrderView,
   PaginatedResponse,
   RegisterInput,
   SetGpuListingStatusInput,
+  SshKeyView,
+  TeamView,
+  TopUpInput,
   UpdateGpuResourceInput,
   UserView,
+  VolumeView,
 } from "@gpu-rental/contracts";
 
 import type {
   AdminResourceQuery,
   DataGateway,
+  InstanceQuery,
   OrderQuery,
   ResourceQuery,
 } from "./gateway";
@@ -61,6 +81,141 @@ export class ApiGateway implements DataGateway {
     return this.request("/auth/logout-all", { method: "POST" });
   }
 
+  getCloudAccount(): Promise<CloudAccountView> {
+    return this.request("/cloud-account");
+  }
+
+  topUp(input: TopUpInput): Promise<CloudAccountView> {
+    return this.request("/cloud-account/top-ups", {
+      method: "POST",
+      body: input,
+    });
+  }
+
+  createSshKey(input: CreateSshKeyInput): Promise<SshKeyView> {
+    return this.request("/cloud-account/ssh-keys", {
+      method: "POST",
+      body: input,
+    });
+  }
+
+  deleteSshKey(keyId: string): Promise<void> {
+    return this.request(
+      `/cloud-account/ssh-keys/${encodeURIComponent(keyId)}`,
+      {
+        method: "DELETE",
+      },
+    );
+  }
+
+  createApiKey(input: CreateApiKeyInput): Promise<ApiKeyView> {
+    return this.request("/cloud-account/api-keys", {
+      method: "POST",
+      body: input,
+    });
+  }
+
+  deleteApiKey(keyId: string): Promise<void> {
+    return this.request(
+      `/cloud-account/api-keys/${encodeURIComponent(keyId)}`,
+      {
+        method: "DELETE",
+      },
+    );
+  }
+
+  createNetworkRule(input: CreateNetworkRuleInput): Promise<NetworkRuleView> {
+    return this.request("/cloud-account/network-rules", {
+      method: "POST",
+      body: input,
+    });
+  }
+
+  deleteNetworkRule(ruleId: string): Promise<void> {
+    return this.request(
+      `/cloud-account/network-rules/${encodeURIComponent(ruleId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  createVolume(input: CreateVolumeInput): Promise<VolumeView> {
+    return this.request("/cloud-account/volumes", {
+      method: "POST",
+      body: input,
+    });
+  }
+
+  attachVolume(
+    volumeId: string,
+    input: AttachVolumeInput,
+  ): Promise<VolumeView> {
+    return this.request(
+      `/cloud-account/volumes/${encodeURIComponent(volumeId)}/attach`,
+      { method: "POST", body: input },
+    );
+  }
+
+  detachVolume(volumeId: string): Promise<VolumeView> {
+    return this.request(
+      `/cloud-account/volumes/${encodeURIComponent(volumeId)}/detach`,
+      { method: "POST" },
+    );
+  }
+
+  createSnapshot(
+    volumeId: string,
+    input: CreateSnapshotInput,
+  ): Promise<VolumeView> {
+    return this.request(
+      `/cloud-account/volumes/${encodeURIComponent(volumeId)}/snapshots`,
+      { method: "POST", body: input },
+    );
+  }
+
+  deleteVolume(volumeId: string): Promise<VolumeView> {
+    return this.request(
+      `/cloud-account/volumes/${encodeURIComponent(volumeId)}`,
+      {
+        method: "DELETE",
+      },
+    );
+  }
+
+  markNotificationRead(notificationId: string): Promise<NotificationView> {
+    return this.request(
+      `/cloud-account/notifications/${encodeURIComponent(notificationId)}/read`,
+      { method: "POST" },
+    );
+  }
+
+  markAllNotificationsRead(): Promise<void> {
+    return this.request("/cloud-account/notifications/read-all", {
+      method: "POST",
+    });
+  }
+
+  listTeams(): Promise<TeamView[]> {
+    return this.request("/teams/me");
+  }
+
+  createTeam(input: CreateTeamInput): Promise<TeamView> {
+    return this.request("/teams", { method: "POST", body: input });
+  }
+
+  addTeamMember(teamId: string, input: AddTeamMemberInput): Promise<TeamView> {
+    return this.request(`/teams/${encodeURIComponent(teamId)}/members`, {
+      method: "POST",
+      body: input,
+    });
+  }
+
+  createProject(teamId: string, input: CreateProjectInput): Promise<TeamView> {
+    return this.request(`/teams/${encodeURIComponent(teamId)}/projects`, {
+      method: "POST",
+      body: input,
+    });
+  }
+
   listResources(
     query: ResourceQuery = {},
   ): Promise<PaginatedResponse<GpuResourceView>> {
@@ -69,6 +224,10 @@ export class ApiGateway implements DataGateway {
 
   getFacets(): Promise<GpuResourceFacets> {
     return this.request("/gpu-resources/facets");
+  }
+
+  listEnvironmentTemplates(): Promise<EnvironmentTemplateView[]> {
+    return this.request("/environment-templates");
   }
 
   getResource(resourceId: string): Promise<GpuResourceView> {
@@ -81,6 +240,35 @@ export class ApiGateway implements DataGateway {
 
   listMyOrders(query: OrderQuery = {}): Promise<PaginatedResponse<OrderView>> {
     return this.request(`/orders/me${toQueryString(query)}`);
+  }
+
+  listMyInstances(
+    query: InstanceQuery = {},
+  ): Promise<PaginatedResponse<InstanceView>> {
+    return this.request(`/instances/me${toQueryString(query)}`);
+  }
+
+  getInstance(instanceId: string): Promise<InstanceView> {
+    return this.request(`/instances/${encodeURIComponent(instanceId)}`);
+  }
+
+  startInstance(instanceId: string): Promise<InstanceView> {
+    return this.request(`/instances/${encodeURIComponent(instanceId)}/start`, {
+      method: "POST",
+    });
+  }
+
+  stopInstance(instanceId: string): Promise<InstanceView> {
+    return this.request(`/instances/${encodeURIComponent(instanceId)}/stop`, {
+      method: "POST",
+    });
+  }
+
+  terminateInstance(instanceId: string): Promise<InstanceView> {
+    return this.request(
+      `/instances/${encodeURIComponent(instanceId)}/terminate`,
+      { method: "POST" },
+    );
   }
 
   returnOrder(orderId: string): Promise<OrderView> {

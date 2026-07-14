@@ -56,7 +56,13 @@ export function AppLayout() {
             {tr("算力市场", "Market")}
           </NavLink>
           {user ? (
-            <NavLink to="/orders">{tr("我的订单", "Orders")}</NavLink>
+            <>
+              <NavLink to="/instances">{tr("我的实例", "Instances")}</NavLink>
+              <NavLink to="/orders">{tr("我的订单", "Orders")}</NavLink>
+              <NavLink to="/cloud-account">
+                {tr("云账户", "Cloud account")}
+              </NavLink>
+            </>
           ) : null}
           {user?.role === UserRole.Admin ? (
             <NavLink to="/admin">{tr("调度后台", "Admin")}</NavLink>

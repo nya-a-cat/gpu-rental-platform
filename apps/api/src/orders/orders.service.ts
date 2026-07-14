@@ -10,12 +10,14 @@ import {
 import { Types, type FilterQuery, type Model } from "mongoose";
 
 import { DomainException } from "../common/domain-exception";
+import { EnvironmentTemplatesService } from "../environment-templates/environment-templates.service";
 import { isMongoDuplicateKeyError } from "../common/mongo-error";
 import {
   GpuResource,
   type GpuResourceDocument,
 } from "../gpu-resources/gpu-resource.schema";
 import { DistributedLockService } from "../redis/distributed-lock.service";
+import { TeamsService } from "../teams/teams.service";
 import {
   type AdminOrderQueryDto,
   type CreateOrderDto,
@@ -30,6 +32,8 @@ export class OrdersService implements OnModuleInit {
     @InjectModel(GpuResource.name)
     private readonly resources: Model<GpuResource>,
     private readonly locks: DistributedLockService,
+    private readonly templates: EnvironmentTemplatesService,
+    private readonly teams: TeamsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -37,6 +41,11 @@ export class OrdersService implements OnModuleInit {
   }
 
   async create(userId: string, input: CreateOrderDto): Promise<OrderView> {
+    const template = this.templates.getById(input.environmentTemplateId);
+    const project = await this.teams.resolveProjectForUser(
+      userId,
+      input.projectId,
+    );
     try {
       return await this.locks.withResourceLock(
         input.gpuResourceId,
@@ -83,6 +92,15 @@ export class OrdersService implements OnModuleInit {
             gpuName: resource.name,
             gpuModel: resource.model,
             gpuMemoryGb: resource.memoryGb,
+            gpuCount: resource.gpuCount ?? 1,
+            temporaryStorageGb: resource.storageGb ?? 100,
+            environmentTemplateId: template.id,
+            environmentTemplateName: template.name,
+            instanceName:
+              input.instanceName?.trim() || `${resource.name} workload`,
+            projectId: project?.projectId ?? null,
+            projectName: project?.projectName ?? null,
+            teamName: project?.teamName ?? null,
             region: resource.region,
             hourlyPriceCents: resource.hourlyPriceCents,
             durationHours: input.durationHours,
@@ -227,6 +245,15 @@ export class OrdersService implements OnModuleInit {
       gpuName: order.gpuName,
       gpuModel: order.gpuModel,
       gpuMemoryGb: order.gpuMemoryGb,
+      gpuCount: order.gpuCount ?? 1,
+      temporaryStorageGb: order.temporaryStorageGb ?? 100,
+      environmentTemplateId: order.environmentTemplateId ?? "pytorch-jupyter",
+      environmentTemplateName:
+        order.environmentTemplateName ?? "PyTorch + JupyterLab",
+      instanceName: order.instanceName ?? `${order.gpuName} workload`,
+      projectId: order.projectId ?? null,
+      projectName: order.projectName ?? null,
+      teamName: order.teamName ?? null,
       region: order.region,
       hourlyPriceCents: order.hourlyPriceCents,
       durationHours: order.durationHours,

@@ -6,12 +6,16 @@ The GitHub Pages site is an interactive product demonstration. It is intentional
 
 - GPU model filtering and resource detail views
 - Interactive console controls for availability, price ceiling and inventory ordering
-- Operator login, duration presets, reservation confirmation and one-step return
-- Administrator overview, resource registration, listing state changes and order cancellation
+- Operator login, duration presets, environment selection and reservation confirmation
+- Simulated instance delivery, start/stop/terminate transitions, access metadata and accrued cost
+- Simulated wallet top-ups, booked charges, automatic refunds and billing history
+- SSH/API key records, firewall rules, persistent volumes and snapshots
+- Team roles, projects, budgets and order cost attribution
+- Administrator overview, detailed resource registration, listing state changes and order cancellation
 - Role-based navigation and page access behavior
 - Desktop and mobile interface states
 
-The demo adapter uses deterministic sample inventory and browser-local state. Operator and dispatcher shortcuts exercise the same page routes and state transitions as the API adapter. Resetting the demo restores the original dataset, making the public walkthrough repeatable. The default interactive-console release uses the independent `gpu-rental-demo-state-v2` storage namespace, so its orders and resource changes cannot alter the frozen classic preview.
+The demo adapter uses deterministic sample inventory and browser-local state. Operator and dispatcher shortcuts exercise the same page routes and state transitions as the API adapter. Resetting the demo restores the original dataset, making the public walkthrough repeatable. State schema version 3 adds the cloud account and team domains inside the independent `gpu-rental-demo-state-v2` storage namespace, so older state resets safely and cannot alter the frozen classic preview.
 
 The Chinese or English interface preference persists in the browser. Reloading the site restores both the visible copy and the document language metadata.
 
@@ -29,7 +33,7 @@ The interactive-console preview keeps the desktop hero within a 540–590 pixel 
 
 ## What it does not claim
 
-Demo mode does not allocate physical GPUs, start containers, accept payments, open SSH or notebook sessions, or report live utilization, temperature, IP addresses or host status. Any resource and order changes exist only in the current browser profile.
+Demo mode does not allocate physical GPUs, start containers, accept payments, open reachable SSH or notebook sessions, change host firewall policy, mount storage or report live utilization, temperature, IP addresses or host status. Simulated connection data always uses reserved `.invalid` domains. Wallet, key, network, storage, team, resource, order and instance changes exist only in the current browser profile.
 
 No MongoDB, Redis or NestJS service runs on GitHub Pages. The static build must not send API requests. Backend behavior, session revocation and concurrent reservation safety must be verified through the real API profile and its integration tests.
 

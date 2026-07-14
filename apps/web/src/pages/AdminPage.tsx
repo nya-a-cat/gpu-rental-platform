@@ -92,6 +92,14 @@ export function AdminPage() {
         name: String(data.get("name") || "").trim(),
         model: String(data.get("model") || "").trim(),
         memoryGb: Number(data.get("memoryGb")),
+        gpuCount: Number(data.get("gpuCount")),
+        cpuCores: Number(data.get("cpuCores")),
+        systemMemoryGb: Number(data.get("systemMemoryGb")),
+        storageGb: Number(data.get("storageGb")),
+        cudaVersion: String(data.get("cudaVersion") || "").trim(),
+        driverVersion: String(data.get("driverVersion") || "").trim(),
+        bandwidthMbps: Number(data.get("bandwidthMbps")),
+        reliabilityPercent: Number(data.get("reliabilityPercent")),
         region: String(data.get("region") || "").trim(),
         hourlyPriceCents: Math.round(Number(data.get("hourlyPrice")) * 100),
         tags: String(data.get("tags") || "")
@@ -279,6 +287,89 @@ export function AdminPage() {
                 <span>{tr("标签（逗号分隔）", "Tags (comma-separated)")}</span>
                 <input name="tags" />
               </label>
+              <div className="form-row">
+                <label>
+                  <span>{tr("GPU 数量", "GPU count")}</span>
+                  <input
+                    defaultValue="1"
+                    max="8"
+                    min="1"
+                    name="gpuCount"
+                    required
+                    type="number"
+                  />
+                </label>
+                <label>
+                  <span>{tr("CPU 核心", "vCPU cores")}</span>
+                  <input
+                    defaultValue="16"
+                    max="512"
+                    min="1"
+                    name="cpuCores"
+                    required
+                    type="number"
+                  />
+                </label>
+              </div>
+              <div className="form-row">
+                <label>
+                  <span>{tr("系统内存 GB", "System RAM GB")}</span>
+                  <input
+                    defaultValue="64"
+                    max="4096"
+                    min="1"
+                    name="systemMemoryGb"
+                    required
+                    type="number"
+                  />
+                </label>
+                <label>
+                  <span>{tr("本地磁盘 GB", "Local storage GB")}</span>
+                  <input
+                    defaultValue="100"
+                    max="16384"
+                    min="1"
+                    name="storageGb"
+                    required
+                    type="number"
+                  />
+                </label>
+              </div>
+              <div className="form-row">
+                <label>
+                  <span>CUDA</span>
+                  <input defaultValue="12.4" name="cudaVersion" required />
+                </label>
+                <label>
+                  <span>{tr("驱动版本", "Driver version")}</span>
+                  <input defaultValue="550" name="driverVersion" required />
+                </label>
+              </div>
+              <div className="form-row">
+                <label>
+                  <span>{tr("网络 Mbps", "Network Mbps")}</span>
+                  <input
+                    defaultValue="1000"
+                    max="1000000"
+                    min="1"
+                    name="bandwidthMbps"
+                    required
+                    type="number"
+                  />
+                </label>
+                <label>
+                  <span>{tr("可靠性 %", "Reliability %")}</span>
+                  <input
+                    defaultValue="99.9"
+                    max="100"
+                    min="0"
+                    name="reliabilityPercent"
+                    required
+                    step="0.001"
+                    type="number"
+                  />
+                </label>
+              </div>
               <button
                 className="button button--orange"
                 disabled={pending === "create"}
