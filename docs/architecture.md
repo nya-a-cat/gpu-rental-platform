@@ -116,7 +116,7 @@ GPU and instance delivery remains simulated. Access addresses use reserved `.inv
 ## Deployment stacks
 
 - **Default Compose:** runs React, NestJS, MongoDB and Redis at `127.0.0.1:8080`.
-- **Dedicated v2 Compose stack:** `docker-compose.v2.yml` uses the fixed `gpu-cloud-control-plane-v2` project, an internal-only backend network and its own PostgreSQL volume; it publishes the Go control plane at `127.0.0.1:8081`.
+- **Dedicated v2 Compose stack:** `docker-compose.v2.yml` uses the fixed `gpu-cloud-control-plane-v2` project. PostgreSQL and migrations attach only to the internal backend network; the Go API attaches to backend and edge networks and publishes the edge side at `127.0.0.1:8081`. PostgreSQL uses its own volume.
 - **GitHub Pages:** runs the labelled browser-only simulated adapter and contains no backend services.
 - **Future vendor deployment:** packages the Go control plane, OCM Hub integration, GPU Add-on, observability stack and supported cluster profiles through Helm and signed OCI artifacts.
 

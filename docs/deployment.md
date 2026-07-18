@@ -19,7 +19,7 @@ Use long password values containing letters, digits, `.`, `_`, `~` and `-`. This
 
 ## v2 control-plane foundation
 
-The dedicated `docker-compose.v2.yml` project runs PostgreSQL and the Go control plane independently from the default simulated stack. It uses the fixed project name `gpu-cloud-control-plane-v2`, an internal backend network and its own PostgreSQL volume. The default `docker-compose.yml` never evaluates `POSTGRES_PASSWORD`, so existing simulation-only `.env` files remain valid.
+The dedicated `docker-compose.v2.yml` project runs PostgreSQL and the Go control plane independently from the default simulated stack. It uses the fixed project name `gpu-cloud-control-plane-v2` and its own PostgreSQL volume. PostgreSQL and migrations attach only to the internal backend network; the Go API attaches to backend and edge networks. The default `docker-compose.yml` never evaluates `POSTGRES_PASSWORD`, so existing simulation-only `.env` files remain valid.
 
 Start the v2 services and wait for PostgreSQL, the migration job and the API health check:
 
@@ -43,7 +43,7 @@ Inspect logs with:
 docker compose -f docker-compose.v2.yml logs --tail=200 postgres control-plane
 ```
 
-The container listens on `HTTP_ADDR=:8080`; Compose publishes it as `127.0.0.1:8081`. PostgreSQL is reachable only inside the dedicated internal network. The migration service executes `/usr/local/bin/control-plane-migrate up` and exits before the API starts. Migration execution defaults to `MIGRATION_TIMEOUT=5m`, `MIGRATION_LOCK_TIMEOUT=30s` and `MIGRATION_STATEMENT_TIMEOUT=2m`; deployments can override them through the v2 environment. The initial migration creates audit partitions for the current and following calendar months only. A later Phase 0 operations task must create future partitions before each month boundary and monitor the default partition; automatic partition maintenance is not implemented yet. Stop this stack with `docker compose -f docker-compose.v2.yml down`; add `--volumes` only when intentionally deleting the isolated v2 PostgreSQL data.
+The container listens on `HTTP_ADDR=:8080`; Compose publishes its edge-network side as `127.0.0.1:8081`. PostgreSQL remains reachable only through the dedicated internal backend network, and the migration service has no edge-network attachment. The migration service executes `/usr/local/bin/control-plane-migrate up` and exits before the API starts. Migration execution defaults to `MIGRATION_TIMEOUT=5m`, `MIGRATION_LOCK_TIMEOUT=30s` and `MIGRATION_STATEMENT_TIMEOUT=2m`; deployments can override them through the v2 environment. The initial migration creates audit partitions for the current and following calendar months only. A later Phase 0 operations task must create future partitions before each month boundary and monitor the default partition; automatic partition maintenance is not implemented yet. Stop this stack with `docker compose -f docker-compose.v2.yml down`; add `--volumes` only when intentionally deleting the isolated v2 PostgreSQL data.
 
 ### Direct Go workflow
 

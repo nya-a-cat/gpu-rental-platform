@@ -53,7 +53,7 @@ flowchart TB
 
 本切片没有宣称完成 ManagedCluster 注册、真实 GPU 调度、财务计费或生产租户隔离。
 
-v2 交付栈固定使用 `docker-compose.v2.yml`，Compose 项目名为 `gpu-cloud-control-plane-v2`。PostgreSQL、迁移任务与控制面位于独立内部网络并使用独立数据卷；默认模拟栈不会解析 v2 的 PostgreSQL 密码。GitHub Actions 负责 Compose 配置、镜像构建、运行时健康端点和清理验证。 数据库迁移设置五分钟总超时、三十秒锁等待和两分钟语句超时，并允许厂商部署覆盖。 初始迁移只创建当前月和下月的审计分区；后续 Phase 0 运维任务必须在月界前创建未来分区并监控 default 分区，自动分区维护尚未完成。
+v2 交付栈固定使用 `docker-compose.v2.yml`，Compose 项目名为 `gpu-cloud-control-plane-v2`。PostgreSQL 与迁移任务仅连接内部 backend 网络，控制面同时连接 backend 与 edge 网络，并仅通过 edge 将 `127.0.0.1:8081` 发布给宿主机；PostgreSQL 使用独立数据卷，默认模拟栈不会解析 v2 的 PostgreSQL 密码。GitHub Actions 负责 Compose 配置、镜像构建、运行时健康端点和清理验证。 数据库迁移设置五分钟总超时、三十秒锁等待和两分钟语句超时，并允许厂商部署覆盖。 初始迁移只创建当前月和下月的审计分区；后续 Phase 0 运维任务必须在月界前创建未来分区并监控 default 分区，自动分区维护尚未完成。
 
 ## 核心领域模型
 

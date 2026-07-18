@@ -70,6 +70,7 @@ services:
       - "127.0.0.1:8081:8080"
     networks:
       - control-plane-backend
+      - control-plane-edge
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -90,3 +91,5 @@ volumes:
 networks:
   control-plane-backend:
     internal: true
+  control-plane-edge:
+    internal: false

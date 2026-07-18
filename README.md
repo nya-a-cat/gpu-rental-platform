@@ -59,7 +59,7 @@ pnpm cli admin:create --username admin
 
 ### Run the v2 foundation
 
-The dedicated `docker-compose.v2.yml` project starts PostgreSQL and the Go control plane in its own internal network and named volume. The default `docker-compose.yml` continues to accept legacy `.env` files that contain only MongoDB and Redis settings; it does not evaluate `POSTGRES_PASSWORD` or other v2 variables:
+The dedicated `docker-compose.v2.yml` project keeps PostgreSQL and migrations on an internal backend network, connects the Go API to both backend and edge networks, and publishes the edge side only on `127.0.0.1:8081`; PostgreSQL uses its own named volume. The default `docker-compose.yml` continues to accept legacy `.env` files that contain only MongoDB and Redis settings; it does not evaluate `POSTGRES_PASSWORD` or other v2 variables:
 
 ```bash
 docker compose -f docker-compose.v2.yml up --build --wait postgres control-plane
