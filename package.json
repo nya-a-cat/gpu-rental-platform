@@ -2,7 +2,7 @@
   "name": "gpu-rental-platform",
   "version": "0.1.0",
   "private": true,
-  "description": "A portfolio-grade GPU resource rental control plane with a real NestJS, MongoDB and Redis backend.",
+  "description": "GPU Container Cloud control plane with a Go and PostgreSQL production track plus a React and NestJS simulation baseline.",
   "license": "MIT",
   "packageManager": "pnpm@10.34.5",
   "engines": {
@@ -11,6 +11,9 @@
   },
   "scripts": {
     "build": "pnpm -r --if-present run build",
+    "control-plane:migrate": "go -C apps/control-plane run ./cmd/migrate up",
+    "control-plane:run": "go -C apps/control-plane run ./cmd/control-plane",
+    "control-plane:test": "go -C apps/control-plane test ./...",
     "dev": "pnpm --parallel --filter @gpu-rental/api --filter @gpu-rental/web run dev",
     "lint": "pnpm -r --if-present run lint",
     "typecheck": "pnpm -r --if-present run typecheck",

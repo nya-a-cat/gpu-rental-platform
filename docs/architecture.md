@@ -2,59 +2,122 @@
 
 ## Overview
 
-The platform is a modular monolith with a React single-page application and a NestJS API. MongoDB stores durable business data, while Redis provides revocable server-side sessions and short-lived resource locks.
+The repository advances GPU Container Cloud through two coordinated tracks:
 
 ```mermaid
 flowchart LR
-    Browser[Browser] -->|HTTP / HTTPS| Web[Nginx + React]
-    Web -->|/api| API[NestJS API]
+    UI["React vendor and tenant console"]
+    UI --> V2["apps/control-plane<br/>Go + PostgreSQL production track"]
+    UI --> BASE["apps/api<br/>NestJS + MongoDB simulated baseline"]
+    V2 --> OCM["OCM and real GPU clusters<br/>planned Phase 0 onward"]
+    BASE --> DEMO["Workflow and UI regression baseline"]
+```
+
+The production track owns the future cloud-vendor control plane. The simulated track remains runnable and supplies product-flow regression coverage while v2 domains are implemented and accepted individually. The complete target, component choices and phase gates are recorded in [control-plane-v2.md](control-plane-v2.md).
+
+## Production v2 target
+
+```mermaid
+flowchart TB
+    UI["Vendor and tenant console"] --> API["Go Product Control Plane"]
+    API --> PG["PostgreSQL"]
+    API --> REDIS["Redis"]
+    API --> OBJ["S3 / MinIO"]
+    API --> BILL["BillingEngine"]
+    API --> OCM["OCM Hub"]
+
+    OCM --> C1["Managed Cluster A"]
+    OCM --> C2["Managed Cluster B"]
+    C1 --> A1["GPU Platform Add-on"]
+    C2 --> A2["GPU Platform Add-on"]
+    A1 --> G1["GPU Operator / Volcano / KServe"]
+    A2 --> G2["GPU Operator / Volcano / KServe"]
+    G1 --> OBS["Prometheus + OTel Collector"]
+    G2 --> OBS
+    OBS --> THANOS["Thanos + Object Storage"]
+```
+
+### Responsibility boundaries
+
+- The Go control plane owns providers, commercial hierarchy, tenants, projects, offerings, operations, quota, allocations, billing facts and audit facts.
+- PostgreSQL is the source of truth for transactional v2 business state.
+- Redis is reserved for caches, short-lived coordination and reconstructable state.
+- OCM owns ManagedCluster registration, CSR and certificate lifecycle, Lease, Placement, ManifestWork and Add-on status.
+- The GPU Platform Add-on discovers inventory, executes desired work, reports Allocation and UsageFact records, and provides access tunnels. It has no direct database connection.
+- Prometheus and Thanos own operational telemetry. Financial metering derives from allocation intervals and immutable UsageFact records.
+- `BillingEngine`, `AuthorizationEngine`, `JobEngine` and `FleetManager` keep product handlers independent from replaceable infrastructure adapters.
+
+## Current implementation boundary
+
+Phase 0 currently establishes the local production foundation:
+
+- a Go 1.25 module with validated configuration and process lifecycle;
+- PostgreSQL migrations for Operation, idempotency, Outbox and audit foundations;
+- transactional Operation and Outbox repositories;
+- health, readiness, Prometheus metrics, system information and Operation query endpoints;
+- an OpenAPI 3.1 contract under `api/openapi/control-plane-v1.yaml`;
+- container, an isolated v2 Compose stack and GitHub Actions validation entry points.
+
+OCM Hub installation, ManagedCluster registration, GPU Add-on execution, real inventory, tenant authorization, billing calculation and workload APIs remain subsequent delivery units. Their absence keeps the current v2 service at Phase 0 foundation status.
+
+## API and consistency model
+
+Production APIs use `/api/v1`. `X-Request-ID` supplies request correlation. `traceparent` and `tracestate` are currently reserved as the W3C Trace Context header contract for clients and gateways; span creation and export enter with the later OpenTelemetry integration. Future mutation endpoints require `Idempotency-Key`.
+
+Accepted long-running work returns HTTP 202 and a stable Operation reference. Operation status uses `queued`, `running`, `succeeded`, `failed`, `cancelled` and `timed_out`. The record includes target resource, optional parent operation, steps, progress, deadline, retryability, request ID and structured error data.
+
+Business mutations create their durable state, Operation and Outbox event in one PostgreSQL transaction. An executor can claim Outbox work with database locking and deliver it through `JobEngine` or the future OCM adapter. Consumers must remain idempotent because delivery is at least once.
+
+Known-route handler errors and router-generated HTTP 404/405 responses use `application/problem+json`. Resource APIs will maintain `desiredState`, `observedState`, `provisioningState` and Conditions independently.
+
+## Resource and tenancy model
+
+The target resource hierarchy is:
+
+```text
+Provider
+└── Region
+    └── Zone
+        └── Cluster
+            └── FaultDomain / NodePool
+                └── Node
+                    └── ResourceProvider
+                        └── GPU Device / MIG Partition
+```
+
+Placement uses ResourceClass, Trait, Inventory, Reservation, Allocation, AcceleratorProfile and DeviceClaim. Inventory updates use a Generation for optimistic concurrency. Tenant APIs expose stable capability references and keep physical GPU identifiers private.
+
+The commercial hierarchy is `System → Domain / Reseller → Tenant / Account → Project`. Projects select `shared`, `dedicated-node-pool` or `dedicated-cluster` isolation. Namespace isolation is treated as a soft multi-tenant boundary.
+
+## Cluster and failure model
+
+The future OCM integration will separate `Connected`, `Schedulable`, `InventoryFresh` and `ExecutionHealthy`. Default heartbeat thresholds are 15 seconds for heartbeat, 45 seconds for abnormal and 90 seconds for offline, with deployment-level configuration.
+
+Disconnected clusters keep existing workloads running and stop receiving new placement. Interactive instances require fencing of the old cluster before recovery elsewhere. Manual disablement has priority over automatic health recovery. Management state and health state remain separate for clusters and nodes.
+
+These semantics define required behavior and are pending real OCM/Add-on verification.
+
+## Simulated baseline
+
+The existing application remains a modular NestJS API with React, MongoDB and Redis:
+
+```mermaid
+flowchart LR
+    Browser["Browser"] -->|HTTP / HTTPS| Web["Nginx + React"]
+    Web -->|/api| API["NestJS API"]
     API --> Mongo[(MongoDB)]
     API --> Redis[(Redis)]
 ```
 
-The browser has no direct access to MongoDB or Redis. In Docker Compose, Nginx is the only service published to the host, and it is bound to the loopback interface by default.
+It includes authentication, simulated GPU inventory, workload templates, orders, instance lifecycle, wallet records, keys, firewall rules, volumes, snapshots, teams and projects. Redis provides revocable sessions and token-owned reservation locks. MongoDB unique constraints guard duplicate active allocations.
 
-## Application boundaries
+GPU and instance delivery remains simulated. Access addresses use reserved `.invalid` domains, and projected usage does not represent financial metering. This baseline supplies UI behavior and concurrency regression tests without participating in v2 production state.
 
-- **Authentication and users** manage credentials, roles and revocable sessions.
-- **GPU resources** manage the simulated inventory, searchable specifications and listing state.
-- **Environment templates** publish the curated workload images and supported connection modes.
-- **Orders** own commercial reservation, return, expiry and cancellation transitions.
-- **Instances** own workload delivery, runtime lifecycle, access metadata and usage-cost projection.
-- **Cloud accounts** own wallet entries, access credentials, firewall rules, persistent volumes, snapshots and notifications.
-- **Teams** own membership roles, projects, budgets and order cost attribution.
-- **Administration** exposes role-protected inventory, order and overview operations.
-- **Health** separates process liveness from dependency readiness.
+## Deployment stacks
 
-Shared request, response and enum contracts live in the workspace contracts package. Domain behavior remains in the API rather than in controllers or UI components.
+- **Default Compose:** runs React, NestJS, MongoDB and Redis at `127.0.0.1:8080`.
+- **Dedicated v2 Compose stack:** `docker-compose.v2.yml` uses the fixed `gpu-cloud-control-plane-v2` project, an internal-only backend network and its own PostgreSQL volume; it publishes the Go control plane at `127.0.0.1:8081`.
+- **GitHub Pages:** runs the labelled browser-only simulated adapter and contains no backend services.
+- **Future vendor deployment:** packages the Go control plane, OCM Hub integration, GPU Add-on, observability stack and supported cluster profiles through Helm and signed OCI artifacts.
 
-## Reservation consistency
-
-Creating an order uses a resource-scoped Redis lock acquired with `SET NX EX`. Unlocking compares the random owner token before deletion, so an expired request cannot release a successor's lock. A MongoDB unique constraint for active allocations remains the durable final guard against duplicate assignment.
-
-Resource availability is derived from its listing state and active orders. It is not maintained as a second mutable reservation flag on the resource document.
-
-## Instance delivery and usage
-
-An accepted order creates one instance through a unique `orderId` relationship. Orders retain the booked commercial snapshot, while instances progress independently through provisioning, running, stopped, failed and terminated states. Returning or cancelling an order terminates the associated instance, and terminating an instance returns its active order.
-
-Billable runtime accumulates only while an instance is running. Accrued cost is derived from the order's hourly rate and is capped at the booked maximum. The current implementation exposes simulated SSH, Jupyter and web-terminal metadata on reserved `.invalid` domains, making the delivery contract testable without suggesting reachable infrastructure.
-
-## Cloud account and collaboration
-
-Each user receives a lazily created cloud-account document with a simulated opening credit. Order creation atomically checks and debits the wallet; instance termination appends one idempotent refund for unused booked value. The ledger retains opening credit, top-up, order-charge and order-refund entries. No external payment processor is involved.
-
-SSH public keys, one-time API tokens, per-instance port rules, persistent volumes and snapshots are durable control-plane records. API tokens are stored as SHA-256 hashes and returned only at creation. Terminating an instance releases any attached persistent volume while preserving its snapshots and historical firewall rules.
-
-Teams use owner, administrator and member roles. Owners and administrators manage membership and projects; any member can attribute an order to an accessible project. The project records booked cost against its monthly budget so the order, billing and collaboration domains remain auditable.
-
-## Session model
-
-Authentication uses an opaque session identifier in an HttpOnly cookie. Redis stores the server-side session with a finite lifetime, which allows logout, logout-all and password changes to revoke access immediately. Public registration cannot choose an administrator role; both API authorization and route guards enforce role boundaries.
-
-## Deployment profiles
-
-- **Docker profile:** the React application calls the real API through Nginx. MongoDB and Redis are private container services.
-- **GitHub Pages profile:** the UI uses a clearly labelled browser-only demo adapter. No API, database or infrastructure service is present.
-
-This repository does not provision physical GPUs, virtual machines or containers, process real payments, expose reachable workload sessions or collect live telemetry. GPU and instance records represent a simulated marketplace for demonstrating control-plane workflows.
+Both local stacks are development and validation topologies. Internet-facing deployment still requires managed secrets, TLS, backups, policy enforcement, observability and a completed phase acceptance gate.

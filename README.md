@@ -1,58 +1,91 @@
-# GPU Rental Platform
+# GPU Container Cloud
 
 [![Pipeline](https://github.com/nya-a-cat/gpu-rental-platform/actions/workflows/pipeline.yml/badge.svg)](https://github.com/nya-a-cat/gpu-rental-platform/actions/workflows/pipeline.yml)
 
-A portfolio-grade GPU resource rental control plane built with React, NestJS, TypeScript, MongoDB, Redis and Docker Compose.
+GPU Container Cloud 是面向云服务器厂商、渠道商和企业租户建设的 GPU 容器云控制面。仓库采用双轨演进：`apps/control-plane` 是 Go、PostgreSQL 与 OCM 方向的生产轨，`apps/api` 与现有 React 控制台保留为可运行的模拟业务基准。
 
-[Live GitHub Pages demo](https://nya-a-cat.github.io/gpu-rental-platform/) · [Architecture](docs/architecture.md) · [Deployment](docs/deployment.md)
+[Live GitHub Pages demo](https://nya-a-cat.github.io/gpu-rental-platform/) · [v2 architecture](docs/control-plane-v2.md) · [Architecture](docs/architecture.md) · [Deployment](docs/deployment.md) · [Roadmap](ROADMAP.md)
 
-## Product workflow
+## Repository tracks
 
-- Filter simulated GPU inventory by model, region, memory, availability and price.
-- Select a workload environment, reserve a resource and receive a separate simulated instance.
-- Start, stop and terminate instances while tracking billable runtime and accrued cost.
-- Use a simulated wallet with booked charges and automatic unused-value refunds.
-- Manage SSH/API keys, firewall rules, persistent volumes, snapshots, teams and cost-attributed projects.
-- Manage detailed hardware specifications, listings and orders through role-protected administrator routes.
-- Switch between Chinese and English across desktop and mobile layouts.
-- Explore a transparent browser-only Pages demo without pretending to provision hardware.
+### Production v2 foundation
 
-## Engineering highlights
+- Go 1.25 product control plane with a stable `/api/v1` contract.
+- PostgreSQL-backed Operation, idempotency, Outbox and audit foundations.
+- Internal `BillingEngine`, `AuthorizationEngine`, `JobEngine` and OCM-facing fleet boundaries.
+- Health, readiness, Prometheus metrics and request-correlation endpoints.
+- A versioned OpenAPI 3.1 contract for generated clients and vendor integration.
 
-- Redis server-side sessions in HttpOnly cookies support logout, logout-all and immediate revocation after a password change.
-- Reservation uses a token-owned `SET NX EX` resource lock with Lua compare-and-delete unlock.
-- A partial MongoDB unique index remains the durable last line of defense against duplicate active allocation.
-- CI runs type checks, unit tests, real MongoDB/Redis E2E tests, production builds and Docker image builds.
-- Docker Compose exposes only the Nginx edge on `127.0.0.1:8080`; MongoDB, Redis and the API remain private.
+Phase 0 currently establishes the control-plane foundation. ManagedCluster registration, real GPU scheduling, tenant isolation and commercial billing remain staged roadmap work. See [GPU Cloud Control Plane v2](docs/control-plane-v2.md) for the complete target and delivery gates.
 
-## Run locally
+### Simulated product baseline
 
-Requirements: Node.js 24, pnpm 10 and Docker Compose v2.
+- React console and NestJS API backed by MongoDB and Redis.
+- Simulated GPU inventory, orders, instance lifecycle and projected usage cost.
+- Wallet, SSH/API keys, firewall rules, persistent volumes, snapshots, teams and projects.
+- Role-protected administration and a transparent browser-only Pages demo.
+
+This track remains the UI and workflow regression baseline while production domains move to `/api/v1` one at a time.
+
+## Reference local operation
+
+GitHub Actions is the authoritative verification gate. The commands below document operator startup and manual inspection; repository changes are tested and built after push.
+
+Requirements:
+
+- Node.js 24 and pnpm 10 for the React/NestJS workspace
+- Go 1.25 for direct control-plane development
+- Docker Engine with Docker Compose v2
+
+Create local credentials first:
 
 ```bash
 cp .env.example .env
+```
+
+### Run the simulated baseline
+
+```bash
 pnpm install --frozen-lockfile
 docker compose up --build -d
 ```
 
-Open `http://localhost:8080`. Seed simulated inventory and create an administrator with the consolidated CLI:
+Open `http://localhost:8080`. Seed simulated inventory and create an administrator with:
 
 ```bash
 pnpm cli demo:seed
 pnpm cli admin:create --username admin
 ```
 
-See [deployment.md](docs/deployment.md) for verification and security notes.
+### Run the v2 foundation
 
-## Honest demo boundary
+The dedicated `docker-compose.v2.yml` project starts PostgreSQL and the Go control plane in its own internal network and named volume. The default `docker-compose.yml` continues to accept legacy `.env` files that contain only MongoDB and Redis settings; it does not evaluate `POSTGRES_PASSWORD` or other v2 variables:
 
-GPU inventory, instance delivery, wallet movements and cloud operations are simulated. The Docker profile uses the real NestJS API, MongoDB documents, Redis sessions and Redis reservation lock. Delivered SSH, web terminal and notebook addresses use the reserved `.invalid` domain and are intentionally unreachable. API keys, firewall rules, volumes and snapshots exercise durable control-plane workflows without changing infrastructure. The project does not claim physical provisioning, real payment processing or live GPU telemetry.
+```bash
+docker compose -f docker-compose.v2.yml up --build --wait postgres control-plane
+curl --fail http://localhost:8081/health/ready
+curl --fail http://localhost:8081/api/v1/system/info
+```
 
-GitHub Pages runs a clearly labelled local-browser demo adapter because static hosting cannot run the backend. Backend concurrency and session behavior are tested against real MongoDB and Redis in CI.
+For direct Go development against a configured `DATABASE_URL`:
+
+```bash
+pnpm control-plane:migrate
+pnpm control-plane:run
+pnpm control-plane:test
+```
+
+See [deployment.md](docs/deployment.md) for environment variables, verification commands and CI behavior.
+
+## Current product boundary
+
+The v2 service currently provides production-oriented control-plane foundations and does not yet provision physical GPUs. The simulated baseline uses real MongoDB, Redis sessions and concurrency controls while its GPU delivery, wallet settlement and infrastructure operations remain explicitly simulated. SSH, terminal and notebook addresses use reserved `.invalid` domains.
+
+GitHub Pages contains static assets and a labelled browser-local adapter. Backend, database and cluster services are unavailable on Pages.
 
 ## Visual assets
 
-The interface is composed from code-native controls, two original small mechanical illustrations and optional public-domain archive images. See [asset credits](docs/asset-credits.md).
+The interface uses code-native controls, original mechanical illustrations and optional public-domain archive images. See [asset credits](docs/asset-credits.md).
 
 ## License
 

@@ -1,21 +1,75 @@
 # Deployment
 
-## Local Docker deployment
+## Toolchain
 
-Prerequisites:
+Local development uses:
 
+- Node.js 24 and pnpm 10.34.5 for the React/NestJS workspace
+- Go 1.25 for `apps/control-plane` (GitHub Actions uses Go 1.25.1)
 - Docker Engine with Docker Compose v2
-- A free local TCP port `8080`
+- free loopback ports `8080` for the simulated baseline and `8081` for v2
 
-Create the local environment file before starting the stack:
+Create a local environment file and replace all example passwords:
 
 ```bash
 cp .env.example .env
 ```
 
-Replace both passwords. Because the Compose connection strings embed credentials in URLs, use long values containing only letters, digits, `.`, `_`, `~` and `-`.
+Use long password values containing letters, digits, `.`, `_`, `~` and `-`. This avoids URL-encoding ambiguity in the local connection strings. Commit no `.env` file.
 
-Start and verify the services:
+## v2 control-plane foundation
+
+The dedicated `docker-compose.v2.yml` project runs PostgreSQL and the Go control plane independently from the default simulated stack. It uses the fixed project name `gpu-cloud-control-plane-v2`, an internal backend network and its own PostgreSQL volume. The default `docker-compose.yml` never evaluates `POSTGRES_PASSWORD`, so existing simulation-only `.env` files remain valid.
+
+Start the v2 services and wait for PostgreSQL, the migration job and the API health check:
+
+```bash
+docker compose -f docker-compose.v2.yml up --build --wait postgres control-plane
+docker compose -f docker-compose.v2.yml ps
+```
+
+Verify process, database readiness, metrics and build information:
+
+```bash
+curl --fail http://localhost:8081/health/live
+curl --fail http://localhost:8081/health/ready
+curl --fail http://localhost:8081/metrics
+curl --fail http://localhost:8081/api/v1/system/info
+```
+
+Inspect logs with:
+
+```bash
+docker compose -f docker-compose.v2.yml logs --tail=200 postgres control-plane
+```
+
+The container listens on `HTTP_ADDR=:8080`; Compose publishes it as `127.0.0.1:8081`. PostgreSQL is reachable only inside the dedicated internal network. The migration service executes `/usr/local/bin/control-plane-migrate up` and exits before the API starts. Migration execution defaults to `MIGRATION_TIMEOUT=5m`, `MIGRATION_LOCK_TIMEOUT=30s` and `MIGRATION_STATEMENT_TIMEOUT=2m`; deployments can override them through the v2 environment. The initial migration creates audit partitions for the current and following calendar months only. A later Phase 0 operations task must create future partitions before each month boundary and monitor the default partition; automatic partition maintenance is not implemented yet. Stop this stack with `docker compose -f docker-compose.v2.yml down`; add `--volumes` only when intentionally deleting the isolated v2 PostgreSQL data.
+
+### Direct Go workflow
+
+Provide a reachable PostgreSQL `DATABASE_URL`, then run:
+
+```bash
+pnpm control-plane:migrate
+pnpm control-plane:test
+pnpm control-plane:run
+```
+
+The scripts resolve to:
+
+```bash
+go -C apps/control-plane run ./cmd/migrate up
+go -C apps/control-plane test ./...
+go -C apps/control-plane run ./cmd/control-plane
+```
+
+`DATABASE_URL` is mandatory. Runtime configuration also supports `HTTP_ADDR`, `CONTROL_PLANE_VERSION`, `CONTROL_PLANE_COMMIT`, `SHUTDOWN_TIMEOUT`, `READINESS_TIMEOUT`, `DB_MAX_OPEN_CONNS`, `DB_MAX_IDLE_CONNS` and `DB_CONN_MAX_LIFETIME`. Compose uses `CONTROL_PLANE_STOP_GRACE_PERIOD=20s`; this value must remain greater than `SHUTDOWN_TIMEOUT`, whose default is `15s`, so the process can finish graceful shutdown before the container is terminated.
+
+Phase 0 currently exposes foundational endpoints. OCM registration, real GPU scheduling, tenant APIs and billing execution require later phase components.
+
+## Simulated baseline
+
+Start and verify the existing React/NestJS product baseline:
 
 ```bash
 docker compose up --build -d
@@ -23,64 +77,49 @@ docker compose ps
 curl --fail http://localhost:8080/api/health/ready
 ```
 
-Open `http://localhost:8080`. Nginx serves the web application and proxies `/api` to NestJS. MongoDB, Redis and the API do not publish host ports; the web port is bound to `127.0.0.1`.
+Open `http://localhost:8080`. Nginx serves React and proxies `/api` to NestJS. MongoDB, Redis and NestJS stay on private container networks.
 
-Inspect logs or stop the deployment with:
+Inspect logs or stop the stack with:
 
 ```bash
 docker compose logs --tail=200 api web
 docker compose down
 ```
 
-`docker compose down` keeps named database volumes. To remove local application data intentionally, use `docker compose down --volumes`.
+`docker compose down` keeps named database volumes. `docker compose down --volumes` intentionally removes only the default simulation project's MongoDB and Redis data. The v2 PostgreSQL volume belongs to the separate `gpu-cloud-control-plane-v2` project.
 
-## Local workspace build
+## Verification policy
 
-The non-container toolchain uses Node.js 24 and pnpm 10:
+GitHub Actions is the authoritative delivery gate. Local work in this delivery workflow is limited to code and configuration edits; formatting, lint, tests, builds, database integration, Compose validation and runtime smoke checks execute in `.github/workflows/pipeline.yml` after code is pushed. The startup commands above remain operator references.
 
-```bash
-corepack enable
-pnpm install --frozen-lockfile
-pnpm format:check
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
-```
+The v2 gate validates `docker-compose.v2.yml`, builds its images, starts the isolated project with `up --wait`, checks live, ready, metrics and system-information endpoints, emits container logs on failure, and always removes its containers and test volume.
 
 ## GitHub Actions
 
-Pull requests and pushes to `main` run the frozen install, formatting, lint, type checks, unit tests, workspace build, Compose validation and image build. The quality job also starts authenticated MongoDB 8 and an isolated Redis 8 service, then runs the API end-to-end suite against those real data stores. This suite includes 20 concurrent attempts to reserve one GPU and verifies that exactly one active order is created. Dependencies are installed from the committed lockfile.
+Pull requests and pushes to `main` run the repository quality gate. It covers:
 
-Pages deployment runs only from the protected `main` branch, either on a push to `main` or by manually dispatching the workflow from `main`. The current `main` release is built directly for `/gpu-rental-platform/`, so the project root opens the selected interactive console without a redirect. The frozen `ui-v1.0.0` tag remains available under `/gpu-rental-platform/classic/`, while `/gpu-rental-platform/next/` serves the same current-release entry as a compatibility alias. Backend quality checks remain visible and are not skipped, but a backend-only failure does not replace an already working static product walkthrough with a 404 page. The deployment token has only the `pages: write` and `id-token: write` permissions required by GitHub Pages.
+- frozen pnpm installation, formatting, lint, type checks, unit tests and production build;
+- NestJS end-to-end tests against authenticated MongoDB and Redis;
+- Go formatting, unit tests, build and PostgreSQL-backed migration/integration checks;
+- default Compose validation plus dedicated v2 Compose validation, image build and runtime smoke checks;
+- simulated API/web and Go control-plane container builds.
 
-To republish the current `main` release without a new commit, dispatch the workflow from `main`:
+The simulated reservation suite includes concurrent attempts to reserve one GPU and verifies a single active order. The v2 checks verify migrations and the current Operation/Outbox foundation. Real OCM and GPU acceptance tests will be added with those components.
+
+Pages deployment depends on the successful `quality` job and runs from `main` on a push or manual workflow dispatch:
 
 ```bash
 gh workflow run pipeline.yml --ref main
 ```
 
-The API E2E step builds the NestJS application first and imports the compiled `dist` modules. This preserves TypeScript decorator metadata and exercises the same JavaScript artifacts used by the production container.
+The default Pages release is published at `/gpu-rental-platform/`; the frozen `ui-v1.0.0` build remains under `/gpu-rental-platform/classic/`. Pages serves static assets and does not run Go, NestJS, PostgreSQL, MongoDB or Redis.
 
-To enable the public demo, set the repository's Pages source to **GitHub Actions**. The expected project URL is:
+## Data and rollback
 
-```text
-https://<github-account>.github.io/gpu-rental-platform/
-```
+The v2 foundation uses PostgreSQL and the simulated baseline uses MongoDB. Current development contains no production user data and uses parallel replacement, so startup does not migrate MongoDB records into PostgreSQL.
 
-The selected release and frozen Classic build are available at:
-
-```text
-https://<github-account>.github.io/gpu-rental-platform/
-https://<github-account>.github.io/gpu-rental-platform/classic/
-```
-
-The default release and Classic use separate browser-local demo-state namespaces. Orders, sessions and inventory changes created in one preview do not modify the other preview.
-
-The Classic source tag remains immutable. During Pages assembly, the workflow adds only the shared local site icon to the generated Classic bundle so that the public preview does not fall back to a domain-root favicon request.
-
-GitHub Pages hosts static assets only. It does not run the NestJS API, MongoDB or Redis; use the Docker profile to exercise the real backend.
+Database migrations run explicitly before the v2 API starts. A schema or data migration requiring destructive rollback must provide a reviewed backup, compatibility window and dedicated rollback procedure. Application rollback should target a compatible signed image and database schema.
 
 ## Production considerations
 
-The Compose file is a reference local and portfolio deployment, not a public multi-tenant production topology. Before an internet-facing deployment, provide managed data stores, TLS termination, secret management, backups, monitoring and a restrictive production origin. Set `COOKIE_SECURE=true` behind HTTPS and do not publish database ports.
+Both Compose stacks are local reference topologies. A vendor deployment requires TLS, secret management, managed or highly available PostgreSQL, backup and restore testing, object storage, OIDC, network policy, audit retention, monitoring, capacity planning and completed phase acceptance tests. Bind public endpoints only through the approved ingress and keep database services private.

@@ -1,0 +1,428 @@
+openapi: 3.1.0
+info:
+  title: GPU Container Cloud Control Plane API
+  version: 0.1.0
+  summary: Phase 0 contract for the GPU Container Cloud product control plane.
+  description: |
+    This document defines the initial versioned `/api/v1` surface for the v2 control
+    plane. The current contract exposes health, telemetry discovery, build
+    information, and asynchronous operation status.
+
+    Every future state-changing endpoint under `/api/v1` MUST require an
+    `Idempotency-Key` header and return an Operation reference when work is
+    accepted asynchronously. Request correlation uses `X-Request-ID`; W3C
+    `traceparent` and `tracestate` are reserved in the contract for the later
+    OpenTelemetry integration.
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+servers:
+  - url: /
+    description: Same-origin control-plane endpoint
+tags:
+  - name: Health
+  - name: Observability
+  - name: System
+  - name: Operations
+paths:
+  /health/live:
+    get:
+      tags: [Health]
+      operationId: getLiveness
+      summary: Check whether the process is alive.
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/TraceParent"
+        - $ref: "#/components/parameters/TraceState"
+      responses:
+        "200":
+          description: The process is alive.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /health/ready:
+    get:
+      tags: [Health]
+      operationId: getReadiness
+      summary: Check whether required control-plane dependencies are ready.
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/TraceParent"
+        - $ref: "#/components/parameters/TraceState"
+      responses:
+        "200":
+          description: Required dependencies are ready.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessStatus"
+        "503":
+          description: One or more required dependencies are unavailable.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /metrics:
+    get:
+      tags: [Observability]
+      operationId: getPrometheusMetrics
+      summary: Expose Prometheus-compatible control-plane metrics.
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Prometheus text exposition payload.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/system/info:
+    get:
+      tags: [System]
+      operationId: getSystemInfo
+      summary: Return immutable build and API compatibility information.
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/TraceParent"
+        - $ref: "#/components/parameters/TraceState"
+      responses:
+        "200":
+          description: Control-plane build information.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemInfo"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/operations/{operationId}:
+    get:
+      tags: [Operations]
+      operationId: getOperation
+      summary: Retrieve the latest state of an asynchronous operation.
+      parameters:
+        - $ref: "#/components/parameters/OperationId"
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/TraceParent"
+        - $ref: "#/components/parameters/TraceState"
+      responses:
+        "200":
+          description: The operation was found.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operation"
+        "400":
+          description: The operation identifier is malformed.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: No operation exists for the supplied identifier.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "503":
+          description: Operation storage is unavailable.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  parameters:
+    OperationId:
+      name: operationId
+      in: path
+      required: true
+      description: Stable operation identifier.
+      schema:
+        type: string
+        format: uuid
+    RequestId:
+      name: X-Request-ID
+      in: header
+      required: false
+      description: Caller-supplied correlation identifier. The server generates one when omitted.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    TraceParent:
+      name: traceparent
+      in: header
+      required: false
+      description: Reserved W3C Trace Context parent passthrough contract; the current service does not create or export spans.
+      schema:
+        type: string
+        maxLength: 255
+    TraceState:
+      name: tracestate
+      in: header
+      required: false
+      description: Reserved W3C Trace Context vendor-state passthrough contract; the current service does not create or export spans.
+      schema:
+        type: string
+        maxLength: 512
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Unique key scoped to the authenticated principal and endpoint. Replaying
+        the same request body returns the original result; reusing the key with a
+        different body returns a conflict.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 255
+  headers:
+    RequestId:
+      description: Correlation identifier assigned to this request.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+  responses:
+    InternalError:
+      description: The request failed because of an unexpected server error.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+  schemas:
+    HealthStatus:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: ok
+    ReadinessStatus:
+      type: object
+      additionalProperties: false
+      required: [status, checks]
+      properties:
+        status:
+          type: string
+          enum: [ready, unavailable]
+        checks:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/DependencyCheck"
+    DependencyCheck:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ready, unavailable]
+        latencyMs:
+          type: integer
+          minimum: 0
+        detail:
+          type: string
+    SystemInfo:
+      type: object
+      additionalProperties: false
+      required:
+        - product
+        - apiVersion
+        - version
+        - commit
+        - stage
+        - architecture
+        - persistence
+        - capabilities
+      properties:
+        product:
+          type: string
+          const: gpu-container-cloud
+        apiVersion:
+          type: string
+          const: v1
+        version:
+          type: string
+        commit:
+          type: string
+        stage:
+          type: string
+        architecture:
+          type: string
+        persistence:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+    Operation:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - kind
+        - status
+        - target
+        - progress
+        - retryable
+        - requestId
+        - createdAt
+        - updatedAt
+        - steps
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+        status:
+          $ref: "#/components/schemas/OperationStatus"
+        target:
+          $ref: "#/components/schemas/ResourceReference"
+        parentOperationId:
+          type: string
+          format: uuid
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/OperationStep"
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+        deadline:
+          type: string
+          format: date-time
+        retryable:
+          type: boolean
+        requestId:
+          type: string
+        error:
+          $ref: "#/components/schemas/OperationError"
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    OperationStatus:
+      type: string
+      enum: [queued, running, succeeded, failed, cancelled, timed_out]
+    OperationStep:
+      type: object
+      additionalProperties: false
+      required: [name, status, progress]
+      properties:
+        name:
+          type: string
+        status:
+          $ref: "#/components/schemas/OperationStatus"
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        detail:
+          type: string
+    ResourceReference:
+      type: object
+      additionalProperties: false
+      required: [resourceType, resourceId]
+      properties:
+        resourceType:
+          type: string
+          description: Stable API resource name, such as instance or cluster.
+        resourceId:
+          type: string
+    OperationError:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        detail:
+          type: string
+        fields:
+          type: object
+          description: Optional field-level or domain-specific error data.
+          additionalProperties: true
+    ProblemDetails:
+      type: object
+      description: RFC 9457 problem details with stable machine-readable extensions.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          pattern: "^urn:gpu-container-cloud:problem:[a-z0-9][a-z0-9._-]*$"
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 100
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+        code:
+          type: string
+        requestId:
+          type: string
+        retryable:
+          type: boolean
+      additionalProperties: true

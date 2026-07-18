@@ -1,44 +1,93 @@
-# GPU Rental Platform Roadmap
+# GPU Container Cloud Roadmap
 
-路线图按重要性与紧急度维护。已完成事项移入对应分区的“已完成”列表，不删除历史。
+路线图以可验证交付为准。勾选项表示代码、配置或契约已经进入仓库；阶段验收仍以对应测试、真实集群证据和 `progress.md` 为准。
 
-## 重要且紧急
+## Phase 0 — 组件验证与生产基础
 
-- [x] 完成共享契约、认证、GPU 资源和订单主流程
-- [x] 完成 React 双语界面与透明演示模式
-- [x] 建立真实 MongoDB/Redis 端到端验证与并发预订测试
-- [x] 发布 GitHub Actions 与 GitHub Pages
-- [x] 修复市场首屏高度回归并压缩移动端机械控制台
-- [x] 修复管理员新建演示资源的编号截断
-- [x] 修复刷新后页面语言元数据与已保存语言不一致
-- [x] 修复 Firefox 无法执行用户名格式校验
-- [x] 完成交互式机械调度台新版并让首屏直接展示真实库存入口
-- [x] 建立 Classic 与 Next 双路径 GitHub Pages 预览
-- [x] 选定交互式机械调度台新版并设为 GitHub Pages 默认入口
-- [x] 完成 P0 资源规格、环境模板、订单与实例分离、实例生命周期和用量费用闭环
-- [x] 完成 P1 钱包账单、密钥、端口防火墙、持久卷快照、团队项目和通知闭环
+### 本轮已落地
 
-## 重要但不紧急
+- [x] 建立 Go 1.25 控制面模块、运行配置和进程生命周期基础。
+- [x] 建立 PostgreSQL 迁移入口及 Operation、幂等记录、Outbox 和审计基础模型。
+- [x] 建立 `/api/v1` OpenAPI 3.1 契约，以及健康、指标、系统信息和 Operation 查询边界。
+- [x] 建立 Operation 与 Outbox 的事务持久化基础。
+- [x] 建立 `BillingEngine`、`AuthorizationEngine`、`JobEngine` 和 OCM FleetManager 内部接口。
+- [x] 建立独立 `docker-compose.v2.yml` 交付栈、隔离的项目/网络/数据卷、Go 容器构建和 GitHub Actions 运行时冒烟门禁。
 
-- [ ] 增加审计事件与运营指标导出
-- [ ] 评估真实云厂商资源适配器
-- [ ] 增加可访问性自动审计
+### Phase 0 后续
 
-## 紧急但不重要
+- [ ] 部署 OCM Hub 并完成 ManagedCluster 双向注册、CSR、证书轮换和 Lease 验证。
+- [ ] 开发最小 GPU Platform Add-on，并通过 ManifestWork 完成安装、升级和状态回传。
+- [ ] 固定 Kubernetes 1.34.x、GPU Operator、Volcano 和 KServe 的首个认证版本矩阵。
+- [ ] 完成 GPUStack 对照报告，验证实例生命周期、Worker Tunnel、多集群、PVC 和用量统计差异。
+- [ ] 建立 Prometheus、OTel Collector、审计归档和基础告警链路。
+- [ ] 提供 Helm Chart，并完成三副本滚动升级和单副本故障验证。
 
-- [ ] 整理首版公开截图与仓库主题标签
+## Phase 1 — Real Alpha：真实整卡实例
 
-## 不紧急且不重要
+- [ ] 建立 Tenant、Project、RoleBinding、Quota 和 `shared` 隔离。
+- [ ] 建立 Cluster、Node、GPU、CapacityPool 和 AcceleratorProfile。
+- [ ] 通过 NVIDIA GPU Operator 与 Device Plugin 交付整卡 GPU Workspace。
+- [ ] 完成实例创建、停止、启动、终止，以及 desired/observed/provisioning 状态协调。
+- [ ] 完成 PVC、快照、安全组、SSH/Jupyter/Web Terminal 访问网关。
+- [ ] 接入 DCGM 库存、健康指标和节点维护状态。
+- [ ] 验证真实容器 `nvidia-smi`、100 次重复请求幂等、Agent 重连、Pod 驱逐和节点故障恢复。
 
-- [ ] 评估自定义域名
-- [ ] 评估更多主题配色
+## Phase 2 — Private Beta：多集群与商业闭环
 
-## 已完成
+- [ ] 建立 Region、Zone、Cluster 与 NodePool Placement。
+- [ ] 建立 Domain/Reseller、Tenant/Account 和 Project 商业层级。
+- [ ] 交付 `shared`、`dedicated-node-pool` 和 `dedicated-cluster` 三档隔离。
+- [ ] 交付 MIG 固定规格资源池和维护流程。
+- [ ] 建立 UsageFact、RatedUsage、LedgerEntry、Invoice、预算和冲正。
+- [ ] 让 OpenMeter 完成两个完整账期的影子双算。
+- [ ] 提供经过验证的 Keycloak OIDC Profile。
+- [ ] 交付 Prometheus HA、Thanos、对象存储和白标厂商控制台。
+- [ ] 验证三个集群调度、库存一分钟收敛、双算零差异和独占节点池隔离。
 
-- [x] 明确模拟 GPU 与真实控制面之间的产品边界
-- [x] 锁定模块化单体、React、NestJS、MongoDB、Redis 和 Pages 路线
-- [x] 完成复古机械组件、原创小资产与公有领域素材署名
-- [x] 完成 Docker Compose 与 GitHub Actions 发布配置
-- [x] 完成首页、登录、资源详情、订单和调度后台的截图驱动界面验收
-- [x] 将首页机械按键与旋钮接入真实筛选状态并完成动效与字体统一
-- [x] 以本地公有领域控制室档案图和原创银色机架材质完成市场页沉浸式环境层
+## Phase 3 — Partner Beta：批训练与分数 GPU
+
+- [ ] 交付默认 `hpc-volcano` Profile，以及 Gang、DRF、公平共享、抢占和队列。
+- [ ] 支持 JobSet、MPIJob、PyTorchJob、检查点、日志、产物和成本归属。
+- [ ] 交付 HAMi 分数 GPU 可选资源池并验证限制与计量。
+- [ ] 提供 `standard-kueue` 兼容 Profile。
+- [ ] 强制同一 CapacityPool 只绑定一个 Scheduler Profile。
+- [ ] 验证多节点 All-or-Nothing 启动和资源不足排队语义。
+
+## Phase 4 — Release Candidate：推理与生产加固
+
+- [ ] 交付 KServe Standard InferenceService、Gateway API 和 HPA/KEDA。
+- [ ] 完成模型版本、灰度流量、并发限制、升级和回滚。
+- [ ] 完成 API Key、Webhook、镜像策略、Secret 加密、签名和 SBOM。
+- [ ] 完成备份恢复、Agent N/N-1、离线安装包、升级和回滚。
+- [ ] 完成安装文档、运维 Runbook、API 文档和厂商接入指南。
+- [ ] 验证 RPO ≤ 5 分钟、RTO ≤ 30 分钟、无高危漏洞和控制面 99.9% 可用性目标。
+
+## Phase 5 — GPU Container Cloud GA
+
+- [ ] 完成 10 集群、1000 GPU、1 万租户和 10 万资源对象容量验证。
+- [ ] 达到 API 读取 p95 < 300 ms、异步写入受理 p95 < 500 ms。
+- [ ] 达到在线集群 Operation 分发 p95 < 5 秒。
+- [ ] 通过每日 100 万 UsageFact 持续写入和重算。
+- [ ] 与试点厂商完成安装、升级、计费对账和故障演练。
+- [ ] 发布签名 OCI 镜像、Helm Chart、SBOM、兼容矩阵和 LTS 策略。
+
+## Phase 6 — GPU VM 产品线
+
+- [ ] VM Alpha：KubeVirt/Harvester 整卡 PCI Passthrough。
+- [ ] VM Beta：NVIDIA vGPU 和 MIG-backed vGPU。
+- [ ] VM GA：Cloud-init、磁盘、网络、控制台、备份和厂商一体机交付。
+- [ ] 独立验收厂商提供的 NVIDIA vGPU 商业许可证。
+
+## 模拟产品基线历史
+
+以下能力已经在 React、NestJS、MongoDB 与 Redis 模拟轨中交付，用作 UI 和业务流程回归基准：
+
+- [x] 用户认证、可撤销 Redis Session 和角色保护。
+- [x] 模拟 GPU 资源搜索、环境模板、订单预留和实例生命周期。
+- [x] Redis 资源锁、MongoDB 唯一约束和并发预订 E2E 验证。
+- [x] 模拟钱包账本、退款、SSH/API Key、防火墙、持久卷和快照。
+- [x] 团队、项目、预算和成本归属。
+- [x] React 中英文桌面与移动端控制台，以及 Classic/Next Pages 预览。
+- [x] Docker Compose、GitHub Actions 和 GitHub Pages 发布。
+
+模拟轨不提供物理 GPU、可访问工作负载、真实支付或生产遥测。其功能不会自动计入 v2 阶段验收。
