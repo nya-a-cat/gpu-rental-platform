@@ -12,13 +12,18 @@
 - [x] 建立 Operation 与 Outbox 的事务持久化基础。
 - [x] 建立 `BillingEngine`、`AuthorizationEngine`、`JobEngine` 和 OCM FleetManager 内部接口。
 - [x] 建立独立 `docker-compose.v2.yml` 交付栈、隔离的项目/网络/数据卷、Go 容器构建和 GitHub Actions 运行时冒烟门禁。
+- [x] 建立 OCM 1.3.1 双 kind 集群 Actions 验证脚本，覆盖 ManagedCluster、CSR、Lease 和 ManifestWork；运行证据由服务器门禁补齐。
+- [x] 建立最小 GPU Platform Add-on、Hub manager Helm Chart、脱敏容量指纹和托管集群 Add-on Lease。
 
 ### Phase 0 后续
 
 - [ ] 部署 OCM Hub 并完成 ManagedCluster 双向注册、CSR、证书轮换和 Lease 验证。
 - [ ] 开发最小 GPU Platform Add-on，并通过 ManifestWork 完成安装、升级和状态回传。
-- [ ] 固定 Kubernetes 1.34.x、GPU Operator、Volcano 和 KServe 的首个认证版本矩阵。
-- [ ] 完成 GPUStack 对照报告，验证实例生命周期、Worker Tunnel、多集群、PVC 和用量统计差异。
+- [ ] 验证 Add-on CSR 证书轮换、升级、删除清理和 N/N-1 兼容。
+- [ ] 实现 Agent Epoch、命令序列、Fencing Token 与 15/45/90 秒状态语义。
+- [x] 固定 Kubernetes 1.34.x、OCM、GPU Operator、Volcano 和 KServe 的首个候选认证版本矩阵，并区分 GitHub-hosted 与 GPU 自托管证据。
+- [x] 完成 GPUStack v2.2.1 源码与文档对照报告，建立实例生命周期、Worker Tunnel、多集群、PVC 和用量统计的 GS 验收矩阵。
+- [ ] 在 GitHub Actions 部署 GPUStack v2.2.1 运行基线，并执行首轮 GS 对照项。
 - [ ] 建立 Prometheus、OTel Collector、审计归档和基础告警链路。
 - [ ] 提供 Helm Chart，并完成三副本滚动升级和单副本故障验证。
 

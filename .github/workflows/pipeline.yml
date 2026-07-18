@@ -26,7 +26,7 @@ jobs:
   quality:
     name: Quality and container build
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     services:
       mongo:
         image: mongo:8.0
@@ -80,7 +80,23 @@ jobs:
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # pinned v6.5.0
         with:
           go-version: "1.25.1"
-          cache-dependency-path: apps/control-plane/go.sum
+          cache-dependency-path: |
+            apps/control-plane/go.sum
+            apps/gpu-platform-addon/go.sum
+
+      - name: Prepare GPU Platform Add-on module metadata
+        working-directory: apps/gpu-platform-addon
+        run: go mod tidy
+
+      - name: Upload GPU Platform Add-on module metadata
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned v7.0.1
+        with:
+          name: gpu-platform-addon-module-${{ github.sha }}
+          path: |
+            apps/gpu-platform-addon/go.mod
+            apps/gpu-platform-addon/go.sum
+          retention-days: 3
 
       - name: Enable pnpm
         run: corepack enable && pnpm --version
@@ -136,6 +152,50 @@ jobs:
         working-directory: apps/control-plane
         run: go build ./cmd/control-plane ./cmd/migrate ./cmd/healthcheck
 
+      - name: Check GPU Platform Add-on formatting
+        working-directory: apps/gpu-platform-addon
+        run: test -z "$(gofmt -l cmd internal)"
+
+      - name: Vet GPU Platform Add-on
+        working-directory: apps/gpu-platform-addon
+        run: go vet ./...
+
+      - name: Test GPU Platform Add-on
+        working-directory: apps/gpu-platform-addon
+        run: go test ./...
+
+      - name: Build GPU Platform Add-on
+        working-directory: apps/gpu-platform-addon
+        run: go build -o "${RUNNER_TEMP}/gpu-platform-addon" ./cmd/gpu-platform-addon
+
+      - name: Validate OCM certification versions
+        run: bash deploy/ocm/scripts/validate-versions.sh
+
+      - name: Install pinned OCM conformance tools
+        run: |
+          bash deploy/ocm/scripts/install-tools.sh
+          source deploy/ocm/scripts/lib.sh
+          echo "${BIN_DIR}" >> "${GITHUB_PATH}"
+
+      - name: Validate GPU Platform Add-on Helm chart
+        run: |
+          source deploy/ocm/versions.env
+          kube_version="${KUBERNETES_VERSION#v}"
+          helm lint charts/gpu-platform-addon --kube-version "${kube_version}"
+          helm template gpu-platform-addon charts/gpu-platform-addon \
+            --namespace gpu-platform-system \
+            --kube-version "${kube_version}" \
+            --set-string image.repository=gpu-platform-addon \
+            --set-string image.tag=ci > /tmp/gpu-platform-addon-rendered.yaml
+          test -s /tmp/gpu-platform-addon-rendered.yaml
+
+      - name: Validate OCM shell scripts
+        run: bash -n deploy/ocm/scripts/*.sh
+
+      - name: Check GPU Platform Add-on module metadata
+        working-directory: apps/gpu-platform-addon
+        run: git diff --exit-code -- go.mod go.sum
+
       - name: Build workspace
         run: pnpm build
 
@@ -169,9 +229,45 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.v2.yml down --volumes --remove-orphans
 
+  ocm-conformance:
+    name: OCM fleet and GPU add-on conformance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # 固定 v7.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # pinned v6.5.0
+        with:
+          go-version: "1.25.1"
+          cache-dependency-path: apps/gpu-platform-addon/go.sum
+
+      - name: Prepare GPU Platform Add-on module metadata
+        working-directory: apps/gpu-platform-addon
+        run: go mod tidy
+
+      - name: Build GPU Platform Add-on image
+        run: docker build --file infra/gpu-platform-addon.Dockerfile --tag gpu-platform-addon:ci .
+
+      - name: Run OCM conformance smoke
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          bash deploy/ocm/scripts/ci-smoke.sh 2>&1 | tee artifacts/ocm-smoke.log
+
+      - name: Upload OCM conformance evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned v7.0.1
+        with:
+          name: ocm-conformance-${{ github.sha }}
+          path: artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
+
   pages:
     name: Build and deploy default GitHub Pages demo
-    needs: quality
+    needs: [quality, ocm-conformance]
     if: >-
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')

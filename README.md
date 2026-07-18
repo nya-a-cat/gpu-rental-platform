@@ -4,7 +4,7 @@
 
 GPU Container Cloud 是面向云服务器厂商、渠道商和企业租户建设的 GPU 容器云控制面。仓库采用双轨演进：`apps/control-plane` 是 Go、PostgreSQL 与 OCM 方向的生产轨，`apps/api` 与现有 React 控制台保留为可运行的模拟业务基准。
 
-[Live GitHub Pages demo](https://nya-a-cat.github.io/gpu-rental-platform/) · [v2 architecture](docs/control-plane-v2.md) · [Architecture](docs/architecture.md) · [Deployment](docs/deployment.md) · [Roadmap](ROADMAP.md)
+[Live GitHub Pages demo](https://nya-a-cat.github.io/gpu-rental-platform/) · [v2 architecture](docs/control-plane-v2.md) · [Kubernetes 1.34 matrix](docs/certification/kubernetes-1.34-matrix.md) · [GPUStack benchmark](docs/research/gpustack-v2.2.1-phase0-benchmark.md) · [Deployment](docs/deployment.md) · [Roadmap](ROADMAP.md)
 
 ## Repository tracks
 
@@ -13,10 +13,11 @@ GPU Container Cloud 是面向云服务器厂商、渠道商和企业租户建设
 - Go 1.25 product control plane with a stable `/api/v1` contract.
 - PostgreSQL-backed Operation, idempotency, Outbox and audit foundations.
 - Internal `BillingEngine`, `AuthorizationEngine`, `JobEngine` and OCM-facing fleet boundaries.
-- Health, readiness, Prometheus metrics and request-correlation endpoints.
+- OCM 1.3.1 fleet registration assets and a minimal Addon Framework 1.3.0 GPU inventory agent.
+- Health, readiness, Prometheus metrics, request correlation, ManagedCluster Lease and Add-on Lease paths.
 - A versioned OpenAPI 3.1 contract for generated clients and vendor integration.
 
-Phase 0 currently establishes the control-plane foundation. ManagedCluster registration, real GPU scheduling, tenant isolation and commercial billing remain staged roadmap work. See [GPU Cloud Control Plane v2](docs/control-plane-v2.md) for the complete target and delivery gates.
+Phase 0 now contains the control-plane foundation, the first Kubernetes 1.34 certification matrix and an Actions-only OCM conformance harness. The matrix remains unverified until the corresponding workflow evidence is recorded. Real GPU scheduling, tenant isolation and commercial billing remain staged roadmap work. See [GPU Cloud Control Plane v2](docs/control-plane-v2.md) for the complete target and delivery gates.
 
 ### Simulated product baseline
 
@@ -79,7 +80,7 @@ See [deployment.md](docs/deployment.md) for environment variables, verification 
 
 ## Current product boundary
 
-The v2 service currently provides production-oriented control-plane foundations and does not yet provision physical GPUs. The simulated baseline uses real MongoDB, Redis sessions and concurrency controls while its GPU delivery, wallet settlement and infrastructure operations remain explicitly simulated. SSH, terminal and notebook addresses use reserved `.invalid` domains.
+The v2 service currently provides production-oriented control-plane foundations and a sanitized OCM inventory path; it does not yet provision physical GPUs. The simulated baseline uses real MongoDB, Redis sessions and concurrency controls while its GPU delivery, wallet settlement and infrastructure operations remain explicitly simulated. SSH, terminal and notebook addresses use reserved `.invalid` domains.
 
 GitHub Pages contains static assets and a labelled browser-local adapter. Backend, database and cluster services are unavailable on Pages.
 

@@ -9,7 +9,7 @@ flowchart LR
     UI["React vendor and tenant console"]
     UI --> V2["apps/control-plane<br/>Go + PostgreSQL production track"]
     UI --> BASE["apps/api<br/>NestJS + MongoDB simulated baseline"]
-    V2 --> OCM["OCM and real GPU clusters<br/>planned Phase 0 onward"]
+    V2 --> OCM["OCM fleet and GPU add-on<br/>Phase 0 Actions conformance"]
     BASE --> DEMO["Workflow and UI regression baseline"]
 ```
 
@@ -49,16 +49,18 @@ flowchart TB
 
 ## Current implementation boundary
 
-Phase 0 currently establishes the local production foundation:
+Phase 0 currently establishes the production foundation and first fleet integration:
 
-- a Go 1.25 module with validated configuration and process lifecycle;
+- a Go 1.25 control plane with validated configuration and process lifecycle;
 - PostgreSQL migrations for Operation, idempotency, Outbox and audit foundations;
 - transactional Operation and Outbox repositories;
 - health, readiness, Prometheus metrics, system information and Operation query endpoints;
 - an OpenAPI 3.1 contract under `api/openapi/control-plane-v1.yaml`;
-- container, an isolated v2 Compose stack and GitHub Actions validation entry points.
+- OCM 1.3.1 Hub/ManagedCluster bootstrap assets with CSR, certificate, Lease and ManifestWork checks;
+- an Addon Framework 1.3.0 manager and agent that publish a sanitized Phase 0 capacity fingerprint and OCM health Lease;
+- container, Helm, isolated v2 Compose and GitHub Actions validation entry points.
 
-OCM Hub installation, ManagedCluster registration, GPU Add-on execution, real inventory, tenant authorization, billing calculation and workload APIs remain subsequent delivery units. Their absence keeps the current v2 service at Phase 0 foundation status.
+The OCM and Add-on certification result remains pending until the Actions conformance job completes. Hardware GPU inventory, tenant authorization, billing calculation and workload APIs remain subsequent delivery units.
 
 ## API and consistency model
 

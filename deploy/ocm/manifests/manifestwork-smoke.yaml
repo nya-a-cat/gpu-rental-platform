@@ -1,0 +1,16 @@
+apiVersion: work.open-cluster-management.io/v1
+kind: ManifestWork
+metadata:
+  name: gpu-platform-ocm-smoke
+  namespace: cluster1
+spec:
+  workload:
+    manifests:
+      - apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: gpu-platform-ocm-smoke
+          namespace: default
+        data:
+          delivered-by: manifestwork
+          managed-cluster: cluster1

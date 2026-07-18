@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .AgentName }}
+  namespace: {{ .AddonInstallNamespace }}
+  labels:
+    app.kubernetes.io/name: gpu-platform-addon
+    app.kubernetes.io/component: agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gpu-platform-addon
+      app.kubernetes.io/component: agent
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gpu-platform-addon
+        app.kubernetes.io/component: agent
+    spec:
+      serviceAccountName: {{ .AgentName }}
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: agent
+          image: {{ .Image }}
+          imagePullPolicy: IfNotPresent
+          args:
+            - agent
+            - --hub-kubeconfig=/var/run/hub/kubeconfig
+            - --cluster-name={{ .ClusterName }}
+            - --addon-name={{ .AddonName }}
+            - --addon-namespace={{ .AddonInstallNamespace }}
+            - --report-interval={{ .ReportInterval }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          volumeMounts:
+            - name: hub-kubeconfig
+              mountPath: /var/run/hub
+              readOnly: true
+      volumes:
+        - name: hub-kubeconfig
+          secret:
+            secretName: {{ .HubKubeConfigSecret }}

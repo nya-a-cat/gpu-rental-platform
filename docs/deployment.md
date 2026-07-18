@@ -5,7 +5,7 @@
 Local development uses:
 
 - Node.js 24 and pnpm 10.34.5 for the React/NestJS workspace
-- Go 1.25 for `apps/control-plane` (GitHub Actions uses Go 1.25.1)
+- Go 1.25 for `apps/control-plane` and `apps/gpu-platform-addon` (GitHub Actions uses Go 1.25.1)
 - Docker Engine with Docker Compose v2
 - free loopback ports `8080` for the simulated baseline and `8081` for v2
 
@@ -65,7 +65,17 @@ go -C apps/control-plane run ./cmd/control-plane
 
 `DATABASE_URL` is mandatory. Runtime configuration also supports `HTTP_ADDR`, `CONTROL_PLANE_VERSION`, `CONTROL_PLANE_COMMIT`, `SHUTDOWN_TIMEOUT`, `READINESS_TIMEOUT`, `DB_MAX_OPEN_CONNS`, `DB_MAX_IDLE_CONNS` and `DB_CONN_MAX_LIFETIME`. Compose uses `CONTROL_PLANE_STOP_GRACE_PERIOD=20s`; this value must remain greater than `SHUTDOWN_TIMEOUT`, whose default is `15s`, so the process can finish graceful shutdown before the container is terminated.
 
-Phase 0 currently exposes foundational endpoints. OCM registration, real GPU scheduling, tenant APIs and billing execution require later phase components.
+Phase 0 currently exposes foundational endpoints and includes the first OCM fleet/Add-on implementation. Its certification status remains pending until the Actions conformance run succeeds. Real GPU scheduling, tenant APIs and billing execution require later phase components.
+
+## OCM fleet and GPU Platform Add-on
+
+The first fleet integration fixes OCM and `clusteradm` at `v1.3.1`, OCM API and Addon Framework at `v1.3.0`, and the GitHub-hosted kind environment at Kubernetes `v1.34.8`. The production target remains Kubernetes `v1.34.9`; the two patch versions retain separate evidence in the [certification matrix](certification/kubernetes-1.34-matrix.md).
+
+The Actions job builds `gpu-platform-addon:ci` and invokes `bash deploy/ocm/scripts/ci-smoke.sh`. The script downloads pinned kind, clusteradm, kubectl and Helm release assets, verifies their SHA-256 digests, creates separate hub and managed kind clusters, and cleans both clusters at the end.
+
+The conformance path verifies ManagedCluster acceptance, signed CSR certificates, cluster Lease renewal, ManifestWork delivery, Add-on CSR registration, generated hub kubeconfig, managed-cluster Add-on Deployment readiness, Add-on Lease renewal and the sanitized inventory ConfigMap with a Phase 0 capacity fingerprint. Each run uploads pinned tool and image versions plus key hub/spoke object snapshots. Failure output includes hub and managed-cluster objects, events and component logs.
+
+The GitHub-hosted runner has no NVIDIA GPU. Driver, Device Plugin, `nvidia-smi`, DCGM, MIG and GPU workload tests remain assigned to the self-hosted GPU certification gate.
 
 ## Simulated baseline
 
@@ -100,13 +110,15 @@ Pull requests and pushes to `main` run the repository quality gate. It covers:
 
 - frozen pnpm installation, formatting, lint, type checks, unit tests and production build;
 - NestJS end-to-end tests against authenticated MongoDB and Redis;
-- Go formatting, unit tests, build and PostgreSQL-backed migration/integration checks;
+- Go formatting, unit tests and builds for the control plane and GPU Platform Add-on, plus PostgreSQL-backed migration/integration checks;
+- certification-version consistency, pinned kubectl/Helm installation, Helm rendering and shell syntax checks for the OCM delivery assets;
 - default Compose validation plus dedicated v2 Compose validation, image build and runtime smoke checks;
-- simulated API/web and Go control-plane container builds.
+- a separate two-cluster OCM conformance job covering registration, CSR certificates, Lease renewal, ManifestWork, Add-on deployment and inventory reporting, with object-snapshot evidence artifacts;
+- simulated API/web, Go control-plane and GPU Platform Add-on container builds.
 
-The simulated reservation suite includes concurrent attempts to reserve one GPU and verifies a single active order. The v2 checks verify migrations and the current Operation/Outbox foundation. Real OCM and GPU acceptance tests will be added with those components.
+The simulated reservation suite includes concurrent attempts to reserve one GPU and verifies a single active order. The v2 checks verify migrations and the current Operation/Outbox foundation. Hardware-backed GPU acceptance remains assigned to a self-hosted runner.
 
-Pages deployment depends on the successful `quality` job and runs from `main` on a push or manual workflow dispatch:
+Pages deployment depends on the successful `quality` and `ocm-conformance` jobs and runs from `main` on a push or manual workflow dispatch:
 
 ```bash
 gh workflow run pipeline.yml --ref main

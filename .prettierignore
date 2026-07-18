@@ -1,0 +1,2 @@
+apps/gpu-platform-addon/internal/addonmanager/manifests/templates/
+charts/**/templates/

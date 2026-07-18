@@ -1,0 +1,48 @@
+replicaCount: 1
+
+addonName: gpu-platform-addon
+
+image:
+  repository: gpu-platform-addon
+  tag: ci
+  pullPolicy: IfNotPresent
+
+agent:
+  installNamespace: open-cluster-management-agent-addon
+  reportInterval: 15s
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

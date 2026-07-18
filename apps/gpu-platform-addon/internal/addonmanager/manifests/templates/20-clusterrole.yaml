@@ -1,0 +1,11 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .AgentName }}
+  labels:
+    app.kubernetes.io/name: gpu-platform-addon
+    app.kubernetes.io/component: agent
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]

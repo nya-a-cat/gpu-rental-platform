@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .AgentName }}
+  namespace: {{ .AddonInstallNamespace }}
+  labels:
+    app.kubernetes.io/name: gpu-platform-addon
+    app.kubernetes.io/component: agent
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "create", "update", "patch"]

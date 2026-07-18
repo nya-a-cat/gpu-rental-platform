@@ -1,0 +1,10 @@
+apiVersion: addon.open-cluster-management.io/v1beta1
+kind: ClusterManagementAddOn
+metadata:
+  name: {{ .Values.addonName }}
+  labels:
+    {{- include "gpu-platform-addon.labels" . | nindent 4 }}
+spec:
+  addOnMeta:
+    displayName: GPU Platform Add-on
+    description: Reports sanitized GPU inventory and maintains an add-on health Lease on managed clusters.
