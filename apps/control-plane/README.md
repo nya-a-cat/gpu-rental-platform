@@ -19,20 +19,20 @@ are skipped.
 
 ## Runtime contract
 
-| Variable | Default | Purpose |
-|---|---:|---|
-| `DATABASE_URL` | required | PostgreSQL connection string |
-| `HTTP_ADDR` | `:8080` | HTTP listen address |
-| `CONTROL_PLANE_VERSION` | `dev` | Build or release version |
-| `CONTROL_PLANE_COMMIT` | `unknown` | Source revision |
-| `SHUTDOWN_TIMEOUT` | `15s` | Graceful HTTP shutdown deadline |
-| `READINESS_TIMEOUT` | `2s` | PostgreSQL readiness deadline |
-| `DB_MAX_OPEN_CONNS` | `20` | Maximum open PostgreSQL connections |
-| `DB_MAX_IDLE_CONNS` | `5` | Maximum idle PostgreSQL connections |
-| `DB_CONN_MAX_LIFETIME` | `30m` | PostgreSQL connection lifetime |
-| `MIGRATION_TIMEOUT` | `5m` | Total migration process deadline, including database startup |
-| `MIGRATION_LOCK_TIMEOUT` | `30s` | PostgreSQL lock wait limit during migrations |
-| `MIGRATION_STATEMENT_TIMEOUT` | `2m` | PostgreSQL per-statement limit during migrations |
+| Variable                      |   Default | Purpose                                                      |
+| ----------------------------- | --------: | ------------------------------------------------------------ |
+| `DATABASE_URL`                |  required | PostgreSQL connection string                                 |
+| `HTTP_ADDR`                   |   `:8080` | HTTP listen address                                          |
+| `CONTROL_PLANE_VERSION`       |     `dev` | Build or release version                                     |
+| `CONTROL_PLANE_COMMIT`        | `unknown` | Source revision                                              |
+| `SHUTDOWN_TIMEOUT`            |     `15s` | Graceful HTTP shutdown deadline                              |
+| `READINESS_TIMEOUT`           |      `2s` | PostgreSQL readiness deadline                                |
+| `DB_MAX_OPEN_CONNS`           |      `20` | Maximum open PostgreSQL connections                          |
+| `DB_MAX_IDLE_CONNS`           |       `5` | Maximum idle PostgreSQL connections                          |
+| `DB_CONN_MAX_LIFETIME`        |     `30m` | PostgreSQL connection lifetime                               |
+| `MIGRATION_TIMEOUT`           |      `5m` | Total migration process deadline, including database startup |
+| `MIGRATION_LOCK_TIMEOUT`      |     `30s` | PostgreSQL lock wait limit during migrations                 |
+| `MIGRATION_STATEMENT_TIMEOUT` |      `2m` | PostgreSQL per-statement limit during migrations             |
 
 Available foundation endpoints are:
 
