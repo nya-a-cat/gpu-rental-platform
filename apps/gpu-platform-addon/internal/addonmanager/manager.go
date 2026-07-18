@@ -75,7 +75,7 @@ func values(opts options.Manager) addonfactory.GetValuesFunc {
 			AddonName:      opts.AddonName,
 			AgentName:      agentName,
 			ReportInterval: opts.ReportInterval.String(),
-		})
+		}), nil
 	}
 }
 
