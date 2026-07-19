@@ -2,7 +2,7 @@
 
 ## 业务结论
 
-Phase 0 固定 Kubernetes 1.34.x 为首个生产认证线，生产目标为 Kubernetes 1.34.9。GitHub Actions 使用 kind 0.32.0 官方发布的 Kubernetes 1.34.8 节点镜像及完整摘要。两个 patch 版本分别留存验证证据，当前矩阵状态为 `unverified`。
+Phase 0 固定 Kubernetes 1.34.x 为首个生产认证线，生产目标为 Kubernetes 1.34.9。GitHub Actions 使用 kind 0.32.0 官方发布的 Kubernetes 1.34.8 节点镜像及完整摘要。GitHub-hosted CI 集成已由 Actions `29671872066` 通过；生产目标 patch、GPU 硬件和厂商交付仍为 `unverified`。
 
 本文件定义版本选择、上游依据和项目自证范围。机器可读版本位于 [`config/certification/versions.yaml`](../../config/certification/versions.yaml)。版本进入生产支持清单需要同时满足对应的 GitHub Actions 门禁和 GPU 自托管认证门禁。
 
@@ -11,7 +11,7 @@ Phase 0 固定 Kubernetes 1.34.x 为首个生产认证线，生产目标为 Kube
 | 层级                      | 固定版本                                                                                       | 用途                                                        | 当前状态 |
 | ------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | -------- |
 | Kubernetes 生产目标       | 1.34.9                                                                                         | 厂商安装、升级、回滚和故障认证                              | 未执行   |
-| GitHub Actions Kubernetes | 1.34.8                                                                                         | kind 上的 OCM、ManifestWork、Add-on 和控制器集成            | 未执行   |
+| GitHub Actions Kubernetes | 1.34.8                                                                                         | kind 上的 OCM、ManifestWork、Add-on 和控制器集成            | 已通过   |
 | kind                      | 0.32.0                                                                                         | GitHub-hosted runner 的可复现 Kubernetes 环境               | 来源核验 |
 | kind 节点镜像             | `kindest/node:v1.34.8@sha256:02722c2dedddcfc00febf5d27fbeb9b7b2c14294c82109ff4a85d89ac9ba3256` | 固定 Actions 节点镜像内容                                   | 来源核验 |
 | Open Cluster Management   | 1.3.1                                                                                          | Hub、ManagedCluster、注册、Lease、Placement 和 ManifestWork | 来源核验 |
@@ -55,11 +55,12 @@ GitHub-hosted runner 没有 NVIDIA GPU。当前 Phase 0 门禁与后续扩展项
 - 验证 GPU Platform Add-on 注册、安装、Lease 健康和脱敏容量指纹上报。
 - 执行 Add-on Go 格式、vet、单元测试、构建、Helm lint/render 与 shell 语法检查。
 
-Actions 产物保留完整 smoke 日志、客户端与镜像版本、ManagedCluster、CSR、ManifestWork、ManagedClusterAddOn、Lease、Deployment 和库存 ConfigMap 快照。当前结果保持 `unverified`，直至对应流水线成功并在 `progress.md` 登记运行证据。
+Actions 产物保留完整 smoke 日志、客户端与镜像版本、ManagedCluster、CSR、ManifestWork、ManagedClusterAddOn、Lease、Deployment 和库存 ConfigMap 快照。运行 `29671872066` 已成功完成并上传 `ocm-conformance-13a1572719386e7a7e43bcc1e0f06acdb6519c6a`。该结果覆盖 GitHub-hosted CI 集成；GPU 硬件和生产认证保持未执行。
 
 ### 后续扩展门禁
 
 - 增加 Add-on 证书轮换、升级、N/N-1、删除清理和陈旧库存回收验证。
+- 增加多集群 Add-on 凭据反向授权断言，验证每个 Agent 仅能写入所属 ManagedCluster 命名空间。
 - 增加控制面与 OCM API 的幂等、重试、超时、Fencing 和结构化错误验证。
 - 安装 Volcano 与 KServe 控制器，验证 CRD、Webhook、调度器和 CPU smoke workload。
 - 使用无 GPU fixture 验证 Inventory、Reservation、Allocation 和 UsageFact 数据流。
@@ -83,12 +84,12 @@ Actions 产物保留完整 smoke 日志、客户端与镜像版本、ManagedClus
 
 ## 认证判定
 
-| 等级         | 判定条件                                                 | 当前结果       |
-| ------------ | -------------------------------------------------------- | -------------- |
-| 来源核验     | 官方 release、源码依赖或兼容矩阵能够支撑选型             | 已完成版本选型 |
-| CI 集成      | 固定 Actions workflow 在 kind 环境完成 OCM 和控制器验收  | 未执行         |
-| GPU 硬件认证 | 固定软硬件组合完成整卡、指标、故障、升级和回滚验收       | 未执行         |
-| 生产认证     | CI 集成与 GPU 硬件认证均有可追溯证据，厂商安装包完成演练 | 未执行         |
+| 等级         | 判定条件                                                 | 当前结果             |
+| ------------ | -------------------------------------------------------- | -------------------- |
+| 来源核验     | 官方 release、源码依赖或兼容矩阵能够支撑选型             | 已完成版本选型       |
+| CI 集成      | 固定 Actions workflow 在 kind 环境完成 OCM 和控制器验收  | 已通过 `29671872066` |
+| GPU 硬件认证 | 固定软硬件组合完成整卡、指标、故障、升级和回滚验收       | 未执行               |
+| 生产认证     | CI 集成与 GPU 硬件认证均有可追溯证据，厂商安装包完成演练 | 未执行               |
 
 ## 版本变更规则
 
