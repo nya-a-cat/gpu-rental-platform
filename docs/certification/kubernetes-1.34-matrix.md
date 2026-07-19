@@ -75,7 +75,9 @@ The GitHub-hosted lifecycle profile pins current Add-on `0.2.0` and N-1 Add-on `
 
 The lifecycle gate requires distinct Add-on source-tree hashes and immutable revision tags. Its acceptance scope includes idempotent installation, both current/N-1 manager-agent combinations, agent rollback, stable active credentials during upgrades, stale inventory garbage collection, per-cluster deletion, re-enablement, Helm uninstall and final reinstall. The evidence artifact must pass the repository evidence policy before upload.
 
-The matrix remains `unverified` for this lifecycle profile until the new Actions job completes and its run and artifact identifiers are recorded here.
+The lifecycle profile is verified by [Pipeline `29700482298`](https://github.com/nya-a-cat/gpu-rental-platform/actions/runs/29700482298) for commit `c9d9655057adac61ecf7083f610981e69e63ec27`. Quality job `88228601999` completed in 3m06s, OCM conformance job `88228601989` completed in 12m28s, lifecycle job `88228601978` completed in 14m44s, and Pages job `88229892975` deployed successfully. The lifecycle run passed idempotent installation, both current/N-1 manager-agent combinations, agent rollback, stable credentials, per-cluster deletion, Lease/Secret/RBAC/inventory cleanup, re-enablement, Helm uninstall, final reinstall and pre-upload evidence policy checks.
+
+Lifecycle artifact `8446431580` (`ocm-addon-lifecycle-c9d9655057adac61ecf7083f610981e69e63ec27`) and conformance artifact `8446410025` (`ocm-conformance-c9d9655057adac61ecf7083f610981e69e63ec27`) were downloaded and reviewed. Both SHA-256 manifests matched every file, both evidence-policy reports were `passed`, lifecycle and policy exit codes were zero, and the current/N-1 source trees and two-image provenance were distinct. The review found no private-key or kubeconfig markers, runner or Docker storage paths, node identity fields, CSR request/certificate/free-text fields, or Secret data. GPU hardware certification remains unexecuted.
 
 ## GPU 自托管认证范围
 
