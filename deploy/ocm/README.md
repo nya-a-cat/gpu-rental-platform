@@ -37,7 +37,20 @@ cluster add-on, and verifies:
 - native ManagedCluster and Add-on client certificate rotation with new automatically approved CSRs;
 - stable Secret and agent Pod identities, plus continued Lease renewal and inventory reporting after the original certificates expire and the Hub API connection is reset.
 
-Credentials are materialized only in a mode-`0600` temporary directory for post-expiry API checks and are removed when the script exits. Uploaded evidence contains sanitized CSR and Secret metadata, certificate fingerprints and validity timestamps, controller arguments, object snapshots, and logs. It excludes CSR request bodies, issued certificate bodies, Secret data, kubeconfig content, and private keys. Failed runs also print hub and managed-cluster objects, events, and Add-on logs.
+## Lifecycle compatibility gate
+
+The separate `ocm-addon-lifecycle` Actions job checks out full Git history and builds two immutable images: current Add-on `0.2.0` and pinned N-1 Add-on `0.1.0` from revision `074046e1138f190ac8b90b5e10548c0a27cce975`. It runs with a `30m` temporary Hub signing duration and verifies:
+
+- N-1 manager/N-1 agent installation and idempotent reinstall;
+- N-1 manager/current agent and current manager/N-1 agent operation;
+- current manager/current agent convergence with continuing Lease and inventory reports;
+- stable Add-on Secret and CSR identities throughout in-place version changes;
+- `ManagedClusterAddOn` deletion, spoke resource cleanup, Hub permission cleanup, inventory garbage collection, and the intentional orphaned install Namespace;
+- re-enablement with a new Add-on UID, Helm uninstall cleanup, and a final current-version reinstall.
+
+The lifecycle artifact records source-tree hashes, OCI image provenance, stage UID/image summaries, assertion results, an evidence-policy report, and a generated SHA-256 manifest. `verify-evidence-policy.sh` runs again immediately before upload. A policy failure blocks the Artifact upload, records the violation in the Actions log, and leaves the temporary runner data to be destroyed with the job.
+
+Credentials are materialized only in a mode-`0600` temporary directory for post-expiry API checks and are removed when the script exits. Uploaded evidence contains sanitized CSR and Secret metadata, certificate fingerprints and validity timestamps, filtered controller arguments, Conditions, Lease state, aggregate inventory, image provenance, and component logs. Node evidence omits addresses, annotations, provider IDs, boot IDs, machine IDs and system UUIDs. The evidence policy rejects CSR request bodies, issued certificate bodies, Secret data, kubeconfig content, private keys, full Docker inspect data and runner storage paths. Failed runs also print hub and managed-cluster objects, events, and Add-on logs.
 Clusters are deleted at the end. Set `KEEP_CLUSTERS=1` only during an
 interactive Actions debugging session.
 

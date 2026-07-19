@@ -28,3 +28,10 @@ ResourceProvider generation with Agent Epoch and fencing data. The agent also
 refreshes the `gpu-platform-addon` Lease in its installation namespace. OCM uses
 that Lease for `ManagedClusterAddOn` connectivity health; inventory freshness is
 evaluated separately from the snapshot timestamp. In this schema, `schedulableAllocatable` means capacity on Nodes without `spec.unschedulable=true`; Ready state, taints, allocations and fault domains enter the ResourceProvider model in later phases.
+
+The manager passes the current `ManagedClusterAddOn` UID to current agents through
+`GPU_PLATFORM_ADDON_UID`. The variable is optional so a current agent continues to run
+with the pinned N-1 manager. When the UID is present, the inventory ConfigMap carries
+a controller OwnerReference to the `ManagedClusterAddOn`; OCM deletion then removes stale
+inventory together with the per-cluster Add-on resources. An N-1 agent ignores the extra
+environment variable, which provides the reciprocal current-manager/N-1-agent compatibility path.

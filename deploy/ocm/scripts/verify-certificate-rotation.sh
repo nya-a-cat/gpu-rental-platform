@@ -463,7 +463,7 @@ addon_pod_before="$(pod_identity "${ADDON_INSTALL_NAMESPACE}" gpu-platform-addon
 {
   echo "schema_version=1"
   echo "collected_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  echo "hub_cluster_signing_duration=${HUB_CLUSTER_SIGNING_DURATION}"
+  echo "hub_cluster_signing_duration=${EFFECTIVE_HUB_CLUSTER_SIGNING_DURATION}"
   echo "managed_cluster_initial_secret_resource_version=${cluster_secret_resource_version}"
   echo "addon_initial_secret_resource_version=${addon_secret_resource_version}"
   echo "managed_cluster_initial_not_before=${cluster_old_not_before}"

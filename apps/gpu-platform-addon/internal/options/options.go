@@ -3,6 +3,7 @@ package options
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -30,6 +31,7 @@ type Agent struct {
 	ClusterName           string
 	AddonName             string
 	AddonInstallNamespace string
+	AddonUID              string
 	ReportInterval        time.Duration
 }
 
@@ -79,6 +81,7 @@ func ParseAgent(args []string) (Agent, error) {
 	opts := Agent{
 		AddonName:             DefaultAddonName,
 		AddonInstallNamespace: DefaultAgentInstallNamespace,
+		AddonUID:              strings.TrimSpace(os.Getenv("GPU_PLATFORM_ADDON_UID")),
 		ReportInterval:        DefaultReportInterval,
 	}
 

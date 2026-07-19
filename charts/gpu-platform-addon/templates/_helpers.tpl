@@ -45,3 +45,9 @@ app.kubernetes.io/component: hub-manager
 {{- define "gpu-platform-addon.image" -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag }}
 {{- end }}
+
+{{- define "gpu-platform-addon.agentImage" -}}
+{{- $repository := default .Values.image.repository .Values.agent.image.repository }}
+{{- $tag := default .Values.image.tag .Values.agent.image.tag }}
+{{- printf "%s:%s" $repository $tag }}
+{{- end }}

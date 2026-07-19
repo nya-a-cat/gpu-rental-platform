@@ -32,6 +32,8 @@ func TestParseManagerRejectsInvalidNamespaceAndInterval(t *testing.T) {
 }
 
 func TestParseAgentAcceptsValidArguments(t *testing.T) {
+	t.Setenv("GPU_PLATFORM_ADDON_UID", "addon-uid-123")
+
 	opts, err := ParseAgent([]string{
 		"--hub-kubeconfig=/var/run/hub/kubeconfig",
 		"--cluster-name=cluster-a",
@@ -45,6 +47,9 @@ func TestParseAgentAcceptsValidArguments(t *testing.T) {
 	}
 	if opts.ReportInterval != 45*time.Second {
 		t.Fatalf("unexpected report interval %s", opts.ReportInterval)
+	}
+	if opts.AddonUID != "addon-uid-123" {
+		t.Fatalf("unexpected add-on UID %q", opts.AddonUID)
 	}
 }
 

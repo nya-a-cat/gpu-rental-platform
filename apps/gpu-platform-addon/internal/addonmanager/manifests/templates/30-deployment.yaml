@@ -33,6 +33,9 @@ spec:
         - name: agent
           image: {{ .Image }}
           imagePullPolicy: IfNotPresent
+          env:
+            - name: GPU_PLATFORM_ADDON_UID
+              value: "{{ .AddonUID }}"
           args:
             - agent
             - --hub-kubeconfig=/var/run/hub/kubeconfig

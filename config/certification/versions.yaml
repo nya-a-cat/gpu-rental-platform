@@ -1,5 +1,5 @@
 schema_version: "1"
-updated_at: "2026-07-19"
+updated_at: "2026-07-20"
 certification_status: "unverified"
 
 kubernetes:
@@ -32,6 +32,12 @@ components:
     version: "1.3.0"
     release: "v1.3.0"
     source: "https://github.com/open-cluster-management-io/addon-framework/releases/tag/v1.3.0"
+  gpu_platform_addon:
+    version: "0.2.0"
+    n_minus_one_version: "0.1.0"
+    n_minus_one_revision: "074046e1138f190ac8b90b5e10548c0a27cce975"
+    lifecycle_signing_duration: "30m"
+    source: "https://github.com/nya-a-cat/gpu-rental-platform"
   nvidia_gpu_operator:
     version: "26.3.3"
     release: "v26.3.3"

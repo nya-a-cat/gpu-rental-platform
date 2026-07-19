@@ -71,9 +71,9 @@ Phase 0 currently exposes foundational endpoints and includes the first OCM flee
 
 The first fleet integration fixes OCM and `clusteradm` at `v1.3.1`, OCM API and Addon Framework at `v1.3.0`, and the GitHub-hosted kind environment at Kubernetes `v1.34.8`. The production target remains Kubernetes `v1.34.9`; the two patch versions retain separate evidence in the [certification matrix](certification/kubernetes-1.34-matrix.md).
 
-The Actions job builds `gpu-platform-addon:ci` and invokes `bash deploy/ocm/scripts/ci-smoke.sh`. The script downloads pinned kind, clusteradm, kubectl and Helm release assets, verifies their SHA-256 digests, creates separate hub and managed kind clusters, and cleans both clusters at the end.
+The `ocm-conformance` Actions job builds `gpu-platform-addon:ci` and invokes `bash deploy/ocm/scripts/ci-smoke.sh`. The script downloads pinned kind, clusteradm, kubectl and Helm release assets, verifies their SHA-256 digests, creates separate hub and managed kind clusters, and cleans both clusters at the end. The independent `ocm-addon-lifecycle` job builds current `0.2.0` and pinned N-1 `0.1.0` images from full Git history, then verifies bidirectional version skew, cleanup, re-enablement, uninstall and reinstall.
 
-The conformance path verifies ManagedCluster acceptance, signed CSR certificates, cluster Lease renewal, ManifestWork delivery, Add-on CSR registration, generated hub kubeconfig, managed-cluster Add-on Deployment readiness, Add-on Lease renewal and the sanitized inventory ConfigMap with a Phase 0 capacity fingerprint. Each run uploads pinned tool and image versions plus key hub/spoke object snapshots. Failure output includes hub and managed-cluster objects, events and component logs.
+The conformance path verifies ManagedCluster acceptance, signed CSR certificates, cluster Lease renewal, ManifestWork delivery, Add-on CSR registration, generated hub kubeconfig, managed-cluster Add-on Deployment readiness, Add-on Lease renewal and the sanitized inventory ConfigMap with a Phase 0 capacity fingerprint and `ManagedClusterAddOn` ownership. Evidence uploads use explicit field whitelists and a pre-upload policy scan; node addresses and machine identifiers, Secret data, CSR bodies, kubeconfig content, private keys, full Docker inspect output and runner storage paths are excluded. Failure diagnostics remain in the Actions step log.
 
 The GitHub-hosted runner has no NVIDIA GPU. Driver, Device Plugin, `nvidia-smi`, DCGM, MIG and GPU workload tests remain assigned to the self-hosted GPU certification gate.
 
@@ -114,11 +114,12 @@ Pull requests and pushes to `main` run the repository quality gate. It covers:
 - certification-version consistency, pinned kubectl/Helm installation, Helm rendering and shell syntax checks for the OCM delivery assets;
 - default Compose validation plus dedicated v2 Compose validation, image build and runtime smoke checks;
 - a separate two-cluster OCM conformance job covering registration, CSR certificates, Lease renewal, ManifestWork, Add-on deployment and inventory reporting, with object-snapshot evidence artifacts;
+- a separate Add-on lifecycle job covering immutable current/N-1 images, bidirectional version skew, idempotent install, stale inventory cleanup, per-cluster re-enablement, Helm uninstall and final reinstall;
 - simulated API/web, Go control-plane and GPU Platform Add-on container builds.
 
 The simulated reservation suite includes concurrent attempts to reserve one GPU and verifies a single active order. The v2 checks verify migrations and the current Operation/Outbox foundation. Hardware-backed GPU acceptance remains assigned to a self-hosted runner.
 
-Pages deployment depends on the successful `quality` and `ocm-conformance` jobs and runs from `main` on a push or manual workflow dispatch:
+Pages deployment depends on the successful `quality`, `ocm-conformance` and `ocm-addon-lifecycle` jobs and runs from `main` on a push or manual workflow dispatch:
 
 ```bash
 gh workflow run pipeline.yml --ref main

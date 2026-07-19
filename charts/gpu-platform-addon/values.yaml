@@ -8,6 +8,9 @@ image:
   pullPolicy: IfNotPresent
 
 agent:
+  image:
+    repository: ""
+    tag: ""
   installNamespace: open-cluster-management-agent-addon
   reportInterval: 15s
 

@@ -2,8 +2,8 @@ apiVersion: v2
 name: gpu-platform-addon
 description: OCM hub manager for the GPU Cloud Platform add-on
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+version: 0.2.0
+appVersion: "0.2.0"
 kubeVersion: ">=1.34.0-0 <1.35.0-0"
 annotations:
   artifacthub.io/license: MIT

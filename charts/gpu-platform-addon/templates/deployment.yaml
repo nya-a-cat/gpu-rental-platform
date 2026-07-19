@@ -7,6 +7,8 @@ metadata:
     {{- include "gpu-platform-addon.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "gpu-platform-addon.selectorLabels" . | nindent 6 }}
@@ -36,7 +38,7 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - manager
-            - {{ printf "--agent-image=%s" (include "gpu-platform-addon.image" .) | quote }}
+            - {{ printf "--agent-image=%s" (include "gpu-platform-addon.agentImage" .) | quote }}
             - {{ printf "--addon-name=%s" .Values.addonName | quote }}
             - {{ printf "--agent-install-namespace=%s" .Values.agent.installNamespace | quote }}
             - {{ printf "--report-interval=%s" .Values.agent.reportInterval | quote }}

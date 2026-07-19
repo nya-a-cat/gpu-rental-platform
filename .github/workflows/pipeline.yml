@@ -188,6 +188,11 @@ jobs:
             --set-string image.repository=gpu-platform-addon \
             --set-string image.tag=ci > /tmp/gpu-platform-addon-rendered.yaml
           test -s /tmp/gpu-platform-addon-rendered.yaml
+          grep -q -- '--agent-image=gpu-platform-addon:ci' /tmp/gpu-platform-addon-rendered.yaml
+          grep -q 'type: Recreate' /tmp/gpu-platform-addon-rendered.yaml
+          helm template gpu-platform-addon charts/gpu-platform-addon --namespace gpu-platform-system --kube-version "${kube_version}" --set-string image.repository=gpu-platform-addon --set-string image.tag=manager --set-string agent.image.repository=gpu-platform-addon-agent --set-string agent.image.tag=override > /tmp/gpu-platform-addon-agent-override.yaml
+          grep -q -- '--agent-image=gpu-platform-addon-agent:override' /tmp/gpu-platform-addon-agent-override.yaml
+          grep -q 'image: "gpu-platform-addon:manager"' /tmp/gpu-platform-addon-agent-override.yaml
 
       - name: Validate OCM shell scripts
         run: bash -n deploy/ocm/scripts/*.sh
@@ -254,20 +259,61 @@ jobs:
         run: |
           mkdir -p artifacts
           set -o pipefail
-          bash deploy/ocm/scripts/ci-smoke.sh 2>&1 | tee artifacts/ocm-smoke.log
+          bash deploy/ocm/scripts/ci-smoke.sh 2>&1 | tee "${RUNNER_TEMP}/ocm-smoke.log"
+
+      - name: Verify OCM conformance evidence upload policy
+        id: ocm_evidence_policy
+        if: always()
+        run: bash deploy/ocm/scripts/verify-evidence-policy.sh
 
       - name: Upload OCM conformance evidence
-        if: always()
+        if: always() && steps.ocm_evidence_policy.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned v7.0.1
         with:
           name: ocm-conformance-${{ github.sha }}
-          path: artifacts/
-          if-no-files-found: ignore
+          path: artifacts/ocm/
+          if-no-files-found: error
+          retention-days: 7
+
+  ocm-addon-lifecycle:
+    name: OCM GPU add-on lifecycle compatibility
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      ARTIFACT_DIR: ${{ github.workspace }}/artifacts/ocm-addon-lifecycle
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # pinned v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Build current and N-1 GPU Platform Add-on images
+        run: |
+          mkdir -p "${ARTIFACT_DIR}"
+          bash deploy/ocm/scripts/build-addon-images.sh
+
+      - name: Run GPU Platform Add-on lifecycle compatibility
+        run: |
+          set -o pipefail
+          bash deploy/ocm/scripts/ci-addon-lifecycle.sh 2>&1 | tee "${RUNNER_TEMP}/ocm-addon-lifecycle.log"
+
+      - name: Verify GPU Platform Add-on lifecycle evidence upload policy
+        id: lifecycle_evidence_policy
+        if: always()
+        run: bash deploy/ocm/scripts/verify-evidence-policy.sh
+
+      - name: Upload GPU Platform Add-on lifecycle evidence
+        if: always() && steps.lifecycle_evidence_policy.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned v7.0.1
+        with:
+          name: ocm-addon-lifecycle-${{ github.sha }}
+          path: ${{ env.ARTIFACT_DIR }}/
+          if-no-files-found: error
           retention-days: 7
 
   pages:
     name: Build and deploy default GitHub Pages demo
-    needs: [quality, ocm-conformance]
+    needs: [quality, ocm-conformance, ocm-addon-lifecycle]
     if: >-
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')

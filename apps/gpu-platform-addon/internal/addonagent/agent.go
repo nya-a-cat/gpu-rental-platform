@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
 	"open-cluster-management.io/addon-framework/pkg/lease"
@@ -45,6 +46,8 @@ func Run(ctx context.Context, opts options.Agent) error {
 		managedClient: managedClient,
 		hubClient:     hubClient,
 		clusterName:   opts.ClusterName,
+		addonName:     opts.AddonName,
+		addonUID:      opts.AddonUID,
 	}
 	reporter.Run(ctx, opts.ReportInterval)
 	return nil
@@ -54,6 +57,8 @@ type reporter struct {
 	managedClient kubernetes.Interface
 	hubClient     kubernetes.Interface
 	clusterName   string
+	addonName     string
+	addonUID      string
 }
 
 func (r *reporter) Run(ctx context.Context, interval time.Duration) {
@@ -90,6 +95,7 @@ func (r *reporter) report(ctx context.Context, observedAt time.Time) error {
 	}
 
 	configMaps := r.hubClient.CoreV1().ConfigMaps(r.clusterName)
+	ownerReferences := r.inventoryOwnerReferences()
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		existing, err := configMaps.Get(ctx, inventory.ConfigMapName, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
@@ -101,6 +107,7 @@ func (r *reporter) report(ctx context.Context, observedAt time.Time) error {
 						"app.kubernetes.io/name":       managedByLabel,
 						"app.kubernetes.io/managed-by": managedByLabel,
 					},
+					OwnerReferences: ownerReferences,
 				},
 				Data: map[string]string{inventory.ConfigMapDataKey: string(data)},
 			}, metav1.CreateOptions{})
@@ -120,7 +127,25 @@ func (r *reporter) report(ctx context.Context, observedAt time.Time) error {
 		}
 		updated.Labels["app.kubernetes.io/name"] = managedByLabel
 		updated.Labels["app.kubernetes.io/managed-by"] = managedByLabel
+		if len(ownerReferences) != 0 {
+			updated.OwnerReferences = ownerReferences
+		}
 		_, err = configMaps.Update(ctx, updated, metav1.UpdateOptions{})
 		return err
 	})
+}
+
+func (r *reporter) inventoryOwnerReferences() []metav1.OwnerReference {
+	if r.addonUID == "" {
+		return nil
+	}
+
+	controller := true
+	return []metav1.OwnerReference{{
+		APIVersion: "addon.open-cluster-management.io/v1beta1",
+		Kind:       "ManagedClusterAddOn",
+		Name:       r.addonName,
+		UID:        types.UID(r.addonUID),
+		Controller: &controller,
+	}}
 }

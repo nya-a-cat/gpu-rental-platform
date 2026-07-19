@@ -64,14 +64,16 @@ func Run(ctx context.Context, opts options.Manager) error {
 }
 
 func values(opts options.Manager) addonfactory.GetValuesFunc {
-	return func(_ *clusterv1.ManagedCluster, _ *addonv1beta1.ManagedClusterAddOn) (addonfactory.Values, error) {
+	return func(_ *clusterv1.ManagedCluster, addon *addonv1beta1.ManagedClusterAddOn) (addonfactory.Values, error) {
 		return addonfactory.StructToValues(struct {
 			Image          string
+			AddonUID       string
 			AddonName      string
 			AgentName      string
 			ReportInterval string
 		}{
 			Image:          opts.AgentImage,
+			AddonUID:       string(addon.UID),
 			AddonName:      opts.AddonName,
 			AgentName:      agentName,
 			ReportInterval: opts.ReportInterval.String(),

@@ -68,4 +68,15 @@ kubectl --context "${HUB_CONTEXT}" -n "${MANAGED_CLUSTER_NAME}" \
       (.generation | test("^[a-f0-9]{64}$")) and
       (.resources | type == "array")' >/dev/null
 
+addon_uid="$(kubectl --context "${HUB_CONTEXT}" -n "${MANAGED_CLUSTER_NAME}" get managedclusteraddon "${ADDON_NAME}" -o jsonpath='{.metadata.uid}')"
+kubectl --context "${HUB_CONTEXT}" -n "${MANAGED_CLUSTER_NAME}" get configmap gpu-platform-inventory -o json | jq -e --arg addon_uid "${addon_uid}" '
+  any(.metadata.ownerReferences[]?;
+    .apiVersion == "addon.open-cluster-management.io/v1beta1" and
+    .kind == "ManagedClusterAddOn" and
+    .name == "gpu-platform-addon" and
+    .uid == $addon_uid and
+    .controller == true
+  )
+' >/dev/null
+
 echo "OCM ${OCM_VERSION}, Kubernetes ${KUBERNETES_VERSION}, ManifestWork, and GPU Platform Add-on smoke checks passed"

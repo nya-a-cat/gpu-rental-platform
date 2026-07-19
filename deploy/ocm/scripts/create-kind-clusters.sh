@@ -7,6 +7,7 @@ source "${SCRIPT_DIR}/lib.sh"
 
 require_command docker
 require_command kubectl
+require_command awk
 
 if [[ ! -x "${KIND_BIN}" ]]; then
   echo "kind ${KIND_VERSION} is unavailable; run install-tools.sh first" >&2
@@ -34,10 +35,22 @@ create_cluster() {
     'all(.items[]; .status.nodeInfo.kubeletVersion == $version)' >/dev/null
 }
 
+render_hub_config() {
+  local destination="$1"
+
+  mkdir -p "$(dirname "${destination}")"
+  awk -v duration="${EFFECTIVE_HUB_CLUSTER_SIGNING_DURATION}" '
+    /cluster-signing-duration:/ {
+      sub(/"[^"]*"/, "\"" duration "\"")
+    }
+    { print }
+  ' "${DEPLOY_ROOT}/kind/hub.yaml" >"${destination}"
+}
+
 hub_signing_duration_is_configured() {
   kubectl --context "${HUB_CONTEXT}" -n kube-system \
     get pods -l component=kube-controller-manager -o json | jq -e \
-    --arg expected "--cluster-signing-duration=${HUB_CLUSTER_SIGNING_DURATION}" '
+    --arg expected "--cluster-signing-duration=${EFFECTIVE_HUB_CLUSTER_SIGNING_DURATION}" '
       any(.items[].spec.containers[]?;
         any((((.command // []) + (.args // []))[]?); . == $expected)
       )
@@ -45,6 +58,8 @@ hub_signing_duration_is_configured() {
 }
 
 require_command jq
-create_cluster "${HUB_CLUSTER_NAME}" "${DEPLOY_ROOT}/kind/hub.yaml" "${HUB_CONTEXT}"
+rendered_hub_config="${TOOLS_ROOT}/kind/hub-effective.yaml"
+render_hub_config "${rendered_hub_config}"
+create_cluster "${HUB_CLUSTER_NAME}" "${rendered_hub_config}" "${HUB_CONTEXT}"
 wait_until "Hub client certificate signing duration" hub_signing_duration_is_configured
 create_cluster "${SPOKE_CLUSTER_NAME}" "${DEPLOY_ROOT}/kind/cluster1.yaml" "${SPOKE_CONTEXT}"

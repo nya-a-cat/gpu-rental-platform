@@ -69,6 +69,14 @@ Actions 产物保留完整 smoke 日志、客户端与镜像版本、ManagedClus
 - 使用无 GPU fixture 验证 Inventory、Reservation、Allocation 和 UsageFact 数据流。
 - 在测试框架产出后增加 JUnit、Helm 渲染包和更完整的控制器诊断快照。
 
+## GPU Platform Add-on lifecycle compatibility
+
+The GitHub-hosted lifecycle profile pins current Add-on `0.2.0` and N-1 Add-on `0.1.0` at revision `074046e1138f190ac8b90b5e10548c0a27cce975`. It uses the same Kubernetes 1.34.8, OCM 1.3.1, OCM API 1.3.0 and Addon Framework 1.3.0 matrix. A `30m` temporary client-certificate signing duration isolates lifecycle assertions from the dedicated `7m` certificate-rotation profile.
+
+The lifecycle gate requires distinct Add-on source-tree hashes and immutable revision tags. Its acceptance scope includes idempotent installation, both current/N-1 manager-agent combinations, agent rollback, stable active credentials during upgrades, stale inventory garbage collection, per-cluster deletion, re-enablement, Helm uninstall and final reinstall. The evidence artifact must pass the repository evidence policy before upload.
+
+The matrix remains `unverified` for this lifecycle profile until the new Actions job completes and its run and artifact identifiers are recorded here.
+
 ## GPU 自托管认证范围
 
 带 NVIDIA GPU 的自托管 runner 或认证实验集群负责硬件相关门禁：

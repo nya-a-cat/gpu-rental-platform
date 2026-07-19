@@ -8,6 +8,8 @@ REPO_ROOT="$(cd "${DEPLOY_ROOT}/../.." && pwd)"
 # shellcheck source=../versions.env
 source "${DEPLOY_ROOT}/versions.env"
 
+EFFECTIVE_HUB_CLUSTER_SIGNING_DURATION="${HUB_CLUSTER_SIGNING_DURATION_OVERRIDE:-${HUB_CLUSTER_SIGNING_DURATION}}"
+
 TOOLS_ROOT="${TOOLS_ROOT:-${RUNNER_TEMP:-${DEPLOY_ROOT}/.tools}/gpu-cloud-ocm}"
 BIN_DIR="${TOOLS_ROOT}/bin"
 CLUSTERADM_BIN="${BIN_DIR}/clusteradm"
@@ -26,6 +28,9 @@ MANAGED_CLUSTER_NAME="cluster1"
 
 ADDON_NAME="gpu-platform-addon"
 ADDON_IMAGE="${ADDON_IMAGE:-gpu-platform-addon:ci}"
+ADDON_MANAGER_IMAGE="${ADDON_MANAGER_IMAGE:-${ADDON_IMAGE}}"
+ADDON_AGENT_IMAGE="${ADDON_AGENT_IMAGE:-${ADDON_IMAGE}}"
+ADDON_MANAGER_SUPPORTS_UID_ENV="${ADDON_MANAGER_SUPPORTS_UID_ENV:-1}"
 ADDON_WORK_NAME="addon-gpu-platform-addon-deploy-0"
 ADDON_INSTALL_NAMESPACE="open-cluster-management-agent-addon"
 ADDON_HUB_KUBECONFIG_SECRET="${ADDON_NAME}-hub-kubeconfig"
