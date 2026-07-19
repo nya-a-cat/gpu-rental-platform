@@ -20,3 +20,8 @@ Thumbs.db
 
 tmp/
 output/
+# Local agent state and internal development notes
+process.md
+*.internal.md
+.codex/
+.agents/
