@@ -32,6 +32,8 @@ kubectl --context "${HUB_CONTEXT}" -n "${ADDON_MANAGER_NAMESPACE}" \
 kubectl --context "${HUB_CONTEXT}" apply \
   --filename "${DEPLOY_ROOT}/manifests/managed-cluster-addon.yaml"
 
+wait_until "GPU Platform Add-on ManifestWork" addon_manifestwork_exists
+
 kubectl --context "${HUB_CONTEXT}" -n "${MANAGED_CLUSTER_NAME}" wait \
   --for=condition=Applied \
   manifestwork/"${ADDON_WORK_NAME}" \

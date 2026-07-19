@@ -79,6 +79,11 @@ addon_lease_is_fresh() {
   [[ -n "${renew_time}" ]]
 }
 
+addon_manifestwork_exists() {
+  kubectl --context "${HUB_CONTEXT}" -n "${MANAGED_CLUSTER_NAME}" \
+    get manifestwork "${ADDON_WORK_NAME}" >/dev/null 2>&1
+}
+
 lease_renew_time() {
   local context="$1"
   local namespace="$2"
