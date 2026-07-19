@@ -73,6 +73,7 @@ assert_matrix_value() {
 assert_matrix_value "kubernetes.github_actions.version" "${KUBERNETES_VERSION#v}"
 assert_matrix_value "kubernetes.github_actions.kind_version" "${KIND_VERSION#v}"
 assert_matrix_value "kubernetes.github_actions.node_image" "${KIND_NODE_IMAGE}"
+assert_matrix_value "kubernetes.github_actions.cluster_signing_duration" "${HUB_CLUSTER_SIGNING_DURATION}"
 assert_matrix_value "components.open_cluster_management.release" "${OCM_VERSION}"
 assert_matrix_value "components.clusteradm.release" "${CLUSTERADM_VERSION}"
 assert_matrix_value "tools.kubectl.release" "${KUBECTL_VERSION}"

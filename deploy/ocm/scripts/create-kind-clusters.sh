@@ -34,6 +34,17 @@ create_cluster() {
     'all(.items[]; .status.nodeInfo.kubeletVersion == $version)' >/dev/null
 }
 
+hub_signing_duration_is_configured() {
+  kubectl --context "${HUB_CONTEXT}" -n kube-system \
+    get pods -l component=kube-controller-manager -o json | jq -e \
+    --arg expected "--cluster-signing-duration=${HUB_CLUSTER_SIGNING_DURATION}" '
+      any(.items[].spec.containers[]?;
+        any((((.command // []) + (.args // []))[]?); . == $expected)
+      )
+    ' >/dev/null
+}
+
 require_command jq
 create_cluster "${HUB_CLUSTER_NAME}" "${DEPLOY_ROOT}/kind/hub.yaml" "${HUB_CONTEXT}"
+wait_until "Hub client certificate signing duration" hub_signing_duration_is_configured
 create_cluster "${SPOKE_CLUSTER_NAME}" "${DEPLOY_ROOT}/kind/cluster1.yaml" "${SPOKE_CONTEXT}"

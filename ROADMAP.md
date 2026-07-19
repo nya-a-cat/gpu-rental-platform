@@ -1,6 +1,6 @@
 # GPU Container Cloud Roadmap
 
-路线图以可验证交付为准。勾选项表示代码、配置或契约已经进入仓库；阶段验收仍以对应测试、真实集群证据和 `progress.md` 为准。
+路线图以可验证交付为准。勾选项表示代码、配置或契约已经进入仓库；阶段验收仍以对应 GitHub Actions、真实集群证据和认证文档为准。
 
 ## Phase 0 — 组件验证与生产基础
 
@@ -19,7 +19,8 @@
 
 - [x] 部署 OCM Hub 并完成 ManagedCluster 双向注册、首次 CSR、证书签发和 Lease 验证。
 - [x] 开发最小 GPU Platform Add-on，并通过 ManifestWork 完成安装和状态回传。
-- [ ] 验证 ManagedCluster 与 Add-on CSR 证书轮换、Add-on 升级、删除清理和 N/N-1 兼容。
+- [ ] 验证 ManagedCluster 与 Add-on CSR 证书轮换。
+- [ ] 验证 Add-on 升级、删除清理和 N/N-1 兼容。
 - [ ] 收紧 Add-on Agent 跨集群库存写权限，并增加双集群反向授权断言。
 - [ ] 实现 Agent Epoch、命令序列、Fencing Token 与 15/45/90 秒状态语义。
 - [x] 固定 Kubernetes 1.34.x、OCM、GPU Operator、Volcano 和 KServe 的首个候选认证版本矩阵，并区分 GitHub-hosted 与 GPU 自托管证据。

@@ -9,6 +9,8 @@ the first candidate stack:
 - Kubernetes and kubectl `v1.34.8`
 - Helm `v3.19.0`
 
+The ephemeral kind Hub limits client certificates to `7m` so the suite can exercise OCM's native rotation path within one Actions job. Production certificate lifetimes remain a vendor security-policy setting.
+
 Every downloaded executable and archive has a fixed HTTPS release URL and SHA-256 in
 `versions.env`. The scripts download archives as data, verify them, and then
 execute the extracted binaries. They do not execute network-delivered shell
@@ -31,9 +33,11 @@ cluster add-on, and verifies:
 - ManifestWork delivery of the smoke ConfigMap;
 - an approved Add-on CSR and generated Hub kubeconfig;
 - available Add-on manager and agent Deployments;
-- available `ManagedClusterAddOn`, renewed Add-on Lease, and sanitized inventory capacity fingerprint.
+- available `ManagedClusterAddOn`, renewed Add-on Lease, and sanitized inventory capacity fingerprint;
+- native ManagedCluster and Add-on client certificate rotation with new automatically approved CSRs;
+- stable Secret and agent Pod identities, plus continued Lease renewal and inventory reporting after the original certificates expire and the Hub API connection is reset.
 
-Every run uploads pinned tool versions, the Add-on image description, and key hub/spoke object snapshots. Failed runs also print hub and managed-cluster objects, events, and Add-on logs.
+Credentials are materialized only in a mode-`0600` temporary directory for post-expiry API checks and are removed when the script exits. Uploaded evidence contains sanitized CSR and Secret metadata, certificate fingerprints and validity timestamps, controller arguments, object snapshots, and logs. It excludes CSR request bodies, issued certificate bodies, Secret data, kubeconfig content, and private keys. Failed runs also print hub and managed-cluster objects, events, and Add-on logs.
 Clusters are deleted at the end. Set `KEEP_CLUSTERS=1` only during an
 interactive Actions debugging session.
 

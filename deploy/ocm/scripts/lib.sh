@@ -28,8 +28,11 @@ ADDON_NAME="gpu-platform-addon"
 ADDON_IMAGE="${ADDON_IMAGE:-gpu-platform-addon:ci}"
 ADDON_WORK_NAME="addon-gpu-platform-addon-deploy-0"
 ADDON_INSTALL_NAMESPACE="open-cluster-management-agent-addon"
+ADDON_HUB_KUBECONFIG_SECRET="${ADDON_NAME}-hub-kubeconfig"
 ADDON_MANAGER_NAMESPACE="gpu-platform-system"
 ADDON_HELM_RELEASE="gpu-platform-addon"
+MANAGED_CLUSTER_AGENT_NAMESPACE="open-cluster-management-agent"
+MANAGED_CLUSTER_HUB_KUBECONFIG_SECRET="hub-kubeconfig-secret"
 
 WAIT_TIMEOUT="${WAIT_TIMEOUT:-300s}"
 RETRY_ATTEMPTS="${RETRY_ATTEMPTS:-90}"
@@ -109,6 +112,8 @@ cluster_csr_is_approved() {
     --arg cluster "${MANAGED_CLUSTER_NAME}" '
       any(.items[];
         .metadata.labels["open-cluster-management.io/cluster-name"] == $cluster and
+        .spec.signerName == "kubernetes.io/kube-apiserver-client" and
+        ((.metadata.labels["open-cluster-management.io/addon-name"] // "") == "") and
         any(.status.conditions[]?; .type == "Approved" and .status == "True") and
         ((.status.certificate // "") | length > 0)
       )
@@ -121,6 +126,7 @@ addon_csr_is_approved() {
     --arg addon "${ADDON_NAME}" '
       any(.items[];
         .metadata.labels["open-cluster-management.io/cluster-name"] == $cluster and
+        .spec.signerName == "kubernetes.io/kube-apiserver-client" and
         .metadata.labels["open-cluster-management.io/addon-name"] == $addon and
         any(.status.conditions[]?; .type == "Approved" and .status == "True") and
         ((.status.certificate // "") | length > 0)

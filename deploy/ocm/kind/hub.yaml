@@ -4,5 +4,13 @@ networking:
   apiServerAddress: 127.0.0.1
 nodes:
   - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        apiVersion: kubeadm.k8s.io/v1beta4
+        kind: ClusterConfiguration
+        controllerManager:
+          extraArgs:
+            - name: cluster-signing-duration
+              value: 7m
     labels:
       gpu-cloud.open-cluster-management.io/role: hub

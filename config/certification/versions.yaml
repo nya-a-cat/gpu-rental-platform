@@ -12,6 +12,7 @@ kubernetes:
     kind_version: "0.32.0"
     kind_release: "v0.32.0"
     node_image: "kindest/node:v1.34.8@sha256:02722c2dedddcfc00febf5d27fbeb9b7b2c14294c82109ff4a85d89ac9ba3256"
+    cluster_signing_duration: "7m"
     source: "https://github.com/kubernetes-sigs/kind/releases/tag/v0.32.0"
 
 components:
