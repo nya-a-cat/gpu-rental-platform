@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM golang:1.25.1-bookworm AS build
+FROM golang:1.26.5-bookworm AS build
 WORKDIR /workspace/apps/gpu-platform-addon
 
 COPY apps/gpu-platform-addon/go.mod apps/gpu-platform-addon/go.sum ./

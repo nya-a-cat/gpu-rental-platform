@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM golang:1.25.1-bookworm AS build
+FROM golang:1.26.5-bookworm AS build
 WORKDIR /workspace/apps/control-plane
 
 COPY apps/control-plane/go.mod apps/control-plane/go.sum ./
