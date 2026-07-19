@@ -18,12 +18,38 @@ import (
 	"open-cluster-management.io/addon-framework/pkg/utils"
 	addonv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
+	workv1 "open-cluster-management.io/api/work/v1"
 )
 
 const agentName = "gpu-platform-addon-agent"
 
 //go:embed manifests/templates/*.yaml
 var manifestFS embed.FS
+
+type manifestConfiguredAgentAddon struct {
+	frameworkagent.AgentAddon
+	manifestConfigs []workv1.ManifestConfigOption
+}
+
+func (a manifestConfiguredAgentAddon) GetAgentAddonOptions() frameworkagent.AgentAddonOptions {
+	options := a.AgentAddon.GetAgentAddonOptions()
+	options.ManifestConfigs = append(options.ManifestConfigs, a.manifestConfigs...)
+	return options
+}
+
+func leaseManifestConfig(addonName, namespace string) workv1.ManifestConfigOption {
+	return workv1.ManifestConfigOption{
+		ResourceIdentifier: workv1.ResourceIdentifier{
+			Group:     "coordination.k8s.io",
+			Resource:  "leases",
+			Name:      addonName,
+			Namespace: namespace,
+		},
+		UpdateStrategy: &workv1.UpdateStrategy{
+			Type: workv1.UpdateStrategyTypeServerSideApply,
+		},
+	}
+}
 
 func Run(ctx context.Context, opts options.Manager) error {
 	hubConfig, err := kubeconfig.Load(opts.Kubeconfig)
@@ -46,6 +72,11 @@ func Run(ctx context.Context, opts options.Manager) error {
 		BuildTemplateAgentAddon()
 	if err != nil {
 		return fmt.Errorf("build template agent addon: %w", err)
+	}
+
+	agentAddon = manifestConfiguredAgentAddon{
+		AgentAddon:      agentAddon,
+		manifestConfigs: []workv1.ManifestConfigOption{leaseManifestConfig(opts.AddonName, opts.AgentInstallNamespace)},
 	}
 
 	manager, err := frameworkmanager.New(hubConfig)

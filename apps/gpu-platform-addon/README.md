@@ -26,8 +26,13 @@ fingerprint is derived from aggregate capacity and excludes the observation
 timestamp. Placement and Allocation concurrency will use a later monotonic
 ResourceProvider generation with Agent Epoch and fencing data. The agent also
 refreshes the `gpu-platform-addon` Lease in its installation namespace. OCM uses
-that Lease for `ManagedClusterAddOn` connectivity health; inventory freshness is
-evaluated separately from the snapshot timestamp. In this schema, `schedulableAllocatable` means capacity on Nodes without `spec.unschedulable=true`; Ready state, taints, allocations and fault domains enter the ResourceProvider model in later phases.
+that Lease for `ManagedClusterAddOn` connectivity health; the current manager
+includes the Lease in ManifestWork with `ServerSideApply`. OCM owns the Lease
+metadata and cleanup while the agent owns its renewal fields. Inventory
+freshness is evaluated separately from the snapshot timestamp. In this schema,
+`schedulableAllocatable` means capacity on Nodes without
+`spec.unschedulable=true`; Ready state, taints, allocations and fault domains enter
+the ResourceProvider model in later phases.
 
 The manager passes the current `ManagedClusterAddOn` UID to current agents through
 `GPU_PLATFORM_ADDON_UID`. The variable is optional so a current agent continues to run

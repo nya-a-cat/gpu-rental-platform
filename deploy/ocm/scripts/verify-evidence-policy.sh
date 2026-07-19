@@ -67,8 +67,15 @@ if grep -R -I -q -E -e "-----BEGIN ([A-Z ]+ )?PRIVATE KEY-----|client-key-data|c
   record_violation "credential material marker detected"
 fi
 
-if grep -R -I -q -E '"(GraphDriver|RootFS)"[[:space:]]*:|/home/runner/work/|/var/lib/docker/(overlay|containers)' "${ARTIFACT_DIR}"; then
-  record_violation "container runtime internals or runner path detected"
+runtime_internal_files=()
+while IFS= read -r -d '' artifact_file; do
+  if grep -I -q -E '"(GraphDriver|RootFS)"[[:space:]]*:|/home/runner/work/|/var/lib/docker/(overlay|containers)' "${artifact_file}"; then
+    runtime_internal_files+=("${artifact_file#${ARTIFACT_DIR}/}")
+  fi
+done < <(find "${ARTIFACT_DIR}" -type f -print0)
+if (( ${#runtime_internal_files[@]} > 0 )); then
+  runtime_internal_list="$(IFS=,; echo "${runtime_internal_files[*]}")"
+  record_violation "container runtime internals or runner path detected in: ${runtime_internal_list}"
 fi
 
 for node_file in "${ARTIFACT_DIR}/hub-nodes.json" "${ARTIFACT_DIR}/spoke-nodes.json"; do
