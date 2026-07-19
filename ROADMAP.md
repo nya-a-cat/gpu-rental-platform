@@ -19,7 +19,7 @@
 
 - [x] 部署 OCM Hub 并完成 ManagedCluster 双向注册、首次 CSR、证书签发和 Lease 验证。
 - [x] 开发最小 GPU Platform Add-on，并通过 ManifestWork 完成安装和状态回传。
-- [ ] 验证 ManagedCluster 与 Add-on CSR 证书轮换。
+- [x] 验证 ManagedCluster 与 Add-on CSR 证书轮换。
 - [ ] 验证 Add-on 升级、删除清理和 N/N-1 兼容。
 - [ ] 收紧 Add-on Agent 跨集群库存写权限，并增加双集群反向授权断言。
 - [ ] 实现 Agent Epoch、命令序列、Fencing Token 与 15/45/90 秒状态语义。

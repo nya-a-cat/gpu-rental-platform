@@ -2,7 +2,7 @@
 
 ## 业务结论
 
-Phase 0 固定 Kubernetes 1.34.x 为首个生产认证线，生产目标为 Kubernetes 1.34.9。GitHub Actions 使用 kind 0.32.0 官方发布的 Kubernetes 1.34.8 节点镜像及完整摘要。基础 GitHub-hosted CI 集成已由 Actions `29671872066` 通过；ManagedCluster 与 Add-on 客户端证书轮换扩展门禁已进入仓库，服务器结果待本轮 Actions 验证。生产目标 patch、GPU 硬件和厂商交付仍为 `unverified`。
+Phase 0 固定 Kubernetes 1.34.x 为首个生产认证线，生产目标为 Kubernetes 1.34.9。GitHub Actions 使用 kind 0.32.0 官方发布的 Kubernetes 1.34.8 节点镜像及完整摘要。GitHub-hosted CI 集成及 ManagedCluster、Add-on 客户端证书轮换已由 Actions `29694658483` 通过。生产目标 patch、GPU 硬件和厂商交付仍为 `unverified`。
 
 本文件定义版本选择、上游依据和项目自证范围。机器可读版本位于 [`config/certification/versions.yaml`](../../config/certification/versions.yaml)。版本进入生产支持清单需要同时满足对应的 GitHub Actions 门禁和 GPU 自托管认证门禁。
 
@@ -14,7 +14,7 @@ Phase 0 固定 Kubernetes 1.34.x 为首个生产认证线，生产目标为 Kube
 | GitHub Actions Kubernetes | 1.34.8                                                                                         | kind 上的 OCM、ManifestWork、Add-on 和控制器集成            | 已通过   |
 | kind                      | 0.32.0                                                                                         | GitHub-hosted runner 的可复现 Kubernetes 环境               | 来源核验 |
 | kind 节点镜像             | `kindest/node:v1.34.8@sha256:02722c2dedddcfc00febf5d27fbeb9b7b2c14294c82109ff4a85d89ac9ba3256` | 固定 Actions 节点镜像内容                                   | 来源核验 |
-| Actions 客户端证书时长    | 7m                                                                                             | 在临时 kind Hub 内触发 OCM 原生证书轮换                     | 待验证   |
+| Actions 客户端证书时长    | 7m                                                                                             | 在临时 kind Hub 内触发 OCM 原生证书轮换                     | 已通过   |
 | Open Cluster Management   | 1.3.1                                                                                          | Hub、ManagedCluster、注册、Lease、Placement 和 ManifestWork | 来源核验 |
 | clusteradm                | 1.3.1                                                                                          | Actions 中初始化 Hub 和导入测试集群                         | 来源核验 |
 | kubectl                   | 1.34.8                                                                                         | Actions 中操作固定 Kubernetes 1.34.8 集群                   | 来源核验 |
@@ -56,9 +56,9 @@ GitHub-hosted runner 没有 NVIDIA GPU。当前 Phase 0 门禁与后续扩展项
 - 验证 GPU Platform Add-on 注册、安装、Lease 健康和脱敏容量指纹上报。
 - 执行 Add-on Go 格式、vet、单元测试、构建、Helm lint/render 与 shell 语法检查。
 
-运行 `29671872066` 已成功完成并上传 `ocm-conformance-13a1572719386e7a7e43bcc1e0f06acdb6519c6a`，覆盖首次 CSR、证书签发和既有 Phase 0 集成。新增扩展门禁在临时 Hub 使用 `7m` 签发上限，等待证书进入 OCM 轮换阈值后验证新 CSR、Secret 证书与私钥更新、Pod 无重启，以及旧证书过期并强制重建 Hub API 连接后的 Lease 和库存连续性。该扩展的服务器结果仍待验证。
+运行 `29694658483` 已成功完成：Quality job `88213213524`、OCM conformance job `88213213557` 和 Pages job `88214243600` 均通过。OCM job 上传 artifact `ocm-conformance-48a58987f845cdb21431a9e49862330b8029ba12`，证明临时 Hub 的 `7m` 签发上限实际生效。ManagedCluster 和 Add-on 均创建了新的自动批准 CSR，Secret UID 保持稳定，Secret resourceVersion、客户端证书、私钥、证书序列号和指纹均完成更新，轮换重叠时间分别为 115 秒和 118 秒。两个 Agent Pod 在轮换期间保持原 Pod UID 且重启次数为 0；旧证书过期后，Hub kube-apiserver 容器已重建，ManagedCluster Lease、Add-on Lease 和库存上报继续推进，独立临时凭据 API 检查通过。
 
-Actions 产物保留完整 smoke 日志、客户端与镜像版本、ManagedCluster、ManifestWork、ManagedClusterAddOn、Lease、Deployment、库存 ConfigMap，以及脱敏后的 CSR/Secret 元数据和证书轮换摘要。上传内容排除 CSR 请求体、签发证书正文、Secret data、kubeconfig 和私钥。GPU 硬件和生产认证保持未执行。
+Actions 产物保留完整 smoke 日志、客户端与镜像版本、ManagedCluster、ManifestWork、ManagedClusterAddOn、Lease、Deployment、库存 ConfigMap，以及脱敏后的 CSR/Secret 元数据和证书轮换摘要。上传内容排除 CSR 请求体、CSR `status.certificate` 客户端证书正文、Secret data、kubeconfig 和私钥。artifact 复核确认 CSR 仅保留批准条件，Secret 仅保留元数据和字段名。GPU 硬件和生产认证保持未执行。
 
 ### 后续扩展门禁
 
@@ -90,7 +90,7 @@ Actions 产物保留完整 smoke 日志、客户端与镜像版本、ManagedClus
 | 等级         | 判定条件                                                 | 当前结果             |
 | ------------ | -------------------------------------------------------- | -------------------- |
 | 来源核验     | 官方 release、源码依赖或兼容矩阵能够支撑选型             | 已完成版本选型       |
-| CI 集成      | 固定 Actions workflow 在 kind 环境完成 OCM 和控制器验收  | 基础通过，轮换待验证 |
+| CI 集成      | 固定 Actions workflow 在 kind 环境完成 OCM 和控制器验收  | 已通过证书轮换       |
 | GPU 硬件认证 | 固定软硬件组合完成整卡、指标、故障、升级和回滚验收       | 未执行               |
 | 生产认证     | CI 集成与 GPU 硬件认证均有可追溯证据，厂商安装包完成演练 | 未执行               |
 
