@@ -6,11 +6,10 @@ nodes:
   - role: control-plane
     kubeadmConfigPatches:
       - |
-        apiVersion: kubeadm.k8s.io/v1beta4
+        apiVersion: kubeadm.k8s.io/v1beta3
         kind: ClusterConfiguration
         controllerManager:
           extraArgs:
-            - name: cluster-signing-duration
-              value: 7m
+            cluster-signing-duration: "7m"
     labels:
       gpu-cloud.open-cluster-management.io/role: hub
