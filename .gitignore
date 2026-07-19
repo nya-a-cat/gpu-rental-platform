@@ -22,6 +22,7 @@ tmp/
 output/
 # Local agent state and internal development notes
 process.md
+progress.md
 *.internal.md
 .codex/
 .agents/
