@@ -69,3 +69,17 @@ func TestValidateAcceleratorProfileRealAlphaBoundary(t *testing.T) {
 		t.Fatalf("ValidateAcceleratorProfile() error = %v, want ErrInvalid", err)
 	}
 }
+
+func TestValidateHeartbeatBoundsReportSequence(t *testing.T) {
+	params := ObserveClusterHeartbeatParams{
+		AgentEpoch: "epoch-0001", ReportSequence: 1, FencingToken: "fence-1",
+		FencingEnabled: true, ExecutionHealthy: true, ObservedAt: time.Now().UTC(),
+	}
+	if err := ValidateHeartbeat(params); err != nil {
+		t.Fatalf("ValidateHeartbeat() error = %v", err)
+	}
+	params.ReportSequence = 1 << 63
+	if err := ValidateHeartbeat(params); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("ValidateHeartbeat() overflow error = %v, want ErrInvalid", err)
+	}
+}

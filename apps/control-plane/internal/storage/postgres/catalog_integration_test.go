@@ -31,6 +31,10 @@ func TestCatalogInventoryGenerationAndCapacityLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateCluster() error = %v", err)
 	}
+	clusters, err := repository.ListClusters(ctx)
+	if err != nil || len(clusters) != 1 || clusters[0].ID != created.ResourceID {
+		t.Fatalf("ListClusters() = %#v, error = %v", clusters, err)
+	}
 	op, err := repository.GetByID(ctx, created.OperationID)
 	if err != nil || op.Status != operation.StatusSucceeded || op.Progress != 100 {
 		t.Fatalf("cluster operation = %#v, error = %v", op, err)
@@ -97,9 +101,34 @@ func TestCatalogInventoryGenerationAndCapacityLifecycle(t *testing.T) {
 		t.Fatalf("unchanged inventory advanced resource generation or missed heartbeat: %#v", inventory.Cluster)
 	}
 
+	lastDetailedAt := fixedNow
+	if _, err := database.ExecContext(ctx, "UPDATE clusters SET management_state = 'disabled' WHERE id = $1", created.ResourceID); err != nil {
+		t.Fatalf("disable cluster for heartbeat test: %v", err)
+	}
+	fixedNow = fixedNow.Add(time.Second)
+	err = repository.ObserveClusterHeartbeat(ctx, catalog.ObserveClusterHeartbeatParams{
+		ClusterID: created.ResourceID, AgentEpoch: "epoch-0001", ReportSequence: 3,
+		FencingToken: "fence-1", FencingEnabled: true, ExecutionHealthy: true, ObservedAt: fixedNow,
+	})
+	if err != nil {
+		t.Fatalf("ObserveClusterHeartbeat() error = %v", err)
+	}
+	inventory, err = repository.GetClusterInventory(ctx, created.ResourceID)
+	if err != nil {
+		t.Fatalf("heartbeat GetClusterInventory() error = %v", err)
+	}
+	if inventory.Cluster.InventoryGeneration != 1 || inventory.Cluster.SourceGeneration == nil || *inventory.Cluster.SourceGeneration != strings.Repeat("c", 64) ||
+		inventory.Cluster.LastInventoryAt == nil || !inventory.Cluster.LastInventoryAt.Equal(lastDetailedAt) ||
+		inventory.Cluster.LastHeartbeatAt == nil || !inventory.Cluster.LastHeartbeatAt.Equal(fixedNow) || inventory.Cluster.Schedulable {
+		t.Fatalf("heartbeat changed inventory facts or ignored manual disable: %#v", inventory.Cluster)
+	}
+	if _, err := database.ExecContext(ctx, "UPDATE clusters SET management_state = 'enabled' WHERE id = $1", created.ResourceID); err != nil {
+		t.Fatalf("enable cluster after heartbeat test: %v", err)
+	}
+
 	stale := catalog.ReplaceInventoryParams{
 		Mutation: catalogMutation("inventory-stale-key", strings.Repeat("d", 64)), ClusterID: created.ResourceID,
-		ExpectedGeneration: 1, SourceGeneration: strings.Repeat("e", 64), AgentEpoch: "epoch-0001", ReportSequence: 2,
+		ExpectedGeneration: 1, SourceGeneration: strings.Repeat("e", 64), AgentEpoch: "epoch-0001", ReportSequence: 3,
 		FencingToken: "fence-1", FencingEnabled: true, ExecutionHealthy: true, ObservedAt: fixedNow,
 	}
 	if _, err := repository.ReplaceClusterInventory(ctx, stale); !errors.Is(err, catalog.ErrStaleReport) {
@@ -109,7 +138,7 @@ func TestCatalogInventoryGenerationAndCapacityLifecycle(t *testing.T) {
 	fixedNow = fixedNow.Add(time.Second)
 	_, err = repository.ReplaceClusterInventory(ctx, catalog.ReplaceInventoryParams{
 		Mutation: catalogMutation("inventory-replace-key-2", strings.Repeat("f", 64)), ClusterID: created.ResourceID,
-		ExpectedGeneration: 1, SourceGeneration: strings.Repeat("1", 64), AgentEpoch: "epoch-0001", ReportSequence: 3,
+		ExpectedGeneration: 1, SourceGeneration: strings.Repeat("1", 64), AgentEpoch: "epoch-0001", ReportSequence: 4,
 		FencingToken: "fence-1", FencingEnabled: true, ExecutionHealthy: true, ObservedAt: fixedNow,
 		NodePools: []catalog.NodePoolSnapshot{{Name: "pool-a", ManagementState: catalog.ManagementEnabled, Nodes: []catalog.NodeSnapshot{{
 			OpaqueKey: "node-a", ManagementState: catalog.ManagementEnabled, HealthState: catalog.HealthHealthy, Schedulable: true,

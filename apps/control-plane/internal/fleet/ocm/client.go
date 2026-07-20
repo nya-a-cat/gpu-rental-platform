@@ -19,7 +19,13 @@ import (
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/ports"
 )
 
-const maxErrorBodyBytes = 4096
+const (
+	maxErrorBodyBytes          = 4096
+	maxInventoryConfigMapBytes = 2 << 20
+	maxInventoryPayloadBytes   = 1 << 20
+	inventoryConfigMapName     = "gpu-platform-inventory"
+	inventoryConfigMapDataKey  = "inventory.json"
+)
 
 var resourceNamePattern = regexp.MustCompile(`^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$`)
 
@@ -137,6 +143,64 @@ func NewClient(config Config) (*Client, error) {
 		httpClient:   &http.Client{Transport: transport, Timeout: 30 * time.Second},
 		pollInterval: config.PollInterval,
 	}, nil
+}
+
+type inventoryConfigMap struct {
+	Metadata struct {
+		Name      string `json:"name"`
+		Namespace string `json:"namespace"`
+	} `json:"metadata"`
+	Data map[string]string `json:"data"`
+}
+
+func (client *Client) ReadInventory(ctx context.Context, clusterID string) ([]byte, error) {
+	if !validResourceName(clusterID) {
+		return nil, errors.New("OCM cluster name must be DNS-compatible")
+	}
+	endpoint := client.inventoryEndpoint(clusterID)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("create inventory ConfigMap request: %w", err)
+	}
+	request.Header.Set("Accept", "application/json")
+	response, err := client.httpClient.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("get inventory ConfigMap: %w", err)
+	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return nil, responseError(response)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(response.Body, maxInventoryConfigMapBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("read inventory ConfigMap: %w", err)
+	}
+	if len(body) > maxInventoryConfigMapBytes {
+		return nil, errors.New("inventory ConfigMap exceeds the response size limit")
+	}
+	var configMap inventoryConfigMap
+	if err := json.Unmarshal(body, &configMap); err != nil {
+		return nil, fmt.Errorf("decode inventory ConfigMap: %w", err)
+	}
+	if configMap.Metadata.Name != inventoryConfigMapName || configMap.Metadata.Namespace != clusterID {
+		return nil, errors.New("inventory ConfigMap identity does not match the requested cluster")
+	}
+	payload, exists := configMap.Data[inventoryConfigMapDataKey]
+	if !exists || strings.TrimSpace(payload) == "" {
+		return nil, errors.New("inventory ConfigMap does not contain inventory.json")
+	}
+	if len(payload) > maxInventoryPayloadBytes {
+		return nil, errors.New("inventory payload exceeds the size limit")
+	}
+	return []byte(payload), nil
+}
+
+func (client *Client) inventoryEndpoint(clusterID string) *url.URL {
+	endpoint := *client.baseURL
+	endpoint.Path = strings.TrimRight(endpoint.Path, "/") +
+		"/api/v1/namespaces/" + url.PathEscape(clusterID) +
+		"/configmaps/" + inventoryConfigMapName
+	return &endpoint
 }
 
 func (client *Client) ApplyWork(ctx context.Context, request ports.WorkRequest) (ports.WorkResult, error) {

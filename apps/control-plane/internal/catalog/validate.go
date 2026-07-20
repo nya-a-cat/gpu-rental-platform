@@ -14,6 +14,25 @@ var (
 	traitKeyPattern     = regexp.MustCompile(`^[a-z0-9][a-z0-9._/-]{0,127}$`)
 )
 
+func ValidateHeartbeat(params ObserveClusterHeartbeatParams) error {
+	if len(params.AgentEpoch) < 8 || len(params.AgentEpoch) > 128 {
+		return invalid("agent epoch must contain between 8 and 128 characters")
+	}
+	if params.ReportSequence == 0 || params.ReportSequence > 1<<63-1 {
+		return invalid("report sequence must be between 1 and the PostgreSQL bigint maximum")
+	}
+	if len(params.FencingToken) > 255 {
+		return invalid("fencing token must contain at most 255 characters")
+	}
+	if params.FencingEnabled && strings.TrimSpace(params.FencingToken) == "" {
+		return invalid("fencing token is required when fencing is enabled")
+	}
+	if params.ObservedAt.IsZero() {
+		return invalid("inventory observation time is required")
+	}
+	return nil
+}
+
 func ValidateInventory(params ReplaceInventoryParams) error {
 	if params.ExpectedGeneration < 0 {
 		return invalid("expected generation must be non-negative")
@@ -21,8 +40,8 @@ func ValidateInventory(params ReplaceInventoryParams) error {
 	if len(params.AgentEpoch) < 8 || len(params.AgentEpoch) > 128 {
 		return invalid("agent epoch must contain between 8 and 128 characters")
 	}
-	if params.ReportSequence == 0 {
-		return invalid("report sequence must be greater than zero")
+	if params.ReportSequence == 0 || params.ReportSequence > 1<<63-1 {
+		return invalid("report sequence must be between 1 and the PostgreSQL bigint maximum")
 	}
 	if len(params.FencingToken) > 255 {
 		return invalid("fencing token must contain at most 255 characters")

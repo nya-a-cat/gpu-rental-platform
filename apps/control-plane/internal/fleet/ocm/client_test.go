@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -16,6 +17,43 @@ import (
 
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/ports"
 )
+
+func TestClientReadsFixedInventoryConfigMap(t *testing.T) {
+	payload := `{"schemaVersion":"gpu.platform.nyaacat.dev/v1alpha1","clusterName":"cluster1"}`
+	server := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet || request.URL.Path != "/api/v1/namespaces/cluster1/configmaps/gpu-platform-inventory" {
+			http.NotFound(response, request)
+			return
+		}
+		if request.Header.Get("Authorization") != "Bearer test-token" || request.Header.Get("Accept") != "application/json" {
+			http.Error(response, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = response.Write([]byte(`{"metadata":{"name":"gpu-platform-inventory","namespace":"cluster1"},"data":{"inventory.json":` + strconv.Quote(payload) + `}}`))
+	}))
+	defer server.Close()
+	client := newTestClient(t, server)
+	actual, err := client.ReadInventory(context.Background(), "cluster1")
+	if err != nil {
+		t.Fatalf("ReadInventory() error = %v", err)
+	}
+	if string(actual) != payload {
+		t.Fatalf("ReadInventory() = %s, want %s", actual, payload)
+	}
+}
+
+func TestClientRejectsInventoryIdentityMismatch(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = response.Write([]byte(`{"metadata":{"name":"other-inventory","namespace":"cluster1"},"data":{"inventory.json":"{}"}}`))
+	}))
+	defer server.Close()
+	client := newTestClient(t, server)
+	if _, err := client.ReadInventory(context.Background(), "cluster1"); err == nil || !strings.Contains(err.Error(), "identity") {
+		t.Fatalf("ReadInventory() error = %v, want identity mismatch", err)
+	}
+}
 
 func TestClientAppliesAndWaitsForManifestWork(t *testing.T) {
 	var patchCount atomic.Int32

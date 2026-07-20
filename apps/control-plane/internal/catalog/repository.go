@@ -28,6 +28,17 @@ type ReplaceInventoryParams struct {
 	NodePools          []NodePoolSnapshot
 }
 
+type ObserveClusterHeartbeatParams struct {
+	ClusterID        string
+	AgentEpoch       string
+	ReportSequence   uint64
+	FencingToken     string
+	FencingEnabled   bool
+	ExecutionHealthy bool
+	Fenced           bool
+	ObservedAt       time.Time
+}
+
 type CreateAcceleratorProfileParams struct {
 	Mutation        tenancy.MutationContext
 	Name            string
