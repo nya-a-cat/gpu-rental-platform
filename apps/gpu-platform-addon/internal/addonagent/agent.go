@@ -104,7 +104,7 @@ func (r *reporter) report(ctx context.Context, observedAt time.Time) error {
 		return fmt.Errorf("list managed-cluster nodes: %w", err)
 	}
 
-	snapshot := inventory.Aggregate(r.clusterName, nodes.Items, observedAt)
+	snapshot := inventory.Build(r.clusterName, r.addonUID, nodes.Items, observedAt)
 	r.sequence++
 	snapshot.AgentEpoch = r.agentEpoch
 	snapshot.Sequence = r.sequence

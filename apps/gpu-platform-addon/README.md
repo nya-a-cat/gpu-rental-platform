@@ -18,16 +18,23 @@ The manager uses the OCM add-on framework template factory. It creates the
 agent `ManifestWork`, manages CSR registration, grants a namespace-scoped hub
 role, and reports add-on health from the agent Lease.
 
-The agent lists local Nodes, aggregates `nvidia.com/gpu` and
-`nvidia.com/mig-*` allocatable resources, and writes a JSON snapshot to the
+The agent lists local Nodes and writes a JSON snapshot to the
 `gpu-platform-inventory` ConfigMap in the managed-cluster namespace on the hub.
-GPU device identifiers are never collected. Each snapshot includes a random
-128-bit Agent Epoch created at process start, a monotonically increasing report
-sequence, and the current `ManagedClusterAddOn` UID as a Fencing Token when the
-manager supplies it. `fencingEnabled` states whether the manager supplied that token for downstream
-fencing validation. The stable Phase 0 capacity fingerprint excludes observation time
-and Agent session metadata, so restart and N/N-1 transitions do not create false
-capacity generations.
+The additive v1alpha1 payload retains aggregate `nvidia.com/gpu` and
+`nvidia.com/mig-*` totals for N/N-1 compatibility and adds the Phase 1
+NodePool, Node, whole-GPU logical-device and Trait hierarchy consumed by the
+vendor resource catalog.
+
+Raw Node names, provider IDs, machine IDs and physical GPU IDs are excluded.
+Node and logical GPU slot keys use an HMAC derived from the current
+`ManagedClusterAddOn` UID, remain stable across agent Pod restarts, and rotate
+when the Add-on is recreated. Logical device records are emitted only when GPU
+Feature Discovery supplies product and memory labels. Each snapshot includes a
+random 128-bit Agent Epoch, a monotonically increasing report sequence, and the
+current Add-on UID as a Fencing Token when the manager supplies it.
+`fencingEnabled` states whether downstream fencing validation is active. The
+SHA-256 source Generation excludes observation time and Agent session metadata
+and includes detailed health, traits and capacity facts.
 
 Hub inventory access uses a namespace RoleBinding containing only the
 cluster-specific kube-client registration user. The shared Add-on group is
@@ -39,10 +46,12 @@ namespace. OCM uses that Lease for `ManagedClusterAddOn` connectivity health;
 the current manager includes the Lease in ManifestWork with
 `ServerSideApply`. OCM owns Lease metadata and cleanup while the agent owns its
 renewal fields. The control-plane domain evaluator calculates connectivity and
-inventory freshness with independently configurable 15/45/90 second thresholds. In this schema,
-`schedulableAllocatable` means capacity on Nodes without
-`spec.unschedulable=true`; Ready state, taints, allocations and fault domains
-enter the ResourceProvider model in later phases.
+inventory freshness with independently configurable 15/45/90 second thresholds.
+A Node contributes schedulable whole-GPU capacity only while Ready, healthy and
+not cordoned. Pressure and network conditions degrade health. The optional
+`gpu.platform.nyaacat.dev/node-pool` label selects a DNS-compatible NodePool;
+other Nodes enter the `default` pool. Per-device DCGM health and physical-device
+mapping remain outside this Kubernetes Node snapshot boundary.
 
 The manager passes the current `ManagedClusterAddOn` UID to current agents
 through `GPU_PLATFORM_ADDON_UID`. The variable is optional so a current agent

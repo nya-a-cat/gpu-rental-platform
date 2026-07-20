@@ -33,7 +33,7 @@ cluster add-on, and verifies:
 - ManifestWork delivery of the smoke ConfigMap;
 - an approved Add-on CSR and generated Hub kubeconfig;
 - available Add-on manager and agent Deployments;
-- available `ManagedClusterAddOn`, renewed Add-on Lease, and sanitized inventory capacity fingerprint;
+- available `ManagedClusterAddOn`, renewed Add-on Lease, and sanitized aggregate plus NodePool/Node/logical-GPU inventory snapshot;
 - native ManagedCluster and Add-on client certificate rotation with new automatically approved CSRs;
 - stable Secret and agent Pod identities, plus continued Lease renewal and inventory reporting after the original certificates expire and the Hub API connection is reset.
 

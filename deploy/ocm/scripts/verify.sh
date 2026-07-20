@@ -84,7 +84,27 @@ verify_managed_cluster() {
           .fencingToken == $addon_uid and
           .fencingEnabled == true and
           (.generation | test("^[a-f0-9]{64}$")) and
-          (.resources | type == "array")
+          ((.executionHealthy | type) == "boolean") and
+          ((.fenced | type) == "boolean") and
+          (.resources | type == "array") and
+          (.nodePools | type == "array") and
+          all(.nodePools[]?;
+            (.name | test("^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")) and
+            .managementState == "enabled" and
+            (.nodes | type == "array") and
+            all(.nodes[]?;
+              (.opaqueKey | test("^node-[a-f0-9]{32}$")) and
+              ((keys - ["gpuDevices","healthState","managementState","opaqueKey","schedulable","traits"]) | length) == 0 and
+              (.traits | type == "object") and
+              all(.gpuDevices[]?;
+                (.opaqueKey | test("^gpu-[a-f0-9]{32}$")) and
+                .resourceClass == "gpu.nvidia.full" and
+                .acceleratorMode == "whole" and
+                ((.memoryMiB | type) == "number") and .memoryMiB > 0 and
+                ((keys - ["acceleratorMode","allocatable","healthState","memoryMiB","model","opaqueKey","resourceClass","traits"]) | length) == 0
+              )
+            )
+          )
     ' >/dev/null
 
   kubectl --context "${HUB_CONTEXT}" -n "${cluster_name}" get configmap gpu-platform-inventory -o json | jq -e --arg addon_uid "${addon_uid}" '

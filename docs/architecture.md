@@ -62,10 +62,13 @@ through GitHub Actions. The active Phase 1 tenancy foundation adds:
 
 The OCM and Add-on certification covers two managed clusters, certificate
 rotation, per-cluster inventory authorization and current/N-1 lifecycle
-compatibility. The Phase 1 shared-isolation reconciler consumes `project.created`
-and `project.gpu-quota.updated` Outbox events, applies a deterministic ManifestWork to the
-configured managed cluster, and records the target cluster, observed generation,
-applied GPU quota and `SharedIsolationReady` Condition. Hardware GPU inventory,
+compatibility. The Add-on now publishes an additive detailed snapshot containing
+sanitized NodePool, Node, whole-GPU logical-device and allow-listed Trait facts;
+aggregate resources remain for N/N-1 compatibility. The Phase 1 shared-isolation
+reconciler consumes `project.created` and `project.gpu-quota.updated` Outbox events,
+applies a deterministic ManifestWork to the configured managed cluster, and
+records the target cluster, observed generation, applied GPU quota and
+`SharedIsolationReady` Condition. The Hub-to-control-plane inventory consumer,
 workload lifecycle and financial rating remain open acceptance areas.
 
 ## API and consistency model

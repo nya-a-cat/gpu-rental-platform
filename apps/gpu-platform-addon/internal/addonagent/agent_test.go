@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -81,6 +82,47 @@ func TestReporterOwnsInventoryConfigMapWhenAddonUIDIsAvailable(t *testing.T) {
 	}
 }
 
+func TestReporterPublishesSanitizedLogicalGPUDevices(t *testing.T) {
+	managedClient := fake.NewSimpleClientset(&corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "provider-node-01", Labels: map[string]string{
+			"gpu.platform.nyaacat.dev/node-pool": "a100-pool",
+			"nvidia.com/gpu.product":             "NVIDIA-A100-SXM4-40GB",
+			"nvidia.com/gpu.memory":              "40960",
+		}},
+		Status: corev1.NodeStatus{
+			Conditions:  []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+			Allocatable: corev1.ResourceList{"nvidia.com/gpu": resource.MustParse("2")},
+		},
+	})
+	hubClient := fake.NewSimpleClientset()
+	reporter := &reporter{
+		managedClient: managedClient, hubClient: hubClient, clusterName: "cluster-a",
+		addonName: "gpu-platform-addon", addonUID: "uid-current", agentEpoch: "epoch-current",
+	}
+	if err := reporter.report(context.Background(), time.Date(2026, 7, 20, 12, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("report detailed inventory: %v", err)
+	}
+	configMap, err := hubClient.CoreV1().ConfigMaps("cluster-a").Get(context.Background(), inventory.ConfigMapName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get inventory ConfigMap: %v", err)
+	}
+	snapshot := decodeInventorySnapshot(t, configMap)
+	if len(snapshot.NodePools) != 1 || snapshot.NodePools[0].Name != "a100-pool" || len(snapshot.NodePools[0].Nodes) != 1 {
+		t.Fatalf("node pools = %#v", snapshot.NodePools)
+	}
+	node := snapshot.NodePools[0].Nodes[0]
+	if node.OpaqueKey == "provider-node-01" || len(node.GPUDevices) != 2 {
+		t.Fatalf("sanitized node = %#v", node)
+	}
+	for _, device := range node.GPUDevices {
+		if device.ResourceClass != inventory.WholeGPUResourceClass || device.Model != "NVIDIA-A100-SXM4-40GB" || device.MemoryMiB != 40960 || !device.Allocatable {
+			t.Fatalf("logical GPU device = %#v", device)
+		}
+	}
+	if strings.Contains(configMap.Data[inventory.ConfigMapDataKey], "provider-node-01") {
+		t.Fatalf("inventory exposes raw node name: %s", configMap.Data[inventory.ConfigMapDataKey])
+	}
+}
 func TestReporterKeepsNMinusOneManagerCompatibilityWithoutAddonUID(t *testing.T) {
 	managedClient := fake.NewSimpleClientset(&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a"}})
 	hubClient := fake.NewSimpleClientset()
