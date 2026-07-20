@@ -120,7 +120,7 @@ package_count="$(grep -Ec '^[A-Za-z0-9_.-]+==' "${ARTIFACT_DIR}/installed-packag
 
 oversized_count="$(find "${UV_CACHE_DIR}" -type f -size +"${GPUSTACK_MAX_PACKAGE_BYTES}"c | awk 'END {print NR + 0}')"
 [[ "${oversized_count}" -eq 0 ]]
-largest_cache_entry="$(find "${UV_CACHE_DIR}" -type f -printf '%s %f\n' | sort -nr | head -n 1)"
+largest_cache_entry="$(find "${UV_CACHE_DIR}" -type f -printf '%s %f\n' | sort -nr | sed -n '1p')"
 largest_cache_bytes="${largest_cache_entry%% *}"
 largest_cache_name="${largest_cache_entry#* }"
 [[ "${largest_cache_bytes}" =~ ^[0-9]+$ ]]
