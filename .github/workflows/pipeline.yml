@@ -242,6 +242,26 @@ jobs:
           fi
           jq -e '.status == "failed" and .mode == "partial" and (.violations | length) > 0' "${blocked_dir}/evidence-policy-report.json" >/dev/null
 
+      - name: Validate GPUStack baseline inputs and scripts
+        run: |
+          bash -n deploy/gpustack/scripts/*.sh
+          bash deploy/gpustack/scripts/validate-versions.sh
+
+      - name: Validate GPUStack evidence policy modes
+        run: |
+          safe_dir="${RUNNER_TEMP}/gpustack-evidence-safe"
+          blocked_dir="${RUNNER_TEMP}/gpustack-evidence-blocked"
+          mkdir -p "${safe_dir}" "${blocked_dir}"
+          printf '%s\n' 'synthetic safe diagnostic' > "${safe_dir}/ci-baseline.log"
+          bash deploy/gpustack/scripts/verify-evidence-policy.sh "${safe_dir}" partial
+          jq -e '.status == "passed" and .mode == "partial"' "${safe_dir}/evidence-policy-report.json" >/dev/null
+          printf '%s\n' '-----BEGIN PRIVATE KEY-----' 'synthetic blocked diagnostic' > "${blocked_dir}/ci-baseline.log"
+          if bash deploy/gpustack/scripts/verify-evidence-policy.sh "${blocked_dir}" partial; then
+            echo "credential-like GPUStack evidence unexpectedly passed" >&2
+            exit 1
+          fi
+          jq -e '.status == "failed" and .mode == "partial" and (.violations | length) > 0' "${blocked_dir}/evidence-policy-report.json" >/dev/null
+
       - name: Check GPU Platform Add-on module metadata
         working-directory: apps/gpu-platform-addon
         run: git diff --exit-code -- go.mod go.sum
@@ -414,9 +434,75 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  gpustack-baseline:
+    name: GPUStack v2.2.1 runtime baseline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      ARTIFACT_DIR: ${{ github.workspace }}/artifacts/gpustack-baseline
+      GPUSTACK_CI_DATABASE_USER: gpustack_ci
+      GPUSTACK_CI_DATABASE_PASSWORD: ci_only_gpustack_database_password
+      GPUSTACK_CI_DATABASE_NAME: gpustack_ci
+      GPUSTACK_DATABASE_URL: postgresql://gpustack_ci:ci_only_gpustack_database_password@127.0.0.1:5432/gpustack_ci
+      GPUSTACK_BOOTSTRAP_PASSWORD: ci_only_gpustack_admin_password
+      GPUSTACK_API_PORT: "30080"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # 固定 v7.0.0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # 固定 v6.3.0
+        with:
+          python-version: "3.12"
+          cache: false
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # 固定 v8.3.2
+        with:
+          version: "0.9.6"
+          enable-cache: false
+
+      - name: Run GPUStack runtime baseline
+        id: gpustack_baseline_run
+        run: bash deploy/gpustack/scripts/ci-baseline.sh
+
+      - name: Stage GPUStack baseline log
+        if: always() && steps.gpustack_baseline_run.outcome != 'skipped'
+        run: |
+          mkdir -p "${ARTIFACT_DIR}"
+          if [[ -f "${RUNNER_TEMP}/gpustack-baseline.log" ]]; then
+            sed \
+              -e "s#${GPUSTACK_BOOTSTRAP_PASSWORD}#[redacted]#g" \
+              -e "s#${GPUSTACK_CI_DATABASE_PASSWORD}#[redacted]#g" \
+              -e "s#${GPUSTACK_DATABASE_URL}#[database-url]#g" \
+              -e 's#/home/runner#[runner-home]#g' \
+              "${RUNNER_TEMP}/gpustack-baseline.log" > "${ARTIFACT_DIR}/ci-baseline.log"
+          else
+            printf '%s\n' 'GPUStack baseline did not create a runtime log.' > "${ARTIFACT_DIR}/ci-baseline.log"
+          fi
+
+      - name: Verify GPUStack baseline evidence upload policy
+        id: gpustack_evidence_policy
+        if: always() && steps.gpustack_baseline_run.outcome != 'skipped'
+        run: |
+          mode=partial
+          if [[ "${{ steps.gpustack_baseline_run.outcome }}" == "success" ]]; then
+            mode=full
+          fi
+          bash deploy/gpustack/scripts/verify-evidence-policy.sh "${ARTIFACT_DIR}" "${mode}"
+
+      - name: Upload GPUStack baseline evidence
+        if: always() && steps.gpustack_evidence_policy.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned v7.0.1
+        with:
+          name: gpustack-baseline-${{ github.sha }}
+          path: ${{ env.ARTIFACT_DIR }}/
+          if-no-files-found: error
+          retention-days: 7
+
   pages:
     name: Build and deploy default GitHub Pages demo
-    needs: [quality, ocm-conformance, ocm-addon-lifecycle, control-plane-ha]
+    needs: [quality, ocm-conformance, ocm-addon-lifecycle, control-plane-ha, gpustack-baseline]
     if: >-
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')

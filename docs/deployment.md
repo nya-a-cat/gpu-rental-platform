@@ -119,6 +119,30 @@ The conformance path verifies ManagedCluster acceptance, signed CSR certificates
 
 The GitHub-hosted runner has no NVIDIA GPU. Driver, Device Plugin, `nvidia-smi`, DCGM, MIG and GPU workload tests remain assigned to the self-hosted GPU certification gate.
 
+## GPUStack Phase 0 comparison baseline
+
+The `gpustack-baseline` Actions job starts the official GPUStack v2.2.1 Server
+wheel against the PostgreSQL service preinstalled on the Ubuntu 24.04 runner.
+The release URL, release checksum, upstream commit, exported dependency lock,
+Python version and uv version are fixed in `deploy/gpustack/versions.env`.
+
+The baseline disables the embedded gateway, built-in observability, update
+checks and embedded worker. It verifies public probes, real administrator
+login, selected cluster, GPU Instance, SSH key, persistent-volume and usage
+API surfaces, authenticated collection reads and persistence across a server
+restart. It does not provision a Kubernetes worker, physical GPU, instance,
+PVC or tunnel.
+
+The official linux/amd64 container image has a compressed layer larger than
+100 MiB. This profile uses the 16.23 MiB official wheel and the exact runtime
+dependencies exported from the upstream lock. The job fails when its uv cache
+contains any individual file larger than 100 MiB. Successful runs retain
+policy-checked summaries and checksums for seven days; raw response bodies,
+cookie jars, credentials and database URLs remain in runner-temporary storage.
+See `deploy/gpustack/README.md` and the
+[Phase 0 comparison matrix](research/gpustack-v2.2.1-phase0-benchmark.md) for
+the acceptance boundary.
+
 ## Simulated baseline
 
 Start and verify the existing React/NestJS product baseline:
@@ -146,6 +170,11 @@ GitHub Actions is the authoritative delivery gate. Local work in this delivery w
 
 The v2 gate validates `docker-compose.v2.yml`, builds its images, starts the isolated project with `up --wait`, checks live, ready, metrics and system-information endpoints, emits container logs on failure, and always removes its containers and test volume. The independent `control-plane-ha` job installs the Helm Chart into a fixed Kubernetes 1.34 kind cluster and exercises migration ordering, external Secret rotation, three-replica availability, shared PostgreSQL Operation reads, a rejected migration upgrade, baseline-to-candidate image replacement, zero-grace single-Pod failure recovery and release cleanup. Successful runs upload full assertion evidence. Failed HA runs upload the available logs and object snapshots after the same credential and path scan passes.
 
+The independent `gpustack-baseline` job installs the checksum-pinned GPUStack
+v2.2.1 wheel and lock-derived dependencies, starts its real API process twice
+against the same PostgreSQL database and uploads only evidence that passes the
+credential, path, file-type and package-size policy.
+
 ## GitHub Actions
 
 Pull requests and pushes to `main` run the repository quality gate. It covers:
@@ -159,11 +188,12 @@ Pull requests and pushes to `main` run the repository quality gate. It covers:
 - a separate control-plane HA job covering Secret-triggered Pod rotation, failed-migration protection, distinct baseline/candidate image replacement, zero-failure rolling-upgrade traffic, shared Operation reads, zero-grace single-Pod replacement and Helm uninstall boundaries;
 - a separate two-cluster OCM conformance job covering registration, CSR certificates, Lease renewal, ManifestWork, Add-on deployment and inventory reporting, with object-snapshot evidence artifacts;
 - a separate Add-on lifecycle job covering immutable current/N-1 images, bidirectional version skew, idempotent install, stale inventory cleanup, per-cluster re-enablement, Helm uninstall and final reinstall;
+- a separate GPUStack v2.2.1 server baseline covering release provenance, dependency-size policy, login, selected GS API surfaces and restart persistence;
 - simulated API/web, Go control-plane and GPU Platform Add-on container builds.
 
 The simulated reservation suite includes concurrent attempts to reserve one GPU and verifies a single active order. The v2 checks verify migrations and the current Operation/Outbox foundation. Hardware-backed GPU acceptance remains assigned to a self-hosted runner.
 
-Pages deployment depends on the successful `quality`, `control-plane-ha`, `ocm-conformance` and `ocm-addon-lifecycle` jobs and runs from `main` on a push or manual workflow dispatch:
+Pages deployment depends on the successful `quality`, `control-plane-ha`, `ocm-conformance`, `ocm-addon-lifecycle` and `gpustack-baseline` jobs and runs from `main` on a push or manual workflow dispatch:
 
 ```bash
 gh workflow run pipeline.yml --ref main

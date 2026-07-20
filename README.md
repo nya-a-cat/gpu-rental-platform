@@ -15,10 +15,11 @@ GPU Container Cloud 是面向云服务器厂商、渠道商和企业租户建设
 - Internal `BillingEngine`, `AuthorizationEngine`, `JobEngine` and OCM-facing fleet boundaries.
 - OCM 1.3.1 fleet registration assets and a minimal Addon Framework 1.3.0 GPU inventory agent.
 - A three-replica Helm delivery profile with migration hooks, disruption protection and an Actions-only HA gate.
+- A pinned GPUStack v2.2.1 server baseline for Phase 0 product-surface comparison in GitHub Actions.
 - Health, readiness, Prometheus metrics, request correlation, ManagedCluster Lease and Add-on Lease paths.
 - A versioned OpenAPI 3.1 contract for generated clients and vendor integration.
 
-Phase 0 now contains the control-plane foundation, the first Kubernetes 1.34 certification matrix and an Actions-only OCM conformance harness. The matrix remains unverified until the corresponding workflow evidence is recorded. Real GPU scheduling, tenant isolation and commercial billing remain staged roadmap work. See [GPU Cloud Control Plane v2](docs/control-plane-v2.md) for the complete target and delivery gates.
+Phase 0 now contains the control-plane foundation, the first Kubernetes 1.34 certification matrix, an Actions-only OCM conformance harness and a GPUStack v2.2.1 runtime comparison harness. Runtime claims remain pending until the corresponding workflow evidence is recorded. Real GPU scheduling, tenant isolation and commercial billing remain staged roadmap work. See [GPU Cloud Control Plane v2](docs/control-plane-v2.md) for the complete target and delivery gates.
 
 ### Simulated product baseline
 

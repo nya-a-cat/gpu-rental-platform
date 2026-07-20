@@ -103,3 +103,9 @@ GPU Container Cloud 采用 OCM 负责注册、CSR、证书、Lease 和 ManifestW
 5. Private Beta 至 Partner Beta 依次执行 GS-02、GS-03、GS-10、GS-12、GS-13、GS-14、GS-15。
 
 任一 GS 项只有在命令、日志、对象快照、失败诊断和清理结果齐全时才能登记通过。
+
+## GitHub Actions 运行基线
+
+仓库已加入 `gpustack-baseline` 作业及 `deploy/gpustack` 固定版本配置。该作业使用 GPUStack v2.2.1 官方 wheel、上游 `uv.lock` 导出的精确依赖和 GitHub Ubuntu 24.04 预装 PostgreSQL，执行服务启动、管理员登录、API 表面检查、集合读取和数据库持久化重启检查。
+
+首轮覆盖范围限定为 GS-00 运行来源，以及 GS-04、GS-07、GS-08、GS-09、GS-10 的服务端 API 可达性。实例创建、Worker Tunnel、PVC 创建、GPU 用量产生和多集群调度仍需要 Kubernetes Worker 与 GPU 环境，因此不会由该服务器基线登记为完整通过。当前矩阵状态保持不变，等待首次 Actions 成功证据后更新。
