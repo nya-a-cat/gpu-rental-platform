@@ -1,13 +1,13 @@
 openapi: 3.1.0
 info:
   title: GPU Container Cloud Control Plane API
-  version: 0.2.0
-  summary: Phase 1 tenancy foundation contract for the GPU Container Cloud control plane.
+  version: 0.3.0
+  summary: Phase 1 tenancy and vendor resource catalog contract for the GPU Container Cloud control plane.
   description: |
     This document defines the initial versioned `/api/v1` surface for the v2 control
     plane. The current contract exposes health, telemetry discovery, build
     information, asynchronous operation status, tenants, projects, role bindings,
-    and project quotas.
+    project quotas, clusters, inventory, accelerator profiles, and capacity pools.
 
     Every state-changing endpoint under `/api/v1` MUST require an
     `Idempotency-Key` header and return an Operation reference when work is
@@ -27,6 +27,8 @@ tags:
   - name: Projects
   - name: IAM
   - name: Quotas
+  - name: Resource Catalog
+  - name: Capacity
 paths:
   /health/live:
     get:
@@ -408,6 +410,219 @@ paths:
           $ref: "#/components/responses/ProblemResponse"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/resource-classes/{resourceClass}:
+    get:
+      tags: [Resource Catalog]
+      operationId: getResourceClass
+      summary: Retrieve a resource class definition.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ResourceClass"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The resource class was found.
+          content:
+            {
+              application/json:
+                {
+                  schema:
+                    { $ref: "#/components/schemas/ResourceClassDefinition" },
+                },
+            }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "404": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/clusters:
+    post:
+      tags: [Resource Catalog]
+      operationId: createCluster
+      summary: Register an OCM managed cluster in the vendor catalog.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          {
+            application/json:
+              { schema: { $ref: "#/components/schemas/CreateClusterRequest" } },
+          }
+      responses:
+        "202": { $ref: "#/components/responses/MutationAccepted" }
+        "400": { $ref: "#/components/responses/ProblemResponse" }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "409": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/clusters/{clusterId}:
+    get:
+      tags: [Resource Catalog]
+      operationId: getCluster
+      summary: Retrieve cluster connectivity and inventory state.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ClusterId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The cluster was found.
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/Cluster" } },
+            }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "404": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/clusters/{clusterId}/inventory:
+    get:
+      tags: [Resource Catalog]
+      operationId: getClusterInventory
+      summary: Retrieve the vendor-only detailed cluster inventory.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ClusterId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The inventory was found.
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/ClusterInventory" } },
+            }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "404": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    put:
+      tags: [Resource Catalog]
+      operationId: replaceClusterInventory
+      summary: Atomically replace a cluster inventory snapshot using optimistic concurrency.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ClusterId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  { $ref: "#/components/schemas/ReplaceInventoryRequest" },
+              },
+          }
+      responses:
+        "202": { $ref: "#/components/responses/MutationAccepted" }
+        "400": { $ref: "#/components/responses/ProblemResponse" }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "404": { $ref: "#/components/responses/ProblemResponse" }
+        "409": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/accelerator-profiles:
+    post:
+      tags: [Capacity]
+      operationId: createAcceleratorProfile
+      summary: Create a Real Alpha whole-GPU product profile.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  {
+                    $ref: "#/components/schemas/CreateAcceleratorProfileRequest",
+                  },
+              },
+          }
+      responses:
+        "202": { $ref: "#/components/responses/MutationAccepted" }
+        "400": { $ref: "#/components/responses/ProblemResponse" }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "409": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/accelerator-profiles/{profileId}:
+    get:
+      tags: [Capacity]
+      operationId: getAcceleratorProfile
+      summary: Retrieve an accelerator product profile.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ProfileId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The accelerator profile was found.
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/AcceleratorProfile" } },
+            }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "404": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/capacity-pools:
+    post:
+      tags: [Capacity]
+      operationId: createCapacityPool
+      summary: Bind a node pool to one accelerator and scheduler profile.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  { $ref: "#/components/schemas/CreateCapacityPoolRequest" },
+              },
+          }
+      responses:
+        "202": { $ref: "#/components/responses/MutationAccepted" }
+        "400": { $ref: "#/components/responses/ProblemResponse" }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "404": { $ref: "#/components/responses/ProblemResponse" }
+        "409": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/capacity-pools/{poolId}:
+    get:
+      tags: [Capacity]
+      operationId: getCapacityPool
+      summary: Retrieve a capacity pool.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/CapacityPoolId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The capacity pool was found.
+          content:
+            {
+              application/json:
+                { schema: { $ref: "#/components/schemas/CapacityPool" } },
+            }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "404": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
 components:
   securitySchemes:
     bearerAuth:
@@ -451,6 +666,21 @@ components:
       schema:
         type: string
         pattern: "^[a-z0-9][a-z0-9._-]{0,63}$"
+    ClusterId:
+      name: clusterId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ProfileId:
+      name: profileId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CapacityPoolId:
+      name: poolId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     RequestId:
       name: X-Request-ID
       in: header
@@ -997,6 +1227,377 @@ components:
         updatedAt:
           type: string
           format: date-time
+    ResourceClassDefinition:
+      type: object
+      additionalProperties: false
+      required: [name, unit, description, createdAt]
+      properties:
+        name: { type: string }
+        unit: { type: string, enum: [count, bytes, millicores] }
+        description: { type: string }
+        createdAt: { type: string, format: date-time }
+    CreateClusterRequest:
+      type: object
+      additionalProperties: false
+      required: [managedClusterName, displayName]
+      properties:
+        managedClusterName: { type: string, maxLength: 253 }
+        displayName: { type: string, minLength: 1, maxLength: 120 }
+    Cluster:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          managedClusterName,
+          displayName,
+          managementState,
+          connectionState,
+          connected,
+          schedulable,
+          inventoryFresh,
+          executionHealthy,
+          fenced,
+          reportSequence,
+          fencingEnabled,
+          inventoryGeneration,
+          conditions,
+          generation,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        managedClusterName: { type: string }
+        displayName: { type: string }
+        managementState: { $ref: "#/components/schemas/ManagementState" }
+        connectionState: { type: string, enum: [connected, degraded, offline] }
+        connected: { type: boolean }
+        schedulable: { type: boolean }
+        inventoryFresh: { type: boolean }
+        executionHealthy: { type: boolean }
+        fenced: { type: boolean }
+        agentEpoch: { type: string }
+        reportSequence: { type: integer, format: int64, minimum: 0 }
+        fencingEnabled: { type: boolean }
+        inventoryGeneration: { type: integer, format: int64, minimum: 0 }
+        sourceGeneration: { type: string, pattern: "^[0-9a-f]{64}$" }
+        lastHeartbeatAt: { type: string, format: date-time }
+        lastInventoryAt: { type: string, format: date-time }
+        conditions:
+          { type: array, items: { $ref: "#/components/schemas/Condition" } }
+        generation: { type: integer, format: int64, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ManagementState:
+      type: string
+      enum: [enabled, disabled, draining, maintenance, quarantined]
+    HealthState:
+      type: string
+      enum: [healthy, degraded, unreachable, failed, unknown]
+    AcceleratorMode:
+      type: string
+      enum: [whole, mig, hami, time-slicing]
+    SchedulerProfile:
+      type: string
+      enum: [none, hpc-volcano, standard-kueue]
+    ReplaceInventoryRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          expectedGeneration,
+          sourceGeneration,
+          agentEpoch,
+          reportSequence,
+          fencingToken,
+          fencingEnabled,
+          executionHealthy,
+          fenced,
+          observedAt,
+          nodePools,
+        ]
+      properties:
+        expectedGeneration: { type: integer, format: int64, minimum: 0 }
+        sourceGeneration: { type: string, pattern: "^[0-9a-f]{64}$" }
+        agentEpoch: { type: string, minLength: 8, maxLength: 128 }
+        reportSequence: { type: integer, format: int64, minimum: 1 }
+        fencingToken: { type: string, maxLength: 255 }
+        fencingEnabled: { type: boolean }
+        executionHealthy: { type: boolean }
+        fenced: { type: boolean }
+        observedAt: { type: string, format: date-time }
+        nodePools:
+          {
+            type: array,
+            items: { $ref: "#/components/schemas/NodePoolSnapshot" },
+          }
+    NodePoolSnapshot:
+      type: object
+      additionalProperties: false
+      required: [name, managementState, nodes]
+      properties:
+        name: { type: string }
+        managementState: { $ref: "#/components/schemas/ManagementState" }
+        nodes:
+          { type: array, items: { $ref: "#/components/schemas/NodeSnapshot" } }
+    NodeSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          opaqueKey,
+          managementState,
+          healthState,
+          schedulable,
+          traits,
+          gpuDevices,
+        ]
+      properties:
+        opaqueKey: { type: string, maxLength: 128 }
+        managementState: { $ref: "#/components/schemas/ManagementState" }
+        healthState: { $ref: "#/components/schemas/HealthState" }
+        schedulable: { type: boolean }
+        traits: { type: object, additionalProperties: { type: string } }
+        gpuDevices:
+          {
+            type: array,
+            items: { $ref: "#/components/schemas/GPUDeviceSnapshot" },
+          }
+    GPUDeviceSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          opaqueKey,
+          resourceClass,
+          model,
+          memoryMiB,
+          acceleratorMode,
+          healthState,
+          allocatable,
+          traits,
+        ]
+      properties:
+        opaqueKey: { type: string, maxLength: 128 }
+        resourceClass: { type: string, const: gpu.nvidia.full }
+        model: { type: string, maxLength: 120 }
+        memoryMiB: { type: integer, format: int64, minimum: 1 }
+        acceleratorMode: { type: string, const: whole }
+        healthState: { $ref: "#/components/schemas/HealthState" }
+        allocatable: { type: boolean }
+        traits: { type: object, additionalProperties: { type: string } }
+    ClusterInventory:
+      type: object
+      additionalProperties: false
+      required: [cluster, nodePools, nodes, gpuDevices, inventories]
+      properties:
+        cluster: { $ref: "#/components/schemas/Cluster" }
+        nodePools:
+          { type: array, items: { $ref: "#/components/schemas/NodePool" } }
+        nodes: { type: array, items: { $ref: "#/components/schemas/Node" } }
+        gpuDevices:
+          { type: array, items: { $ref: "#/components/schemas/GPUDevice" } }
+        inventories:
+          { type: array, items: { $ref: "#/components/schemas/Inventory" } }
+    NodePool:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          clusterId,
+          name,
+          managementState,
+          generation,
+          lastSeenInventoryGeneration,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        clusterId: { type: string, format: uuid }
+        name: { type: string }
+        managementState: { $ref: "#/components/schemas/ManagementState" }
+        generation: { type: integer, format: int64 }
+        lastSeenInventoryGeneration: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Node:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          clusterId,
+          nodePoolId,
+          opaqueKey,
+          managementState,
+          healthState,
+          schedulable,
+          traits,
+          generation,
+          lastSeenInventoryGeneration,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        clusterId: { type: string, format: uuid }
+        nodePoolId: { type: string, format: uuid }
+        opaqueKey: { type: string }
+        managementState: { $ref: "#/components/schemas/ManagementState" }
+        healthState: { $ref: "#/components/schemas/HealthState" }
+        schedulable: { type: boolean }
+        traits: { type: object, additionalProperties: { type: string } }
+        generation: { type: integer, format: int64 }
+        lastSeenInventoryGeneration: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    GPUDevice:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          clusterId,
+          nodeId,
+          opaqueKey,
+          resourceClass,
+          model,
+          memoryMiB,
+          acceleratorMode,
+          healthState,
+          allocatable,
+          traits,
+          generation,
+          lastSeenInventoryGeneration,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        clusterId: { type: string, format: uuid }
+        nodeId: { type: string, format: uuid }
+        opaqueKey: { type: string }
+        resourceClass: { type: string }
+        model: { type: string }
+        memoryMiB: { type: integer, format: int64 }
+        acceleratorMode: { $ref: "#/components/schemas/AcceleratorMode" }
+        healthState: { $ref: "#/components/schemas/HealthState" }
+        allocatable: { type: boolean }
+        traits: { type: object, additionalProperties: { type: string } }
+        generation: { type: integer, format: int64 }
+        lastSeenInventoryGeneration: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Inventory:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          resourceProviderId,
+          resourceClass,
+          total,
+          reserved,
+          allocated,
+          generation,
+          updatedAt,
+        ]
+      properties:
+        resourceProviderId: { type: string, format: uuid }
+        resourceClass: { type: string }
+        total: { type: integer, format: int64, minimum: 0 }
+        reserved: { type: integer, format: int64, minimum: 0 }
+        allocated: { type: integer, format: int64, minimum: 0 }
+        generation: { type: integer, format: int64, minimum: 1 }
+        updatedAt: { type: string, format: date-time }
+    CreateAcceleratorProfileRequest:
+      type: object
+      additionalProperties: false
+      required: [name, slug, acceleratorMode, resourceClass, gpuCount, traits]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        slug: { type: string }
+        acceleratorMode: { type: string, const: whole }
+        resourceClass: { type: string, const: gpu.nvidia.full }
+        gpuCount: { type: integer, minimum: 1, maximum: 64 }
+        memoryMiB: { type: integer, format: int64, minimum: 1 }
+        traits: { type: object, additionalProperties: { type: string } }
+    AcceleratorProfile:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          name,
+          slug,
+          acceleratorMode,
+          resourceClass,
+          gpuCount,
+          traits,
+          enabled,
+          generation,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+        acceleratorMode: { $ref: "#/components/schemas/AcceleratorMode" }
+        resourceClass: { type: string }
+        gpuCount: { type: integer }
+        memoryMiB: { type: integer, format: int64 }
+        traits: { type: object, additionalProperties: { type: string } }
+        enabled: { type: boolean }
+        generation: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateCapacityPoolRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [name, clusterId, nodePoolId, acceleratorProfileId, schedulerProfile]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        clusterId: { type: string, format: uuid }
+        nodePoolId: { type: string, format: uuid }
+        acceleratorProfileId: { type: string, format: uuid }
+        schedulerProfile: { $ref: "#/components/schemas/SchedulerProfile" }
+    CapacityPool:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          name,
+          clusterId,
+          nodePoolId,
+          acceleratorProfileId,
+          schedulerProfile,
+          total,
+          reserved,
+          allocated,
+          enabled,
+          generation,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        clusterId: { type: string, format: uuid }
+        nodePoolId: { type: string, format: uuid }
+        acceleratorProfileId: { type: string, format: uuid }
+        schedulerProfile: { $ref: "#/components/schemas/SchedulerProfile" }
+        total: { type: integer, format: int64, minimum: 0 }
+        reserved: { type: integer, format: int64, minimum: 0 }
+        allocated: { type: integer, format: int64, minimum: 0 }
+        enabled: { type: boolean }
+        generation: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     ProblemDetails:
       type: object
       description: RFC 9457 problem details with stable machine-readable extensions.

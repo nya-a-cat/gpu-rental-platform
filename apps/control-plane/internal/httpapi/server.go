@@ -40,6 +40,7 @@ type Dependencies struct {
 	Readiness        ReadinessChecker
 	Operations       operation.Reader
 	Tenancy          TenancyStore
+	Catalog          CatalogStore
 	Authenticator    authn.Authenticator
 	Authorization    ports.AuthorizationEngine
 	ReadinessTimeout time.Duration
@@ -66,6 +67,7 @@ func NewHandler(dependencies Dependencies) http.Handler {
 	}))
 	registerGET(mux, "/api/v1/operations/{operationID}", operationHandler(dependencies.Operations))
 	registerTenancyRoutes(mux, dependencies)
+	registerCatalogRoutes(mux, dependencies)
 	mux.HandleFunc("/", routeNotFoundHandler)
 
 	var handler http.Handler = mux

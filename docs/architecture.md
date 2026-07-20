@@ -117,8 +117,12 @@ Disconnected clusters keep existing workloads running and stop receiving new
 placement. Interactive instances require fencing of the old cluster before
 recovery elsewhere. Manual disablement has priority over automatic health
 recovery. Management state and health state remain separate for clusters and
-nodes. Persisted Cluster Conditions and placement enforcement enter with the
-Phase 1 Cluster model.
+nodes. The Phase 1 resource catalog persists Cluster, NodePool, Node, opaque GPU Device,
+ResourceProvider, Trait, Inventory, AcceleratorProfile and CapacityPool facts.
+Inventory snapshots use optimistic Generation checks plus Agent epoch and monotonic
+report sequence fencing. Omitted resources remain as vendor audit facts and become
+unreachable or disabled, which removes them from schedulable capacity. Placement
+Reservations and Allocations remain the next resource-control delivery unit.
 
 ## Simulated baseline
 

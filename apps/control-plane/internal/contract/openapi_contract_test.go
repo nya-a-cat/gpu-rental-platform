@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/catalog"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/httpapi"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/operation"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/tenancy"
@@ -50,6 +51,15 @@ func TestOperationDTOsMatchOpenAPI(t *testing.T) {
 	assertSchemaMatchesDTO(t, document, "Condition", reflect.TypeOf(tenancy.Condition{}))
 	assertSchemaMatchesDTO(t, document, "RoleBinding", reflect.TypeOf(tenancy.RoleBinding{}))
 	assertSchemaMatchesDTO(t, document, "Quota", reflect.TypeOf(tenancy.Quota{}))
+	assertSchemaMatchesDTO(t, document, "ResourceClassDefinition", reflect.TypeOf(catalog.ResourceClass{}))
+	assertSchemaMatchesDTO(t, document, "Cluster", reflect.TypeOf(catalog.Cluster{}))
+	assertSchemaMatchesDTO(t, document, "NodePool", reflect.TypeOf(catalog.NodePool{}))
+	assertSchemaMatchesDTO(t, document, "Node", reflect.TypeOf(catalog.Node{}))
+	assertSchemaMatchesDTO(t, document, "GPUDevice", reflect.TypeOf(catalog.GPUDevice{}))
+	assertSchemaMatchesDTO(t, document, "Inventory", reflect.TypeOf(catalog.Inventory{}))
+	assertSchemaMatchesDTO(t, document, "ClusterInventory", reflect.TypeOf(catalog.ClusterInventory{}))
+	assertSchemaMatchesDTO(t, document, "AcceleratorProfile", reflect.TypeOf(catalog.AcceleratorProfile{}))
+	assertSchemaMatchesDTO(t, document, "CapacityPool", reflect.TypeOf(catalog.CapacityPool{}))
 
 	stepStatus, ok := reflect.TypeOf(operation.Step{}).FieldByName("Status")
 	if !ok {

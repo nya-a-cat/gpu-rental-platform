@@ -24,14 +24,15 @@ var (
 )
 
 type acceptedMutationSpec struct {
-	kind         string
-	resourceType string
-	resourceID   string
-	eventType    string
-	scopeType    string
-	scopeID      string
-	eventFields  map[string]any
-	apply        func(context.Context, *sql.Tx, time.Time) error
+	kind                string
+	resourceType        string
+	resourceID          string
+	eventType           string
+	scopeType           string
+	scopeID             string
+	eventFields         map[string]any
+	completeImmediately bool
+	apply               func(context.Context, *sql.Tx, time.Time) error
 }
 
 func (repository *Repository) CreateTenant(
@@ -487,6 +488,21 @@ func (repository *Repository) acceptMutation(
 	})
 	if err != nil {
 		return tenancy.Acceptance{}, err
+	}
+	if spec.completeImmediately {
+		if _, err := transaction.ExecContext(ctx, `
+UPDATE operations
+SET status = 'succeeded', progress = 100, retryable = false,
+    started_at = $2, finished_at = $2, updated_at = $2
+WHERE id = $1`, createdOperation.ID, now); err != nil {
+			return tenancy.Acceptance{}, fmt.Errorf("complete immediate operation: %w", err)
+		}
+		if _, err := transaction.ExecContext(ctx, `
+UPDATE outbox_events
+SET delivered_at = $2
+WHERE aggregate_type = 'operation' AND aggregate_id = $1 AND event_type = 'operation.queued'`, createdOperation.ID, now); err != nil {
+			return tenancy.Acceptance{}, fmt.Errorf("complete immediate operation event: %w", err)
+		}
 	}
 	acceptance := tenancy.Acceptance{ResourceID: spec.resourceID, OperationID: createdOperation.ID}
 	eventFields := map[string]any{

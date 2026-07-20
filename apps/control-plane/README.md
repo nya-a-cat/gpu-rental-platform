@@ -77,6 +77,11 @@ Available endpoints are:
 - `POST /api/v1/projects`, `GET /api/v1/projects/{projectID}`
 - `POST /api/v1/role-bindings`, `GET /api/v1/role-bindings/{bindingID}`
 - `GET` and `PUT /api/v1/projects/{projectID}/quotas/{resourceClass}`
+- `GET /api/v1/resource-classes/{resourceClass}`
+- `POST /api/v1/clusters`, `GET /api/v1/clusters/{clusterID}`
+- `GET` and `PUT /api/v1/clusters/{clusterID}/inventory`
+- `POST /api/v1/accelerator-profiles`, `GET /api/v1/accelerator-profiles/{profileID}`
+- `POST /api/v1/capacity-pools`, `GET /api/v1/capacity-pools/{poolID}`
 
 Tenancy mutations require an authenticated bearer principal and an
 `Idempotency-Key` containing 8 to 255 characters. Accepted mutations return
@@ -95,6 +100,13 @@ Add-on RBAC, GPU ResourceQuota, default-deny and required allow NetworkPolicies,
 and Restricted Pod Security labels. Quota changes reapply the same ManifestWork.
 Quota reservation, commit and release use row locks and update reserved and
 allocated quantities atomically.
+Vendor resource catalog routes require the system-administrator principal. Cluster
+inventory replacement atomically persists the Cluster, NodePool, Node, opaque GPU
+Device, Trait and Inventory hierarchy. `expectedGeneration` prevents lost updates;
+Agent epoch and report sequence reject stale snapshots. Real Alpha accepts the
+`gpu.nvidia.full` whole-GPU resource class. Capacity pools bind one NodePool to one
+AcceleratorProfile and one scheduler profile. Physical identifiers remain confined
+to the vendor-only inventory response.
 
 API failures use `application/problem+json`. The migration process is separate
 from API startup so deployment tooling controls schema rollout order. Migration

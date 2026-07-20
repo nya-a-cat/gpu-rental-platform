@@ -43,7 +43,7 @@ func main() {
 	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	capabilities := []string{"operations", "transactional-outbox", "audit-foundation", "engine-ports", "agent-health-policy", "tenancy", "postgres-rbac", "quota-reservations"}
+	capabilities := []string{"operations", "transactional-outbox", "audit-foundation", "engine-ports", "agent-health-policy", "tenancy", "postgres-rbac", "quota-reservations", "resource-catalog", "placement-inventory"}
 	var isolationRunner *sharedisolation.Runner
 	if cfg.OCM.Enabled {
 		fleetManager, err := fleetocm.NewClient(fleetocm.Config{
@@ -102,6 +102,7 @@ func main() {
 		Readiness:        database,
 		Operations:       repository,
 		Tenancy:          repository,
+		Catalog:          repository,
 		Authenticator:    authenticator,
 		Authorization:    authorizationEngine,
 		ReadinessTimeout: cfg.ReadinessTimeout,

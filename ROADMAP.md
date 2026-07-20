@@ -32,10 +32,12 @@
 
 ## Phase 1 — Real Alpha：真实整卡实例
 
-- [ ] 建立 Tenant、Project、RoleBinding、Quota 和 `shared` 隔离。
+- [x] 建立 Tenant、Project、RoleBinding、Quota 和 `shared` 隔离。
   - [x] 建立 Tenant、Project、RoleBinding 与 Quota 的 PostgreSQL 事实、幂等 API、审计和配额预留事务。
-  - [ ] 通过 OCM ManifestWork 落地 Namespace、RBAC、ResourceQuota、NetworkPolicy 与 Restricted Pod Security。
+  - [x] 通过 OCM ManifestWork 落地 Namespace、RBAC、ResourceQuota、NetworkPolicy 与 Restricted Pod Security。
 - [ ] 建立 Cluster、Node、GPU、CapacityPool 和 AcceleratorProfile。
+  - [x] 建立 ResourceProvider、Trait、Inventory、Generation、整卡 AcceleratorProfile 与 CapacityPool 的 PostgreSQL 事实和厂商 API。
+  - [ ] 扩展 GPU Platform Add-on 生成节点与设备级脱敏库存，并接入控制面库存上报入口。
 - [ ] 通过 NVIDIA GPU Operator 与 Device Plugin 交付整卡 GPU Workspace。
 - [ ] 完成实例创建、停止、启动、终止，以及 desired/observed/provisioning 状态协调。
 - [ ] 完成 PVC、快照、安全组、SSH/Jupyter/Web Terminal 访问网关。
