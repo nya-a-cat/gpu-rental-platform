@@ -276,7 +276,7 @@ fetch_authenticated_json '/v2/gpu-instance-ssh-public-keys' "${RUNNER_TEMP}/ssh-
 fetch_authenticated_json '/v2/gpu-instance-persistent-volumes' "${RUNNER_TEMP}/persistent-volumes.json"
 fetch_authenticated_json '/v2/usage/meta' "${RUNNER_TEMP}/usage-meta.json"
 
-jq '{id,name,isAdmin:(.isAdmin // .is_admin // false),isActive:(.isActive // .is_active // false)}' \
+jq '{id,name:(.username // .name),isAdmin:(.isAdmin // .is_admin // false),isActive:(.isActive // .is_active // false)}' \
   "${RUNNER_TEMP}/user-before.json" >"${ARTIFACT_DIR}/user-before-restart.json"
 summarize_json "${RUNNER_TEMP}/clusters.json" "${RUNNER_TEMP}/clusters-summary.json"
 summarize_json "${RUNNER_TEMP}/gpu-instances.json" "${RUNNER_TEMP}/gpu-instances-summary.json"
@@ -297,7 +297,7 @@ start_server
 wait_for_ready
 login_admin
 fetch_authenticated_json '/v2/users/me' "${RUNNER_TEMP}/user-after.json"
-jq '{id,name,isAdmin:(.isAdmin // .is_admin // false),isActive:(.isActive // .is_active // false)}' \
+jq '{id,name:(.username // .name),isAdmin:(.isAdmin // .is_admin // false),isActive:(.isActive // .is_active // false)}' \
   "${RUNNER_TEMP}/user-after.json" >"${ARTIFACT_DIR}/user-after-restart.json"
 
 before_id="$(jq -r '.id' "${ARTIFACT_DIR}/user-before-restart.json")"
