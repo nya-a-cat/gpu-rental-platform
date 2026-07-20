@@ -11,7 +11,7 @@ import {
   type OrderView,
   type PaginatedResponse,
 } from "@gpu-rental/contracts";
-import { Types, type FilterQuery, type Model } from "mongoose";
+import { Types, type QueryFilter, type Model } from "mongoose";
 
 import { DomainException } from "../common/domain-exception";
 import { CloudAccountsService } from "../cloud-accounts/cloud-accounts.service";
@@ -77,7 +77,7 @@ export class InstancesService implements OnModuleInit {
     userId: string,
     query: InstanceQueryDto,
   ): Promise<PaginatedResponse<InstanceView>> {
-    const filter: FilterQuery<Instance> = {
+    const filter: QueryFilter<Instance> = {
       userId: new Types.ObjectId(userId),
     };
     if (query.status) filter.status = query.status;

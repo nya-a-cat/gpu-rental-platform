@@ -632,8 +632,7 @@ export function CloudAccountPage() {
                           gateway.addTeamMember(team.id, {
                             username: String(data.get("username")),
                             role: String(data.get("role")) as
-                              | TeamRole.Admin
-                              | TeamRole.Member,
+                              TeamRole.Admin | TeamRole.Member,
                           }),
                         ).then(() => form.reset());
                       }}

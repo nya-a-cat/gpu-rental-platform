@@ -7,7 +7,7 @@ import {
   type OrderView,
   type PaginatedResponse,
 } from "@gpu-rental/contracts";
-import { Types, type FilterQuery, type Model } from "mongoose";
+import { Types, type QueryFilter, type Model } from "mongoose";
 
 import { DomainException } from "../common/domain-exception";
 import { EnvironmentTemplatesService } from "../environment-templates/environment-templates.service";
@@ -214,7 +214,7 @@ export class OrdersService implements OnModuleInit {
   private async list(
     query: AdminOrderQueryDto,
   ): Promise<PaginatedResponse<OrderView>> {
-    const filter: FilterQuery<Order> = {};
+    const filter: QueryFilter<Order> = {};
     if (query.userId) filter.userId = new Types.ObjectId(query.userId);
     if (query.gpuResourceId) {
       filter.gpuResourceId = new Types.ObjectId(query.gpuResourceId);
