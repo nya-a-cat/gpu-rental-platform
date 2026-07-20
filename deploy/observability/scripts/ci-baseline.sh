@@ -37,9 +37,30 @@ stop_pid() {
   fi
 }
 
+capture_failure_diagnostics() {
+  if ! command -v kind >/dev/null 2>&1 || ! command -v kubectl >/dev/null 2>&1; then
+    return
+  fi
+  if ! kind get clusters 2>/dev/null | grep -Fxq "${CLUSTER_NAME}"; then
+    return
+  fi
+
+  echo "observability failure diagnostics" >&2
+  kubectl -n "${OBSERVABILITY_NAMESPACE}" get pods -o wide >&2 || true
+  kubectl -n "${OBSERVABILITY_NAMESPACE}" describe pods >&2 || true
+  kubectl -n "${OBSERVABILITY_NAMESPACE}" get events --sort-by=.lastTimestamp >&2 || true
+  while IFS= read -r pod; do
+    kubectl -n "${OBSERVABILITY_NAMESPACE}" logs "${pod}" --all-containers --prefix >&2 || true
+    kubectl -n "${OBSERVABILITY_NAMESPACE}" logs "${pod}" --all-containers --prefix --previous >&2 || true
+  done < <(kubectl -n "${OBSERVABILITY_NAMESPACE}" get pods -o name 2>/dev/null || true)
+}
+
 cleanup() {
   local exit_code="$1"
   set +e
+  if [[ "${exit_code}" -ne 0 ]]; then
+    capture_failure_diagnostics
+  fi
   stop_pid "${PROMETHEUS_FORWARD_PID}"
   stop_pid "${ALERTMANAGER_FORWARD_PID}"
   stop_pid "${OTEL_FORWARD_PID}"
