@@ -22,10 +22,10 @@ long-term metric storage, and production alert receivers remain Phase 2 work.
 The chart is located at `charts/gpu-observability`. Its certified Phase 0 image
 set is pinned by multi-architecture manifest digest:
 
-| Component | Version | Image |
-| --- | --- | --- |
-| Prometheus | v3.13.1 | `prom/prometheus` |
-| Alertmanager | v0.33.1 | `prom/alertmanager` |
+| Component                                | Version | Image                              |
+| ---------------------------------------- | ------- | ---------------------------------- |
+| Prometheus                               | v3.13.1 | `prom/prometheus`                  |
+| Alertmanager                             | v0.33.1 | `prom/alertmanager`                |
 | OpenTelemetry Collector K8s distribution | 0.156.0 | `otel/opentelemetry-collector-k8s` |
 
 The default control-plane metric target is
@@ -72,13 +72,13 @@ partition maintenance remain separate operator responsibilities.
 
 Required runtime variables:
 
-| Variable | Purpose |
-| --- | --- |
-| `DATABASE_URL` | Read access to the control-plane PostgreSQL database |
-| `AUDIT_ARCHIVE_S3_ENDPOINT` | S3-compatible HTTP or HTTPS origin |
-| `AUDIT_ARCHIVE_S3_ACCESS_KEY` | Object-store access key from a Secret |
-| `AUDIT_ARCHIVE_S3_SECRET_KEY` | Object-store secret key from a Secret |
-| `AUDIT_ARCHIVE_S3_BUCKET` | Object Lock-enabled archive bucket |
+| Variable                      | Purpose                                              |
+| ----------------------------- | ---------------------------------------------------- |
+| `DATABASE_URL`                | Read access to the control-plane PostgreSQL database |
+| `AUDIT_ARCHIVE_S3_ENDPOINT`   | S3-compatible HTTP or HTTPS origin                   |
+| `AUDIT_ARCHIVE_S3_ACCESS_KEY` | Object-store access key from a Secret                |
+| `AUDIT_ARCHIVE_S3_SECRET_KEY` | Object-store secret key from a Secret                |
+| `AUDIT_ARCHIVE_S3_BUCKET`     | Object Lock-enabled archive bucket                   |
 
 Optional variables include `AUDIT_ARCHIVE_S3_REGION`, `AUDIT_ARCHIVE_PREFIX`,
 `AUDIT_ARCHIVE_MONTH`, `AUDIT_ARCHIVE_RETENTION_MODE`,
