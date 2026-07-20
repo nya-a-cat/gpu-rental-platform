@@ -1,0 +1,12 @@
+The GPU control plane is available inside the cluster at:
+
+  http://{{ include "gpu-control-plane.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+
+The database Secret must already exist before Helm runs the migration hook:
+
+  Secret: {{ .Values.database.existingSecret }}
+  Key:    {{ .Values.database.secretKey }}
+
+Check the rollout with:
+
+  kubectl --namespace {{ .Release.Namespace }} rollout status deployment/{{ include "gpu-control-plane.fullname" . }}

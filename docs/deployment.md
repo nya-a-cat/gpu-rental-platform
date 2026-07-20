@@ -7,6 +7,8 @@ Local development uses:
 - Node.js 24 and pnpm 10.34.5 for the React/NestJS workspace
 - Go 1.25 for `apps/control-plane` and `apps/gpu-platform-addon` (GitHub Actions uses Go 1.25.1)
 - Docker Engine with Docker Compose v2
+- Kubernetes 1.34.x for the production control-plane Chart
+- Helm 3 for Kubernetes install, upgrade and rollback operations
 - free loopback ports `8080` for the simulated baseline and `8081` for v2
 
 Create a local environment file and replace all example passwords:
@@ -44,6 +46,46 @@ docker compose -f docker-compose.v2.yml logs --tail=200 postgres control-plane
 ```
 
 The container listens on `HTTP_ADDR=:8080`; Compose publishes its edge-network side as `127.0.0.1:8081`. PostgreSQL remains reachable only through the dedicated internal backend network, and the migration service has no edge-network attachment. The migration service executes `/usr/local/bin/control-plane-migrate up` and exits before the API starts. Migration execution defaults to `MIGRATION_TIMEOUT=5m`, `MIGRATION_LOCK_TIMEOUT=30s` and `MIGRATION_STATEMENT_TIMEOUT=2m`; deployments can override them through the v2 environment. The initial migration creates audit partitions for the current and following calendar months only. A later Phase 0 operations task must create future partitions before each month boundary and monitor the default partition; automatic partition maintenance is not implemented yet. Stop this stack with `docker compose -f docker-compose.v2.yml down`; add `--volumes` only when intentionally deleting the isolated v2 PostgreSQL data.
+
+### Kubernetes Helm delivery
+
+`charts/gpu-control-plane` is the vendor Kubernetes delivery profile. It
+deploys three control-plane replicas, a ClusterIP Service, a dedicated
+ServiceAccount and a `policy/v1` PodDisruptionBudget. PostgreSQL remains an
+external dependency and the Chart reads its complete connection URL from an
+existing namespace-local Secret.
+
+```bash
+kubectl create namespace gpu-control-plane-system
+kubectl --namespace gpu-control-plane-system create secret generic gpu-control-plane-database \
+  --from-literal=DATABASE_URL='postgres://user:password@postgres.example:5432/gpu_cloud?sslmode=require'
+
+helm upgrade --install gpu-control-plane charts/gpu-control-plane \
+  --namespace gpu-control-plane-system \
+  --set image.repository=registry.example/gpu-cloud-control-plane \
+  --set image.tag=0.1.0 \
+  --atomic \
+  --timeout 11m
+```
+
+The Secret must exist before Helm runs. A blocking `pre-install,pre-upgrade`
+Job executes `/usr/local/bin/control-plane-migrate up`; a migration failure
+stops the release before the Deployment template changes. The Deployment uses
+`maxUnavailable: 0`, `maxSurge: 1`, a 30-second termination grace period,
+startup/liveness checks on `/health/live` and PostgreSQL readiness on
+`/health/ready`. The default disruption budget keeps two replicas available.
+
+The control-plane Pods use UID/GID `65532`, runtime-default seccomp, a
+read-only root filesystem, no privilege escalation, no Linux capabilities and
+no ServiceAccount token mount. The Chart creates no RBAC binding, database,
+database user or database Secret. Change `database.secretRevision` whenever
+the external Secret data rotates so the Deployment replaces Pods. See
+`charts/gpu-control-plane/README.md` for the complete value contract.
+
+Every migration must preserve compatibility with the current and N-1
+control-plane images. Helm application rollback does not reverse a committed
+database migration, so destructive schema contraction requires a later,
+separately reviewed release after the compatibility window closes.
 
 ### Direct Go workflow
 
@@ -102,7 +144,7 @@ docker compose down
 
 GitHub Actions is the authoritative delivery gate. Local work in this delivery workflow is limited to code and configuration edits; formatting, lint, tests, builds, database integration, Compose validation and runtime smoke checks execute in `.github/workflows/pipeline.yml` after code is pushed. The startup commands above remain operator references.
 
-The v2 gate validates `docker-compose.v2.yml`, builds its images, starts the isolated project with `up --wait`, checks live, ready, metrics and system-information endpoints, emits container logs on failure, and always removes its containers and test volume.
+The v2 gate validates `docker-compose.v2.yml`, builds its images, starts the isolated project with `up --wait`, checks live, ready, metrics and system-information endpoints, emits container logs on failure, and always removes its containers and test volume. The independent `control-plane-ha` job installs the Helm Chart into a fixed Kubernetes 1.34 kind cluster and exercises migration ordering, external Secret rotation, three-replica availability, shared PostgreSQL Operation reads, a rejected migration upgrade, baseline-to-candidate image replacement, zero-grace single-Pod failure recovery and release cleanup. Successful runs upload full assertion evidence. Failed HA runs upload the available logs and object snapshots after the same credential and path scan passes.
 
 ## GitHub Actions
 
@@ -112,14 +154,16 @@ Pull requests and pushes to `main` run the repository quality gate. It covers:
 - NestJS end-to-end tests against authenticated MongoDB and Redis;
 - Go formatting, unit tests and builds for the control plane and GPU Platform Add-on, plus PostgreSQL-backed migration/integration checks;
 - certification-version consistency, pinned kubectl/Helm installation, Helm rendering and shell syntax checks for the OCM delivery assets;
+- GPU control-plane Chart lint/render checks, including three replicas, rolling strategy, PDB, Secret references and migration hook boundaries;
 - default Compose validation plus dedicated v2 Compose validation, image build and runtime smoke checks;
+- a separate control-plane HA job covering Secret-triggered Pod rotation, failed-migration protection, distinct baseline/candidate image replacement, zero-failure rolling-upgrade traffic, shared Operation reads, zero-grace single-Pod replacement and Helm uninstall boundaries;
 - a separate two-cluster OCM conformance job covering registration, CSR certificates, Lease renewal, ManifestWork, Add-on deployment and inventory reporting, with object-snapshot evidence artifacts;
 - a separate Add-on lifecycle job covering immutable current/N-1 images, bidirectional version skew, idempotent install, stale inventory cleanup, per-cluster re-enablement, Helm uninstall and final reinstall;
 - simulated API/web, Go control-plane and GPU Platform Add-on container builds.
 
 The simulated reservation suite includes concurrent attempts to reserve one GPU and verifies a single active order. The v2 checks verify migrations and the current Operation/Outbox foundation. Hardware-backed GPU acceptance remains assigned to a self-hosted runner.
 
-Pages deployment depends on the successful `quality`, `ocm-conformance` and `ocm-addon-lifecycle` jobs and runs from `main` on a push or manual workflow dispatch:
+Pages deployment depends on the successful `quality`, `control-plane-ha`, `ocm-conformance` and `ocm-addon-lifecycle` jobs and runs from `main` on a push or manual workflow dispatch:
 
 ```bash
 gh workflow run pipeline.yml --ref main

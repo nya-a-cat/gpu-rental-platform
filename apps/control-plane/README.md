@@ -17,6 +17,23 @@ with `go test ./...`. PostgreSQL repository tests run when
 `TEST_DATABASE_URL` points to a disposable PostgreSQL database; otherwise they
 are skipped.
 
+## Kubernetes delivery
+
+`charts/gpu-control-plane` installs the service as a three-replica Kubernetes
+Deployment. It references `DATABASE_URL` from an existing Secret, runs the
+migration binary as a blocking `pre-install,pre-upgrade` Helm hook, exposes a
+ClusterIP Service and creates a PodDisruptionBudget with two replicas available
+by default.
+
+The Deployment uses `maxUnavailable: 0`, `maxSurge: 1`, live and readiness
+HTTP probes, a 30-second termination grace period and the distroless nonroot
+security profile. The chart creates no Role or ClusterRole. PostgreSQL and its
+Secret remain owned by the vendor deployment environment.
+
+The GitHub Actions HA gate verifies a three-replica install, external Secret
+rotation, a failed migration upgrade, distinct baseline/candidate image
+replacement, zero-grace single-Pod recovery and Helm release cleanup.
+
 ## Runtime contract
 
 | Variable                      |   Default | Purpose                                                      |

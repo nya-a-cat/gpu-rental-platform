@@ -194,8 +194,53 @@ jobs:
           grep -q -- '--agent-image=gpu-platform-addon-agent:override' /tmp/gpu-platform-addon-agent-override.yaml
           grep -q 'image: "gpu-platform-addon:manager"' /tmp/gpu-platform-addon-agent-override.yaml
 
+      - name: Validate GPU control plane Helm chart
+        run: |
+          source deploy/ocm/versions.env
+          kube_version="${KUBERNETES_VERSION#v}"
+          helm lint charts/gpu-control-plane --kube-version "${kube_version}"
+          helm template gpu-control-plane charts/gpu-control-plane \
+            --namespace gpu-control-plane-system \
+            --kube-version "${kube_version}" \
+            --set-string image.repository=gpu-control-plane \
+            --set-string image.tag=ci \
+            --set-string image.pullPolicy=Never \
+            --set-string database.existingSecret=gpu-control-plane-database \
+            --set-string database.secretKey=DATABASE_URL \
+            --set-string database.secretRevision=ci-revision \
+            --set-string config.version=ci \
+            --set-string config.commit="${GITHUB_SHA}" > /tmp/gpu-control-plane-rendered.yaml
+          test -s /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'replicas: 3' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'maxUnavailable: 0' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'maxSurge: 1' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'minAvailable: 2' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'automountServiceAccountToken: false' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'helm.sh/hook: pre-install,pre-upgrade' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'secretKeyRef:' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'gpu.platform.nyaacat.dev/database-secret-revision: "ci-revision"' /tmp/gpu-control-plane-rendered.yaml
+          ! grep -q 'postgres://' /tmp/gpu-control-plane-rendered.yaml
+
       - name: Validate OCM shell scripts
         run: bash -n deploy/ocm/scripts/*.sh
+
+      - name: Validate control-plane deployment scripts
+        run: bash -n deploy/control-plane/scripts/*.sh
+
+      - name: Validate control-plane evidence policy modes
+        run: |
+          safe_dir="${RUNNER_TEMP}/gpu-control-plane-evidence-safe"
+          blocked_dir="${RUNNER_TEMP}/gpu-control-plane-evidence-blocked"
+          mkdir -p "${safe_dir}" "${blocked_dir}"
+          printf '%s\n' 'synthetic safe diagnostic' > "${safe_dir}/ci-ha.log"
+          bash deploy/control-plane/scripts/verify-evidence-policy.sh "${safe_dir}" partial
+          jq -e '.status == "passed" and .mode == "partial"' "${safe_dir}/evidence-policy-report.json" >/dev/null
+          printf '%s\n' '-----BEGIN PRIVATE KEY-----' 'synthetic blocked diagnostic' > "${blocked_dir}/ci-ha.log"
+          if bash deploy/control-plane/scripts/verify-evidence-policy.sh "${blocked_dir}" partial; then
+            echo "credential-like evidence unexpectedly passed" >&2
+            exit 1
+          fi
+          jq -e '.status == "failed" and .mode == "partial" and (.violations | length) > 0' "${blocked_dir}/evidence-policy-report.json" >/dev/null
 
       - name: Check GPU Platform Add-on module metadata
         working-directory: apps/gpu-platform-addon
@@ -311,9 +356,67 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  control-plane-ha:
+    name: GPU control plane HA
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      ARTIFACT_DIR: ${{ github.workspace }}/artifacts/gpu-control-plane-ha
+      CONTROL_PLANE_BASELINE_IMAGE: gpu-control-plane:ci-baseline
+      CONTROL_PLANE_CANDIDATE_IMAGE: gpu-control-plane:ci-candidate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # 固定 v7.0.0
+
+      - name: Build GPU control plane images
+        run: |
+          docker build \
+            --file infra/control-plane.Dockerfile \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}-baseline" \
+            --tag "${CONTROL_PLANE_BASELINE_IMAGE}" .
+          docker build \
+            --file infra/control-plane.Dockerfile \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}-candidate" \
+            --tag "${CONTROL_PLANE_CANDIDATE_IMAGE}" .
+          baseline_id="$(docker image inspect --format '{{.Id}}' "${CONTROL_PLANE_BASELINE_IMAGE}")"
+          candidate_id="$(docker image inspect --format '{{.Id}}' "${CONTROL_PLANE_CANDIDATE_IMAGE}")"
+          test "${baseline_id}" != "${candidate_id}"
+
+      - name: Run GPU control plane HA verification
+        id: control_plane_ha_run
+        run: |
+          mkdir -p "${ARTIFACT_DIR}"
+          set -o pipefail
+          bash deploy/control-plane/scripts/ci-ha.sh 2>&1 | tee "${RUNNER_TEMP}/gpu-control-plane-ha.log"
+
+      - name: Stage GPU control plane HA log
+        if: always() && steps.control_plane_ha_run.outcome != 'skipped'
+        run: |
+          sed 's#/home/runner#[runner-home]#g' \
+            "${RUNNER_TEMP}/gpu-control-plane-ha.log" > "${ARTIFACT_DIR}/ci-ha.log"
+
+      - name: Verify GPU control plane HA evidence upload policy
+        id: control_plane_ha_evidence_policy
+        if: always() && steps.control_plane_ha_run.outcome != 'skipped'
+        run: |
+          mode=partial
+          if [[ "${{ steps.control_plane_ha_run.outcome }}" == "success" ]]; then
+            mode=full
+          fi
+          bash deploy/control-plane/scripts/verify-evidence-policy.sh "${ARTIFACT_DIR}" "${mode}"
+
+      - name: Upload GPU control plane HA evidence
+        if: always() && steps.control_plane_ha_evidence_policy.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned v7.0.1
+        with:
+          name: gpu-control-plane-ha-${{ github.sha }}
+          path: ${{ env.ARTIFACT_DIR }}/
+          if-no-files-found: error
+          retention-days: 7
+
   pages:
     name: Build and deploy default GitHub Pages demo
-    needs: [quality, ocm-conformance, ocm-addon-lifecycle]
+    needs: [quality, ocm-conformance, ocm-addon-lifecycle, control-plane-ha]
     if: >-
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')

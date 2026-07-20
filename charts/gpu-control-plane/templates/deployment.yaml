@@ -1,0 +1,126 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gpu-control-plane.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gpu-control-plane.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "gpu-control-plane.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gpu-control-plane.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        gpu.platform.nyaacat.dev/database-secret-revision: {{ .Values.database.secretRevision | quote }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "gpu-control-plane.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: control-plane
+          image: {{ include "gpu-control-plane.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "database.existingSecret is required" .Values.database.existingSecret }}
+                  key: {{ required "database.secretKey is required" .Values.database.secretKey }}
+            - name: HTTP_ADDR
+              value: ":8080"
+            - name: CONTROL_PLANE_VERSION
+              value: {{ default .Chart.AppVersion .Values.config.version | quote }}
+            - name: CONTROL_PLANE_COMMIT
+              value: {{ .Values.config.commit | quote }}
+            - name: SHUTDOWN_TIMEOUT
+              value: {{ .Values.config.shutdownTimeout | quote }}
+            - name: READINESS_TIMEOUT
+              value: {{ .Values.config.readinessTimeout | quote }}
+            - name: DB_MAX_OPEN_CONNS
+              value: {{ .Values.config.dbMaxOpenConns | quote }}
+            - name: DB_MAX_IDLE_CONNS
+              value: {{ .Values.config.dbMaxIdleConns | quote }}
+            - name: DB_CONN_MAX_LIFETIME
+              value: {{ .Values.config.dbConnMaxLifetime | quote }}
+            - name: MIGRATION_TIMEOUT
+              value: {{ .Values.config.migrationTimeout | quote }}
+            - name: MIGRATION_LOCK_TIMEOUT
+              value: {{ .Values.config.migrationLockTimeout | quote }}
+            - name: MIGRATION_STATEMENT_TIMEOUT
+              value: {{ .Values.config.migrationStatementTimeout | quote }}
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 2
+            timeoutSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- range . }}
+        - maxSkew: {{ .maxSkew }}
+          topologyKey: {{ .topologyKey | quote }}
+          whenUnsatisfiable: {{ .whenUnsatisfiable }}
+          labelSelector:
+            matchLabels:
+              {{- include "gpu-control-plane.selectorLabels" $ | nindent 14 }}
+        {{- end }}
+      {{- end }}

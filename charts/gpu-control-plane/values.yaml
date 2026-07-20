@@ -1,0 +1,92 @@
+replicaCount: 3
+
+image:
+  repository: gpu-cloud-control-plane
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+service:
+  type: ClusterIP
+  port: 8080
+
+database:
+  existingSecret: gpu-control-plane-database
+  secretKey: DATABASE_URL
+  secretRevision: ""
+
+config:
+  version: ""
+  commit: unknown
+  shutdownTimeout: 15s
+  readinessTimeout: 2s
+  dbMaxOpenConns: 20
+  dbMaxIdleConns: 5
+  dbConnMaxLifetime: 30m
+  migrationTimeout: 5m
+  migrationLockTimeout: 30s
+  migrationStatementTimeout: 2m
+
+migration:
+  hookDeletePolicy: before-hook-creation,hook-succeeded
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 1
+  activeDeadlineSeconds: 600
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+terminationGracePeriodSeconds: 30
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway

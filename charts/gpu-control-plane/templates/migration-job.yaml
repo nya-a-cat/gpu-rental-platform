@@ -1,0 +1,73 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "gpu-control-plane.migrationJobName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gpu-control-plane.migrationLabels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
+    {{- with .Values.migration.hookDeletePolicy }}
+    helm.sh/hook-delete-policy: {{ . | quote }}
+    {{- end }}
+spec:
+  ttlSecondsAfterFinished: {{ .Values.migration.ttlSecondsAfterFinished }}
+  backoffLimit: {{ .Values.migration.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "gpu-control-plane.migrationLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: migrate
+          image: {{ include "gpu-control-plane.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /usr/local/bin/control-plane-migrate
+          args:
+            - up
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "database.existingSecret is required" .Values.database.existingSecret }}
+                  key: {{ required "database.secretKey is required" .Values.database.secretKey }}
+            - name: DB_MAX_OPEN_CONNS
+              value: {{ .Values.config.dbMaxOpenConns | quote }}
+            - name: DB_MAX_IDLE_CONNS
+              value: {{ .Values.config.dbMaxIdleConns | quote }}
+            - name: DB_CONN_MAX_LIFETIME
+              value: {{ .Values.config.dbConnMaxLifetime | quote }}
+            - name: MIGRATION_TIMEOUT
+              value: {{ .Values.config.migrationTimeout | quote }}
+            - name: MIGRATION_LOCK_TIMEOUT
+              value: {{ .Values.config.migrationLockTimeout | quote }}
+            - name: MIGRATION_STATEMENT_TIMEOUT
+              value: {{ .Values.config.migrationStatementTimeout | quote }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -14,6 +14,7 @@ GPU Container Cloud 是面向云服务器厂商、渠道商和企业租户建设
 - PostgreSQL-backed Operation, idempotency, Outbox and audit foundations.
 - Internal `BillingEngine`, `AuthorizationEngine`, `JobEngine` and OCM-facing fleet boundaries.
 - OCM 1.3.1 fleet registration assets and a minimal Addon Framework 1.3.0 GPU inventory agent.
+- A three-replica Helm delivery profile with migration hooks, disruption protection and an Actions-only HA gate.
 - Health, readiness, Prometheus metrics, request correlation, ManagedCluster Lease and Add-on Lease paths.
 - A versioned OpenAPI 3.1 contract for generated clients and vendor integration.
 
@@ -37,6 +38,8 @@ Requirements:
 - Node.js 24 and pnpm 10 for the React/NestJS workspace
 - Go 1.25 for direct control-plane development
 - Docker Engine with Docker Compose v2
+- Kubernetes 1.34.x for the control-plane chart
+- Helm 3 for Kubernetes installation and upgrades
 
 Create local credentials first:
 
@@ -74,6 +77,24 @@ For direct Go development against a configured `DATABASE_URL`:
 pnpm control-plane:migrate
 pnpm control-plane:run
 pnpm control-plane:test
+```
+
+For a Kubernetes deployment, create the external PostgreSQL connection Secret
+and install `charts/gpu-control-plane`. The chart defaults to three replicas,
+runs migrations before install and upgrade, and keeps PostgreSQL outside the
+release lifecycle:
+
+```bash
+kubectl create namespace gpu-control-plane-system
+kubectl --namespace gpu-control-plane-system create secret generic gpu-control-plane-database \
+  --from-literal=DATABASE_URL='postgres://user:password@postgres.example:5432/gpu_cloud?sslmode=require'
+
+helm upgrade --install gpu-control-plane charts/gpu-control-plane \
+  --namespace gpu-control-plane-system \
+  --set image.repository=registry.example/gpu-cloud-control-plane \
+  --set image.tag=0.1.0 \
+  --atomic \
+  --timeout 11m
 ```
 
 See [deployment.md](docs/deployment.md) for environment variables, verification commands and CI behavior.

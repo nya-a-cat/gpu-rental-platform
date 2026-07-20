@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "replicaCount": {
+      "type": "integer",
+      "minimum": 3
+    },
+    "image": {
+      "type": "object",
+      "required": ["repository", "pullPolicy"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string" },
+        "pullPolicy": {
+          "type": "string",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "required": ["type", "port"],
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP"] },
+        "port": { "type": "integer", "const": 8080 }
+      }
+    },
+    "database": {
+      "type": "object",
+      "required": ["existingSecret", "secretKey", "secretRevision"],
+      "properties": {
+        "existingSecret": { "type": "string", "minLength": 1 },
+        "secretKey": { "type": "string", "minLength": 1 },
+        "secretRevision": { "type": "string" }
+      }
+    },
+    "config": {
+      "type": "object",
+      "required": [
+        "shutdownTimeout",
+        "readinessTimeout",
+        "dbMaxOpenConns",
+        "dbMaxIdleConns",
+        "dbConnMaxLifetime",
+        "migrationTimeout",
+        "migrationLockTimeout",
+        "migrationStatementTimeout"
+      ],
+      "properties": {
+        "version": { "type": "string" },
+        "commit": { "type": "string", "minLength": 1 },
+        "shutdownTimeout": { "type": "string", "minLength": 1 },
+        "readinessTimeout": { "type": "string", "minLength": 1 },
+        "dbMaxOpenConns": { "type": "integer", "minimum": 1 },
+        "dbMaxIdleConns": { "type": "integer", "minimum": 0 },
+        "dbConnMaxLifetime": { "type": "string", "minLength": 1 },
+        "migrationTimeout": { "type": "string", "minLength": 1 },
+        "migrationLockTimeout": { "type": "string", "minLength": 1 },
+        "migrationStatementTimeout": { "type": "string", "minLength": 1 }
+      }
+    },
+    "migration": {
+      "type": "object",
+      "required": [
+        "hookDeletePolicy",
+        "ttlSecondsAfterFinished",
+        "backoffLimit",
+        "activeDeadlineSeconds"
+      ],
+      "properties": {
+        "hookDeletePolicy": {
+          "type": "string",
+          "pattern": "(^|,)before-hook-creation(,|$)"
+        },
+        "ttlSecondsAfterFinished": { "type": "integer", "minimum": 0 },
+        "backoffLimit": { "type": "integer", "minimum": 0 },
+        "activeDeadlineSeconds": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "podDisruptionBudget": {
+      "type": "object",
+      "required": ["enabled", "minAvailable"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minAvailable": {
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "type": "string", "pattern": "^[0-9]+%$" }
+          ]
+        }
+      }
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["maxSkew", "topologyKey", "whenUnsatisfiable"],
+        "properties": {
+          "maxSkew": { "type": "integer", "minimum": 1 },
+          "topologyKey": { "type": "string", "minLength": 1 },
+          "whenUnsatisfiable": {
+            "type": "string",
+            "enum": ["DoNotSchedule", "ScheduleAnyway"]
+          }
+        }
+      }
+    }
+  }
+}
