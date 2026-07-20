@@ -100,6 +100,12 @@ HA artifact `8461090964` (`gpu-control-plane-ha-8d64edbb7aa0068922806a4fc048c927
 
 This result certifies the Phase 1 commercial tenancy persistence and API foundation on the GitHub-hosted profile. OCM ManifestWork execution for Namespace, RBAC, ResourceQuota, NetworkPolicy and Restricted Pod Security remains the next shared-isolation delivery unit.
 
+## Two-level GitHub Actions gate
+
+[Pipeline `29744901088`](https://github.com/nya-a-cat/gpu-rental-platform/actions/runs/29744901088) verified commit `66de03bd714834aa34e3335184f1fef4b61529a0` through the parallel source fast gate in 36 seconds. Delivery static job `88360362927` completed in 7s, Go quality job `88360362978` in 32s and frontend/API quality job `88360363025` in 32s. Independent path-aware [Pages run `29744901085`](https://github.com/nya-a-cat/gpu-rental-platform/actions/runs/29744901085) also completed in 36 seconds.
+
+Manual [Certification run `29745042329`](https://github.com/nya-a-cat/gpu-rental-platform/actions/runs/29745042329) verified the same commit and completed successfully in 15m23s. Quality job `88360834792`, observability job `88360834835`, GPUStack job `88360834876`, Add-on lifecycle job `88360834885`, control-plane HA job `88360834914` and OCM conformance job `88360835309` all passed. The workflow uploaded policy-checked module, GPUStack, observability, HA, OCM conformance and N/N-1 lifecycle artifacts. This run confirms that daily, manual and `v*` release-tag certification preserves the complete runtime suite while pull-request and `main` source feedback stays within the seconds-scale gate.
+
 ## GPU control plane Helm and high availability
 
 The Phase 0 control-plane profile deploys the Go API as three replicas with a `RollingUpdate` strategy, `maxUnavailable: 0`, `maxSurge: 1`, a `minAvailable: 2` PodDisruptionBudget, restricted security contexts and an external PostgreSQL credential Secret. Database migrations run through a Helm pre-install/pre-upgrade hook. Secret revision changes explicitly roll the Pods while retaining the externally managed Secret.
