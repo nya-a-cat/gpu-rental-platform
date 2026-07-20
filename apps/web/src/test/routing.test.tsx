@@ -124,7 +124,7 @@ describe("role routes", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "筛选归零 执行" }));
+    fireEvent.click(screen.getByRole("button", { name: "筛选归零执行" }));
     await waitFor(() => {
       expect(
         (screen.getByLabelText("资源状态") as HTMLSelectElement).value,
