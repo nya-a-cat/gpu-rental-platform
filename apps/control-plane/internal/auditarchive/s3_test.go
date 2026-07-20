@@ -1,7 +1,10 @@
 package auditarchive
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -51,7 +54,18 @@ func TestS3StoreUsesObjectLockAndMetadata(t *testing.T) {
 			}
 			response.Header().Set("ETag", `"fixture-etag"`)
 		case http.MethodPut:
-			body, _ = io.ReadAll(request.Body)
+			var uploaded []byte
+			var err error
+			if strings.HasPrefix(request.Header.Get("X-Amz-Content-Sha256"), "STREAMING-AWS4-HMAC-SHA256-PAYLOAD") {
+				uploaded, err = readStreamingV4Body(request.Body)
+			} else {
+				uploaded, err = io.ReadAll(request.Body)
+			}
+			if err != nil {
+				http.Error(response, err.Error(), http.StatusBadRequest)
+				return
+			}
+			body = uploaded
 			metadata = request.Header.Clone()
 			retentionMode = request.Header.Get("X-Amz-Object-Lock-Mode")
 			retentionUntil = request.Header.Get("X-Amz-Object-Lock-Retain-Until-Date")
@@ -103,5 +117,42 @@ func TestS3StoreUsesObjectLockAndMetadata(t *testing.T) {
 	}
 	if !strings.HasPrefix(authorization, "AWS4-HMAC-SHA256 ") {
 		t.Fatalf("authorization = %q", authorization)
+	}
+	if string(body) != "{\"id\":\"one\"}\n" {
+		t.Fatalf("uploaded body = %q", body)
+	}
+}
+
+func readStreamingV4Body(reader io.Reader) ([]byte, error) {
+	buffered := bufio.NewReader(reader)
+	var decoded bytes.Buffer
+	for {
+		header, err := buffered.ReadString('\n')
+		if err != nil {
+			return nil, fmt.Errorf("read streaming chunk header: %w", err)
+		}
+		header = strings.TrimSuffix(header, "\r\n")
+		size, err := strconv.ParseInt(strings.SplitN(header, ";", 2)[0], 16, 64)
+		if err != nil {
+			return nil, fmt.Errorf("parse streaming chunk size: %w", err)
+		}
+		if size > 0 {
+			if _, err := io.CopyN(&decoded, buffered, size); err != nil {
+				return nil, fmt.Errorf("read streaming chunk: %w", err)
+			}
+		}
+		terminator := make([]byte, 2)
+		if _, err := io.ReadFull(buffered, terminator); err != nil {
+			return nil, fmt.Errorf("read streaming chunk terminator: %w", err)
+		}
+		if string(terminator) != "\r\n" {
+			return nil, fmt.Errorf("invalid streaming chunk terminator: %q", terminator)
+		}
+		if size == 0 {
+			if buffered.Buffered() != 0 {
+				return nil, fmt.Errorf("unexpected streaming chunk trailer")
+			}
+			return decoded.Bytes(), nil
+		}
 	}
 }

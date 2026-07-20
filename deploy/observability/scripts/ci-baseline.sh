@@ -180,7 +180,11 @@ jq -e '.status == "passed"' "${ARTIFACT_DIR}/audit-validation.json" >/dev/null
 echo "creating Kubernetes observability baseline"
 kind create cluster --name "${CLUSTER_NAME}" --image "${KIND_NODE_IMAGE}" --wait 120s
 kind load docker-image --name "${CLUSTER_NAME}" "${CONTROL_PLANE_IMAGE}"
-gateway_ip="$(docker network inspect kind --format '{{(index .IPAM.Config 0).Gateway}}')"
+gateway_ip="$(docker inspect "${CLUSTER_NAME}-control-plane" --format '{{(index .NetworkSettings.Networks "kind").Gateway}}')"
+if [[ ! "${gateway_ip}" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+  echo "kind host gateway is not a valid IPv4 address: ${gateway_ip}" >&2
+  exit 1
+fi
 
 kubectl create namespace "${CONTROL_NAMESPACE}"
 kubectl -n "${CONTROL_NAMESPACE}" apply -f - <<EOF
