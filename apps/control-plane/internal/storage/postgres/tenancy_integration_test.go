@@ -16,8 +16,10 @@ import (
 	authorizationengine "github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/authorization"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/identity"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/operation"
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/outbox"
 	platformpostgres "github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/platform/postgres"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/ports"
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/sharedisolation"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/tenancy"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/migrations"
 )
@@ -98,6 +100,56 @@ func TestTenancyIdempotencyRoleBindingsAndQuotaLifecycle(t *testing.T) {
 	}
 	if !strings.HasPrefix(project.NamespaceName, "gpu-p-") {
 		t.Fatalf("project namespace = %q", project.NamespaceName)
+	}
+	projectEvents, err := repository.Claim(ctx, outbox.ClaimParams{
+		WorkerID:      "shared-isolation-project-test",
+		EventType:     "project.created",
+		Limit:         10,
+		LeaseDuration: time.Minute,
+	})
+	if err != nil {
+		t.Fatalf("claim project.created event: %v", err)
+	}
+	if len(projectEvents) != 1 || projectEvents[0].AggregateID != project.ID || projectEvents[0].EventType != "project.created" {
+		t.Fatalf("project.created events = %#v", projectEvents)
+	}
+	if err := repository.MarkDelivered(ctx, projectEvents[0].ID, "shared-isolation-project-test", projectEvents[0].Attempts); err != nil {
+		t.Fatalf("mark project.created delivered: %v", err)
+	}
+	initialSnapshot, err := repository.LoadProjectForIsolation(ctx, project.ID)
+	if err != nil || initialSnapshot.GPUQuota != 0 {
+		t.Fatalf("initial isolation snapshot = %#v, error = %v", initialSnapshot, err)
+	}
+	initialState := sharedisolation.ReconcileState{
+		ProjectID:         project.ID,
+		OperationID:       projectAcceptance.OperationID,
+		ClusterID:         "cluster1",
+		WorkName:          sharedisolation.WorkName(project.ID),
+		ProjectGeneration: project.Generation,
+		GPUQuota:          0,
+	}
+	if err := repository.StartSharedIsolation(ctx, initialState); err != nil {
+		t.Fatalf("StartSharedIsolation() error = %v", err)
+	}
+	project, err = repository.GetProject(ctx, project.ID)
+	if err != nil || project.ProvisioningState != "provisioning" || project.TargetClusterID == nil || *project.TargetClusterID != "cluster1" {
+		t.Fatalf("project applying state = %#v, error = %v", project, err)
+	}
+	projectOperation, err := repository.GetByID(ctx, projectAcceptance.OperationID)
+	if err != nil || projectOperation.Status != operation.StatusRunning {
+		t.Fatalf("project operation applying = %#v, error = %v", projectOperation, err)
+	}
+	if err := repository.CompleteSharedIsolation(ctx, initialState); err != nil {
+		t.Fatalf("CompleteSharedIsolation() error = %v", err)
+	}
+	project, err = repository.GetProject(ctx, project.ID)
+	if err != nil || project.ObservedState != "active" || project.ProvisioningState != "succeeded" ||
+		project.ObservedGeneration != project.Generation || project.AppliedGPUQuota != 0 || len(project.Conditions) != 1 || project.Conditions[0].Status != "True" {
+		t.Fatalf("project reconciled state = %#v, error = %v", project, err)
+	}
+	projectOperation, err = repository.GetByID(ctx, projectAcceptance.OperationID)
+	if err != nil || projectOperation.Status != operation.StatusSucceeded || projectOperation.Progress != 100 {
+		t.Fatalf("project operation complete = %#v, error = %v", projectOperation, err)
 	}
 	if _, err := repository.CreateProject(ctx, tenancy.CreateProjectParams{
 		Mutation: tenancy.MutationContext{
@@ -191,12 +243,53 @@ func TestTenancyIdempotencyRoleBindingsAndQuotaLifecycle(t *testing.T) {
 	if quotaAcceptance.ResourceID != project.ID+"/gpu.nvidia.full" {
 		t.Fatalf("quota acceptance = %#v", quotaAcceptance)
 	}
+	quotaEvents, err := repository.Claim(ctx, outbox.ClaimParams{
+		WorkerID:      "shared-isolation-quota-test",
+		EventType:     "project.gpu-quota.updated",
+		Limit:         10,
+		LeaseDuration: time.Minute,
+	})
+	if err != nil {
+		t.Fatalf("claim project.gpu-quota.updated event: %v", err)
+	}
+	if len(quotaEvents) != 1 || quotaEvents[0].AggregateID != quotaAcceptance.ResourceID {
+		t.Fatalf("project.gpu-quota.updated events = %#v", quotaEvents)
+	}
+	if err := repository.MarkDelivered(ctx, quotaEvents[0].ID, "shared-isolation-quota-test", quotaEvents[0].Attempts); err != nil {
+		t.Fatalf("mark project.gpu-quota.updated delivered: %v", err)
+	}
 	quota, err := repository.GetQuota(ctx, project.ID, "gpu.nvidia.full")
 	if err != nil {
 		t.Fatalf("GetQuota() error = %v", err)
 	}
 	if quota.HardLimit != 2 || quota.Reserved != 0 || quota.Allocated != 0 || quota.Generation != 1 {
 		t.Fatalf("initial quota = %#v", quota)
+	}
+	quotaSnapshot, err := repository.LoadProjectForIsolation(ctx, project.ID)
+	if err != nil || quotaSnapshot.GPUQuota != 2 {
+		t.Fatalf("quota isolation snapshot = %#v, error = %v", quotaSnapshot, err)
+	}
+	quotaState := sharedisolation.ReconcileState{
+		ProjectID:         project.ID,
+		OperationID:       quotaAcceptance.OperationID,
+		ClusterID:         "cluster1",
+		WorkName:          sharedisolation.WorkName(project.ID),
+		ProjectGeneration: quotaSnapshot.Project.Generation,
+		GPUQuota:          quotaSnapshot.GPUQuota,
+	}
+	if err := repository.StartSharedIsolation(ctx, quotaState); err != nil {
+		t.Fatalf("StartSharedIsolation() quota error = %v", err)
+	}
+	if err := repository.CompleteSharedIsolation(ctx, quotaState); err != nil {
+		t.Fatalf("CompleteSharedIsolation() quota error = %v", err)
+	}
+	project, err = repository.GetProject(ctx, project.ID)
+	if err != nil || project.AppliedGPUQuota != 2 || project.ObservedGeneration != project.Generation {
+		t.Fatalf("project quota reconciled state = %#v, error = %v", project, err)
+	}
+	quotaOperation, err := repository.GetByID(ctx, quotaAcceptance.OperationID)
+	if err != nil || quotaOperation.Status != operation.StatusSucceeded || quotaOperation.Progress != 100 {
+		t.Fatalf("quota operation complete = %#v, error = %v", quotaOperation, err)
 	}
 
 	allocationOperation, err := repository.Create(ctx, operation.CreateParams{

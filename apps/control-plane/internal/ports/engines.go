@@ -90,9 +90,12 @@ type PlacementResult struct {
 type WorkRequest struct {
 	OperationID string
 	ClusterID   string
+	WorkID      string
 	Manifest    json.RawMessage
 }
 
 type WorkResult struct {
-	WorkID string
+	WorkID    string
+	Applied   bool
+	Available bool
 }

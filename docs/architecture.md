@@ -62,11 +62,11 @@ through GitHub Actions. The active Phase 1 tenancy foundation adds:
 
 The OCM and Add-on certification covers two managed clusters, certificate
 rotation, per-cluster inventory authorization and current/N-1 lifecycle
-compatibility. Project creation currently records `shared` isolation intent and
-returns a pending Operation. Namespace, RBAC, ResourceQuota, NetworkPolicy and
-Restricted Pod Security reconciliation enter in the next Phase 1 delivery unit.
-Hardware GPU inventory, workload lifecycle and financial rating remain open
-acceptance areas.
+compatibility. The Phase 1 shared-isolation reconciler consumes `project.created`
+and `project.gpu-quota.updated` Outbox events, applies a deterministic ManifestWork to the
+configured managed cluster, and records the target cluster, observed generation,
+applied GPU quota and `SharedIsolationReady` Condition. Hardware GPU inventory,
+workload lifecycle and financial rating remain open acceptance areas.
 
 ## API and consistency model
 
@@ -75,7 +75,7 @@ authenticated principal and operation kind.
 
 Accepted long-running work returns HTTP 202 and a stable Operation reference. Operation status uses `queued`, `running`, `succeeded`, `failed`, `cancelled` and `timed_out`. The record includes target resource, optional parent operation, steps, progress, deadline, retryability, request ID and structured error data.
 
-Business mutations create their durable state, Operation and Outbox event in one PostgreSQL transaction. An executor can claim Outbox work with database locking and deliver it through `JobEngine` or the future OCM adapter. Consumers must remain idempotent because delivery is at least once.
+Business mutations create their durable state, Operation and Outbox event in one PostgreSQL transaction. The shared-isolation executor claims project and GPU-quota events with database locking and delivers deterministic ManifestWork resources through the OCM adapter. Consumers remain idempotent because delivery is at least once.
 
 Known-route handler errors and router-generated HTTP 404/405 responses use `application/problem+json`. Resource APIs will maintain `desiredState`, `observedState`, `provisioningState` and Conditions independently.
 

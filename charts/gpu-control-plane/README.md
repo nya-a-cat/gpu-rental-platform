@@ -2,9 +2,9 @@
 
 This Helm v3 chart installs the Go GPU Container Cloud control plane on
 Kubernetes 1.34. It deploys three replicas by default, a `ClusterIP` Service, a
-dedicated ServiceAccount, and a `policy/v1` PodDisruptionBudget. The chart does
-not create RBAC bindings because the current control plane communicates with
-PostgreSQL and exposes HTTP endpoints without calling the Kubernetes API.
+dedicated ServiceAccount, and a `policy/v1` PodDisruptionBudget. OCM integration
+is disabled by default. When enabled, the chart mounts the ServiceAccount token
+and grants only `get`, `create`, `update` and `patch` on ManifestWork resources.
 
 ## Prerequisites
 
@@ -75,6 +75,14 @@ The chart maps the runtime contract from `apps/control-plane/README.md`:
 | `config.migrationTimeout`                        | `MIGRATION_TIMEOUT`           | `5m`                                          |
 | `config.migrationLockTimeout`                    | `MIGRATION_LOCK_TIMEOUT`      | `30s`                                         |
 | `config.migrationStatementTimeout`               | `MIGRATION_STATEMENT_TIMEOUT` | `2m`                                          |
+| `ocm.enabled`                                    | `OCM_ENABLED`                 | `false`                                       |
+| `ocm.hubURL`                                     | `OCM_HUB_URL`                 | `https://kubernetes.default.svc`              |
+| `ocm.defaultClusterID`                           | `OCM_DEFAULT_CLUSTER_ID`      | Empty; required when enabled                  |
+| `ocm.addonInstallNamespace`                      | `OCM_ADDON_INSTALL_NAMESPACE` | `open-cluster-management-agent-addon`         |
+| `ocm.addonServiceAccount`                        | `OCM_ADDON_SERVICE_ACCOUNT`   | `gpu-platform-addon-agent`                    |
+| `ocm.reconcileTimeout`                           | `OCM_RECONCILE_TIMEOUT`       | `2m`                                          |
+| `ocm.pollInterval`                               | `OCM_POLL_INTERVAL`           | `2s`                                          |
+| `ocm.maxAttempts`                                | `OCM_MAX_ATTEMPTS`            | `8`                                           |
 
 The chart fixes `HTTP_ADDR=:8080` so the process, Service and probes share one
 port contract.
@@ -105,5 +113,5 @@ The production schema requires at least three replicas. Adjust
 
 The default security contexts match the distroless nonroot image: UID/GID
 `65532`, runtime-default seccomp, no privilege escalation, all Linux
-capabilities dropped, a read-only root filesystem, and no mounted ServiceAccount
-token.
+capabilities dropped, and a read-only root filesystem. The ServiceAccount token
+is mounted only when `ocm.enabled=true`.

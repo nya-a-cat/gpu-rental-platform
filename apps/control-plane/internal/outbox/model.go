@@ -23,6 +23,7 @@ type Event struct {
 
 type ClaimParams struct {
 	WorkerID      string
+	EventType     string
 	Limit         int
 	LeaseDuration time.Duration
 }

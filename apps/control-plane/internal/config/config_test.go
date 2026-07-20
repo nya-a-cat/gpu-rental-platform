@@ -128,3 +128,56 @@ func TestLoadRejectsShortBreakGlassToken(t *testing.T) {
 		t.Fatal("Load() error = nil, want break-glass token validation error")
 	}
 }
+
+func TestLoadDisablesOCMByDefault(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://control-plane:secret@postgres/control-plane")
+	t.Setenv("OCM_ENABLED", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.OCM.Enabled {
+		t.Fatalf("OCM enabled = true, want false")
+	}
+}
+
+func TestLoadConfiguresOCMSharedIsolation(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://control-plane:secret@postgres/control-plane")
+	t.Setenv("OCM_ENABLED", "true")
+	t.Setenv("OCM_HUB_URL", "https://hub.example.test")
+	t.Setenv("OCM_DEFAULT_CLUSTER_ID", "cluster1")
+	t.Setenv("OCM_CLIENT_CERT_FILE", "client.crt")
+	t.Setenv("OCM_CLIENT_KEY_FILE", "client.key")
+	t.Setenv("OCM_CA_FILE", "ca.crt")
+	t.Setenv("OCM_RECONCILE_TIMEOUT", "90s")
+	t.Setenv("OCM_POLL_INTERVAL", "1s")
+	t.Setenv("OCM_MAX_ATTEMPTS", "5")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !cfg.OCM.Enabled || cfg.OCM.DefaultClusterID != "cluster1" ||
+		cfg.OCM.TokenFile != "" || cfg.OCM.ReconcileTimeout != 90*time.Second ||
+		cfg.OCM.PollInterval != time.Second || cfg.OCM.MaxAttempts != 5 {
+		t.Fatalf("OCM config = %#v", cfg.OCM)
+	}
+}
+
+func TestLoadRejectsOCMWithoutDefaultCluster(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://control-plane:secret@postgres/control-plane")
+	t.Setenv("OCM_ENABLED", "true")
+	t.Setenv("OCM_DEFAULT_CLUSTER_ID", "")
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil, want OCM_DEFAULT_CLUSTER_ID validation error")
+	}
+}
+
+func TestLoadRejectsInvalidOCMBoolean(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://control-plane:secret@postgres/control-plane")
+	t.Setenv("OCM_ENABLED", "sometimes")
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil, want OCM_ENABLED validation error")
+	}
+}

@@ -1,0 +1,27 @@
+{{- if .Values.ocm.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "gpu-control-plane.fullname" . }}-ocm
+  labels:
+    {{- include "gpu-control-plane.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["work.open-cluster-management.io"]
+    resources: ["manifestworks"]
+    verbs: ["get", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "gpu-control-plane.fullname" . }}-ocm
+  labels:
+    {{- include "gpu-control-plane.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "gpu-control-plane.fullname" . }}-ocm
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "gpu-control-plane.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

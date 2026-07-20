@@ -56,6 +56,41 @@
         }
       }
     },
+    "ocm": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "hubURL",
+        "defaultClusterID",
+        "addonInstallNamespace",
+        "addonServiceAccount",
+        "reconcileTimeout",
+        "pollInterval",
+        "maxAttempts"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "hubURL": { "type": "string", "pattern": "^https://[^/]+/?$" },
+        "defaultClusterID": {
+          "type": "string",
+          "maxLength": 253,
+          "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$|^$"
+        },
+        "addonInstallNamespace": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 253
+        },
+        "addonServiceAccount": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 253
+        },
+        "reconcileTimeout": { "type": "string", "minLength": 1 },
+        "pollInterval": { "type": "string", "minLength": 1 },
+        "maxAttempts": { "type": "integer", "minimum": 1 }
+      }
+    },
     "config": {
       "type": "object",
       "required": [

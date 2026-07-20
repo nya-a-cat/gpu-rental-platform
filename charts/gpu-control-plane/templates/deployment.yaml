@@ -30,7 +30,7 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "gpu-control-plane.serviceAccountName" . }}
-      automountServiceAccountToken: false
+      automountServiceAccountToken: {{ .Values.ocm.enabled }}
       enableServiceLinks: false
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       securityContext:
@@ -55,6 +55,24 @@ spec:
                   key: {{ required "database.secretKey is required" .Values.database.secretKey }}
             - name: HTTP_ADDR
               value: ":8080"
+            - name: OCM_ENABLED
+              value: {{ .Values.ocm.enabled | quote }}
+            {{- if .Values.ocm.enabled }}
+            - name: OCM_HUB_URL
+              value: {{ .Values.ocm.hubURL | quote }}
+            - name: OCM_DEFAULT_CLUSTER_ID
+              value: {{ required "ocm.defaultClusterID is required when OCM integration is enabled" .Values.ocm.defaultClusterID | quote }}
+            - name: OCM_ADDON_INSTALL_NAMESPACE
+              value: {{ .Values.ocm.addonInstallNamespace | quote }}
+            - name: OCM_ADDON_SERVICE_ACCOUNT
+              value: {{ .Values.ocm.addonServiceAccount | quote }}
+            - name: OCM_RECONCILE_TIMEOUT
+              value: {{ .Values.ocm.reconcileTimeout | quote }}
+            - name: OCM_POLL_INTERVAL
+              value: {{ .Values.ocm.pollInterval | quote }}
+            - name: OCM_MAX_ATTEMPTS
+              value: {{ .Values.ocm.maxAttempts | quote }}
+            {{- end }}
             {{ if .Values.auth.breakGlass.existingSecret }}
             - name: BREAK_GLASS_ADMIN_TOKEN
               valueFrom:

@@ -161,6 +161,6 @@ Karmada、Cluster API、SkyPilot、OpenFGA 和 Temporal 由真实复杂度触发
 
 控制面提供一个可选的本地 Break-glass Bearer 身份用于厂商初始化和紧急恢复。令牌只从环境变量或 Helm 引用的外部 Secret 读取，审计主体由 `BREAK_GLASS_ADMIN_SUBJECT` 固定标识。PostgreSQL RoleBinding 已实现 Tenant 与 Project scope 的授权判定，为后续 OIDC 主体接入保留同一 `AuthorizationEngine` 边界。
 
-Project 当前只接受 `shared` 隔离等级，创建后保存稳定 Namespace 名称以及 `desiredState=active`、`observedState=pending`、`provisioningState=pending`。该状态表示商业控制面已受理。Namespace、RBAC、ResourceQuota、NetworkPolicy 与 Restricted Pod Security 仍需由下一交付单元通过 OCM ManifestWork 创建并回写 Conditions。
+Project 当前只接受 `shared` 隔离等级，创建后保存稳定 Namespace 名称以及独立的 desired、observed 和 provisioning 状态。启用 OCM 后，GPU 配额更新使用专用 `project.gpu-quota.updated` 事件；Outbox 执行器通过服务端 apply 投递确定性的 ManifestWork，创建 Namespace、只读 Add-on RBAC、GPU ResourceQuota、默认拒绝与必要放行 NetworkPolicy、Restricted Pod Security 标签；ManifestWork 同时达到 `Applied` 和 `Available` 后回写目标集群、ObservedGeneration、已应用 GPU 配额、`SharedIsolationReady` Condition，并完成对应 Operation。
 
 ProjectQuota 分别保存硬限制、预留量和已分配量。QuotaReservation 使用数据库行锁检查可用量，支持 pending、committed、released 与 expired 状态；提交将预留量转为已分配量，释放和过期会归还对应额度。财务计量仍以后续 Allocation 与 UsageFact 为准。

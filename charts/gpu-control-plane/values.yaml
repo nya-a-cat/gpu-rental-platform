@@ -30,6 +30,16 @@ auth:
     subject: break-glass-admin
     secretRevision: ""
 
+ocm:
+  enabled: false
+  hubURL: https://kubernetes.default.svc
+  defaultClusterID: ""
+  addonInstallNamespace: open-cluster-management-agent-addon
+  addonServiceAccount: gpu-platform-addon-agent
+  reconcileTimeout: 2m
+  pollInterval: 2s
+  maxAttempts: 8
+
 config:
   version: ""
   commit: unknown

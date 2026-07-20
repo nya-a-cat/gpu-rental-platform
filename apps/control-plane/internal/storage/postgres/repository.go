@@ -163,6 +163,9 @@ func (repository *Repository) Claim(ctx context.Context, params outbox.ClaimPara
 	if strings.TrimSpace(params.WorkerID) == "" {
 		return nil, errors.New("outbox worker ID is required")
 	}
+	if len(params.EventType) > 255 {
+		return nil, errors.New("outbox event type must contain at most 255 characters")
+	}
 	if params.Limit <= 0 || params.Limit > 1000 {
 		return nil, errors.New("outbox claim limit must be between 1 and 1000")
 	}
@@ -178,6 +181,7 @@ WITH candidates AS (
     AND dead_lettered_at IS NULL
     AND available_at <= now()
     AND (locked_until IS NULL OR locked_until <= now())
+    AND ($4 = '' OR event_type = $4)
   ORDER BY available_at, occurred_at, id
   FOR UPDATE SKIP LOCKED
   LIMIT $1
@@ -197,6 +201,7 @@ RETURNING
 		params.Limit,
 		params.WorkerID,
 		params.LeaseDuration.Milliseconds(),
+		params.EventType,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("claim outbox events: %w", err)

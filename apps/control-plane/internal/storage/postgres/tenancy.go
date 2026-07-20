@@ -14,6 +14,7 @@ import (
 
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/identity"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/operation"
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/sharedisolation"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/tenancy"
 )
 
@@ -160,8 +161,9 @@ func (repository *Repository) GetProject(ctx context.Context, projectID string) 
 	row := repository.database.QueryRowContext(ctx, `
 SELECT
   id::text, tenant_id::text, name, slug, isolation_class, namespace_name,
-  desired_state, observed_state, provisioning_state, conditions,
-  generation, created_at, updated_at
+  target_cluster_id, desired_state, observed_state, provisioning_state, conditions,
+  generation, observed_generation, last_reconciled_at, manifest_work_name,
+  applied_gpu_quota, created_at, updated_at
 FROM projects
 WHERE id = $1`, projectID)
 	return scanProject(row)
@@ -270,11 +272,15 @@ func (repository *Repository) SetQuota(
 		return tenancy.Acceptance{}, invalidTenancyRequest("quota hard limit must be non-negative")
 	}
 	resourceID := params.ProjectID + "/" + resourceClass
+	eventType := "quota.updated"
+	if resourceClass == sharedisolation.GPUQuotaResourceClass {
+		eventType = "project.gpu-quota.updated"
+	}
 	return repository.acceptMutation(ctx, params.Mutation, acceptedMutationSpec{
 		kind:         "quota.set",
 		resourceType: "quota",
 		resourceID:   resourceID,
-		eventType:    "quota.updated",
+		eventType:    eventType,
 		scopeType:    "project",
 		scopeID:      params.ProjectID,
 		eventFields: map[string]any{
@@ -854,11 +860,16 @@ func scanProject(row scanner) (tenancy.Project, error) {
 		&result.Slug,
 		&result.IsolationClass,
 		&result.NamespaceName,
+		&result.TargetClusterID,
 		&result.DesiredState,
 		&result.ObservedState,
 		&result.ProvisioningState,
 		&conditions,
 		&result.Generation,
+		&result.ObservedGeneration,
+		&result.LastReconciledAt,
+		&result.ManifestWorkName,
+		&result.AppliedGPUQuota,
 		&result.CreatedAt,
 		&result.UpdatedAt,
 	); errors.Is(err, sql.ErrNoRows) {

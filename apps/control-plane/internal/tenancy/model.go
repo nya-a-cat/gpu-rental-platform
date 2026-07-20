@@ -29,19 +29,24 @@ type Condition struct {
 }
 
 type Project struct {
-	ID                string         `json:"id"`
-	TenantID          string         `json:"tenantId"`
-	Name              string         `json:"name"`
-	Slug              string         `json:"slug"`
-	IsolationClass    IsolationClass `json:"isolationClass"`
-	NamespaceName     string         `json:"namespaceName"`
-	DesiredState      string         `json:"desiredState"`
-	ObservedState     string         `json:"observedState"`
-	ProvisioningState string         `json:"provisioningState"`
-	Conditions        []Condition    `json:"conditions"`
-	Generation        int64          `json:"generation"`
-	CreatedAt         time.Time      `json:"createdAt"`
-	UpdatedAt         time.Time      `json:"updatedAt"`
+	ID                 string         `json:"id"`
+	TenantID           string         `json:"tenantId"`
+	Name               string         `json:"name"`
+	Slug               string         `json:"slug"`
+	IsolationClass     IsolationClass `json:"isolationClass"`
+	NamespaceName      string         `json:"namespaceName"`
+	TargetClusterID    *string        `json:"targetClusterId,omitempty"`
+	DesiredState       string         `json:"desiredState"`
+	ObservedState      string         `json:"observedState"`
+	ProvisioningState  string         `json:"provisioningState"`
+	Conditions         []Condition    `json:"conditions"`
+	Generation         int64          `json:"generation"`
+	ObservedGeneration int64          `json:"observedGeneration"`
+	LastReconciledAt   *time.Time     `json:"lastReconciledAt,omitempty"`
+	ManifestWorkName   *string        `json:"-"`
+	AppliedGPUQuota    int64          `json:"-"`
+	CreatedAt          time.Time      `json:"createdAt"`
+	UpdatedAt          time.Time      `json:"updatedAt"`
 }
 
 type ScopeType string

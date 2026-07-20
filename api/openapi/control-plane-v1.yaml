@@ -803,6 +803,7 @@ components:
         - provisioningState
         - conditions
         - generation
+        - observedGeneration
         - createdAt
         - updatedAt
       properties:
@@ -821,6 +822,10 @@ components:
           enum: [shared, dedicated-node-pool, dedicated-cluster]
         namespaceName:
           type: string
+        targetClusterId:
+          type: string
+          maxLength: 253
+          pattern: "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
         desiredState:
           type: string
           enum: [active, suspended, deleted]
@@ -838,6 +843,13 @@ components:
           type: integer
           format: int64
           minimum: 1
+        observedGeneration:
+          type: integer
+          format: int64
+          minimum: 0
+        lastReconciledAt:
+          type: string
+          format: date-time
         createdAt:
           type: string
           format: date-time

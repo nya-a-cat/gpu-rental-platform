@@ -3,7 +3,9 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -22,9 +24,34 @@ const (
 	defaultMigrationLockTimeout      = 30 * time.Second
 	defaultMigrationStatementTimeout = 2 * time.Minute
 	defaultControlPlaneName          = "gpu-cloud-control-plane"
-	defaultControlPlaneStage         = "phase-1-tenancy-foundation"
+	defaultControlPlaneStage         = "phase-1-shared-isolation"
 	defaultBreakGlassAdminSubject    = "break-glass-admin"
+	defaultOCMHubURL                 = "https://kubernetes.default.svc"
+	defaultOCMCAFile                 = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+	defaultOCMTokenFile              = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	defaultOCMAddonInstallNamespace  = "open-cluster-management-agent-addon"
+	defaultOCMAddonServiceAccount    = "gpu-platform-addon-agent"
+	defaultOCMReconcileTimeout       = 2 * time.Minute
+	defaultOCMPollInterval           = 2 * time.Second
+	defaultOCMMaxAttempts            = 8
 )
+
+var ocmResourceNamePattern = regexp.MustCompile("^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$")
+
+type OCMConfig struct {
+	Enabled               bool
+	HubURL                string
+	DefaultClusterID      string
+	TokenFile             string
+	CAFile                string
+	ClientCertFile        string
+	ClientKeyFile         string
+	AddonInstallNamespace string
+	AddonServiceAccount   string
+	ReconcileTimeout      time.Duration
+	PollInterval          time.Duration
+	MaxAttempts           int
+}
 
 // Config contains the process configuration shared by the API and migration
 // commands. DATABASE_URL is intentionally mandatory so a process cannot start
@@ -39,6 +66,7 @@ type Config struct {
 	BreakGlassAdminToken      string
 	BreakGlassAdminSubject    string
 	AgentHealthPolicy         clusterstate.Thresholds
+	OCM                       OCMConfig
 	MaxOpenConns              int
 	MaxIdleConns              int
 	ConnMaxLifetime           time.Duration
@@ -98,6 +126,42 @@ func Load() (Config, error) {
 	if err := agentHealthPolicy.Validate(); err != nil {
 		return Config{}, err
 	}
+
+	ocmEnabled, err := boolEnv("OCM_ENABLED", false)
+	if err != nil {
+		return Config{}, err
+	}
+	ocmConfig := OCMConfig{
+		Enabled:               ocmEnabled,
+		HubURL:                stringEnv("OCM_HUB_URL", defaultOCMHubURL),
+		DefaultClusterID:      strings.TrimSpace(os.Getenv("OCM_DEFAULT_CLUSTER_ID")),
+		CAFile:                stringEnv("OCM_CA_FILE", defaultOCMCAFile),
+		ClientCertFile:        strings.TrimSpace(os.Getenv("OCM_CLIENT_CERT_FILE")),
+		ClientKeyFile:         strings.TrimSpace(os.Getenv("OCM_CLIENT_KEY_FILE")),
+		AddonInstallNamespace: stringEnv("OCM_ADDON_INSTALL_NAMESPACE", defaultOCMAddonInstallNamespace),
+		AddonServiceAccount:   stringEnv("OCM_ADDON_SERVICE_ACCOUNT", defaultOCMAddonServiceAccount),
+	}
+	if ocmConfig.ClientCertFile == "" && ocmConfig.ClientKeyFile == "" {
+		ocmConfig.TokenFile = stringEnv("OCM_TOKEN_FILE", defaultOCMTokenFile)
+	} else {
+		ocmConfig.TokenFile = strings.TrimSpace(os.Getenv("OCM_TOKEN_FILE"))
+	}
+	ocmConfig.ReconcileTimeout, err = durationEnv("OCM_RECONCILE_TIMEOUT", defaultOCMReconcileTimeout)
+	if err != nil {
+		return Config{}, err
+	}
+	ocmConfig.PollInterval, err = durationEnv("OCM_POLL_INTERVAL", defaultOCMPollInterval)
+	if err != nil {
+		return Config{}, err
+	}
+	ocmConfig.MaxAttempts, err = positiveIntEnv("OCM_MAX_ATTEMPTS", defaultOCMMaxAttempts)
+	if err != nil {
+		return Config{}, err
+	}
+	if err := validateOCMConfig(ocmConfig); err != nil {
+		return Config{}, err
+	}
+
 	maxOpenConns, err := positiveIntEnv("DB_MAX_OPEN_CONNS", defaultMaxOpenConns)
 	if err != nil {
 		return Config{}, err
@@ -136,6 +200,7 @@ func Load() (Config, error) {
 		BreakGlassAdminToken:      breakGlassAdminToken,
 		BreakGlassAdminSubject:    breakGlassAdminSubject,
 		AgentHealthPolicy:         agentHealthPolicy,
+		OCM:                       ocmConfig,
 		MaxOpenConns:              maxOpenConns,
 		MaxIdleConns:              maxIdleConns,
 		ConnMaxLifetime:           connMaxLifetime,
@@ -190,6 +255,47 @@ func positiveIntEnv(name string, fallback int) (int, error) {
 		return 0, fmt.Errorf("%s must be greater than zero", name)
 	}
 	return value, nil
+}
+
+func boolEnv(name string, fallback bool) (bool, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback, nil
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, fmt.Errorf("%s must be a boolean: %w", name, err)
+	}
+	return parsed, nil
+}
+
+func validateOCMConfig(config OCMConfig) error {
+	if !config.Enabled {
+		return nil
+	}
+	hubURL, err := url.Parse(config.HubURL)
+	if err != nil || hubURL.Scheme != "https" || hubURL.Host == "" || hubURL.User != nil || (hubURL.Path != "" && hubURL.Path != "/") || hubURL.RawQuery != "" || hubURL.Fragment != "" {
+		return errors.New("OCM_HUB_URL must be an HTTPS origin")
+	}
+	for name, value := range map[string]string{
+		"OCM_DEFAULT_CLUSTER_ID":      config.DefaultClusterID,
+		"OCM_ADDON_INSTALL_NAMESPACE": config.AddonInstallNamespace,
+		"OCM_ADDON_SERVICE_ACCOUNT":   config.AddonServiceAccount,
+	} {
+		if len(value) == 0 || len(value) > 253 || !ocmResourceNamePattern.MatchString(value) {
+			return fmt.Errorf("%s must be a DNS-compatible resource name", name)
+		}
+	}
+	if config.ReconcileTimeout <= config.PollInterval {
+		return errors.New("OCM_RECONCILE_TIMEOUT must be greater than OCM_POLL_INTERVAL")
+	}
+	if (config.ClientCertFile == "") != (config.ClientKeyFile == "") {
+		return errors.New("OCM_CLIENT_CERT_FILE and OCM_CLIENT_KEY_FILE must be configured together")
+	}
+	if config.TokenFile == "" && config.ClientCertFile == "" {
+		return errors.New("OCM_TOKEN_FILE or OCM client certificate credentials are required")
+	}
+	return nil
 }
 
 func nonNegativeIntEnv(name string, fallback int) (int, error) {

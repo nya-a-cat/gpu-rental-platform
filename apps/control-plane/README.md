@@ -27,8 +27,10 @@ by default.
 
 The Deployment uses `maxUnavailable: 0`, `maxSurge: 1`, live and readiness
 HTTP probes, a 30-second termination grace period and the distroless nonroot
-security profile. The chart creates no Role or ClusterRole. PostgreSQL and its
-Secret remain owned by the vendor deployment environment.
+security profile. OCM integration is disabled by default. Enabling it mounts the
+ServiceAccount token and creates a least-privilege ClusterRole for ManifestWork
+read and server-side apply. PostgreSQL and its Secret remain owned by the vendor
+deployment environment.
 
 The GitHub Actions HA gate verifies a three-replica install, external Secret
 rotation, a failed migration upgrade, distinct baseline/candidate image
@@ -36,25 +38,35 @@ replacement, zero-grace single-Pod recovery and Helm release cleanup.
 
 ## Runtime contract
 
-| Variable                      |             Default | Purpose                                                          |
-| ----------------------------- | ------------------: | ---------------------------------------------------------------- |
-| `DATABASE_URL`                |            required | PostgreSQL connection string                                     |
-| `HTTP_ADDR`                   |             `:8080` | HTTP listen address                                              |
-| `CONTROL_PLANE_VERSION`       |               `dev` | Build or release version                                         |
-| `CONTROL_PLANE_COMMIT`        |           `unknown` | Source revision                                                  |
-| `BREAK_GLASS_ADMIN_TOKEN`     |            disabled | Opaque bearer token for the single local emergency administrator |
-| `BREAK_GLASS_ADMIN_SUBJECT`   | `break-glass-admin` | Stable audit subject for the emergency administrator             |
-| `SHUTDOWN_TIMEOUT`            |               `15s` | Graceful HTTP shutdown deadline                                  |
-| `READINESS_TIMEOUT`           |                `2s` | PostgreSQL readiness deadline                                    |
-| `AGENT_HEARTBEAT_INTERVAL`    |               `15s` | Expected managed-cluster Agent report interval                   |
-| `AGENT_DEGRADED_AFTER`        |               `45s` | Age that changes connectivity from connected to degraded         |
-| `AGENT_OFFLINE_AFTER`         |               `90s` | Age that changes connectivity from degraded to offline           |
-| `DB_MAX_OPEN_CONNS`           |                `20` | Maximum open PostgreSQL connections                              |
-| `DB_MAX_IDLE_CONNS`           |                 `5` | Maximum idle PostgreSQL connections                              |
-| `DB_CONN_MAX_LIFETIME`        |               `30m` | PostgreSQL connection lifetime                                   |
-| `MIGRATION_TIMEOUT`           |                `5m` | Total migration process deadline, including database startup     |
-| `MIGRATION_LOCK_TIMEOUT`      |               `30s` | PostgreSQL lock wait limit during migrations                     |
-| `MIGRATION_STATEMENT_TIMEOUT` |                `2m` | PostgreSQL per-statement limit during migrations                 |
+| Variable                      |               Default | Purpose                                                          |
+| ----------------------------- | --------------------: | ---------------------------------------------------------------- |
+| `DATABASE_URL`                |              required | PostgreSQL connection string                                     |
+| `HTTP_ADDR`                   |               `:8080` | HTTP listen address                                              |
+| `CONTROL_PLANE_VERSION`       |                 `dev` | Build or release version                                         |
+| `CONTROL_PLANE_COMMIT`        |             `unknown` | Source revision                                                  |
+| `BREAK_GLASS_ADMIN_TOKEN`     |              disabled | Opaque bearer token for the single local emergency administrator |
+| `BREAK_GLASS_ADMIN_SUBJECT`   |   `break-glass-admin` | Stable audit subject for the emergency administrator             |
+| `SHUTDOWN_TIMEOUT`            |                 `15s` | Graceful HTTP shutdown deadline                                  |
+| `READINESS_TIMEOUT`           |                  `2s` | PostgreSQL readiness deadline                                    |
+| `AGENT_HEARTBEAT_INTERVAL`    |                 `15s` | Expected managed-cluster Agent report interval                   |
+| `AGENT_DEGRADED_AFTER`        |                 `45s` | Age that changes connectivity from connected to degraded         |
+| `AGENT_OFFLINE_AFTER`         |                 `90s` | Age that changes connectivity from degraded to offline           |
+| `DB_MAX_OPEN_CONNS`           |                  `20` | Maximum open PostgreSQL connections                              |
+| `DB_MAX_IDLE_CONNS`           |                   `5` | Maximum idle PostgreSQL connections                              |
+| `DB_CONN_MAX_LIFETIME`        |                 `30m` | PostgreSQL connection lifetime                                   |
+| `MIGRATION_TIMEOUT`           |                  `5m` | Total migration process deadline, including database startup     |
+| `MIGRATION_LOCK_TIMEOUT`      |                 `30s` | PostgreSQL lock wait limit during migrations                     |
+| `MIGRATION_STATEMENT_TIMEOUT` |                  `2m` | PostgreSQL per-statement limit during migrations                 |
+| `OCM_ENABLED`                 |               `false` | Enable shared-project ManifestWork reconciliation                |
+| `OCM_HUB_URL`                 |    Kubernetes service | HTTPS OCM Hub API origin                                         |
+| `OCM_DEFAULT_CLUSTER_ID`      |              required | Phase 1 managed cluster used for shared projects                 |
+| `OCM_CA_FILE`                 |    service-account CA | Hub TLS trust bundle                                             |
+| `OCM_TOKEN_FILE`              | service-account token | Bearer token re-read for every Hub request                       |
+| `OCM_CLIENT_CERT_FILE`        |                 empty | Optional client certificate used with `OCM_CLIENT_KEY_FILE`      |
+| `OCM_CLIENT_KEY_FILE`         |                 empty | Optional client key used with `OCM_CLIENT_CERT_FILE`             |
+| `OCM_RECONCILE_TIMEOUT`       |                  `2m` | Per-event apply and availability deadline                        |
+| `OCM_POLL_INTERVAL`           |                  `2s` | ManifestWork condition polling and Outbox scan interval          |
+| `OCM_MAX_ATTEMPTS`            |                   `8` | Attempts before an event enters the dead-letter state            |
 
 Available endpoints are:
 
@@ -74,12 +86,15 @@ routes return HTTP 503 until a token is supplied. PostgreSQL RoleBinding
 authorization is active for future OIDC principals, and the break-glass
 principal has system-administrator scope.
 
-Project creation currently accepts the `shared` isolation class and records a
-stable namespace name plus independent desired, observed and provisioning
-states. The initial state is pending until the OCM reconciliation unit creates
-and verifies Namespace, RBAC, ResourceQuota, NetworkPolicy and Pod Security
-artifacts. Quota reservation, commit and release use row locks and update
-reserved and allocated quantities atomically.
+Project creation accepts the `shared` isolation class and records a stable
+namespace name plus independent desired, observed and provisioning states. With
+`OCM_ENABLED=true`, the Outbox reconciler applies an idempotent ManifestWork to
+the configured managed cluster and waits for `Applied` and `Available` before it
+marks the Project and Operation succeeded. The work contains Namespace, read-only
+Add-on RBAC, GPU ResourceQuota, default-deny and required allow NetworkPolicies,
+and Restricted Pod Security labels. Quota changes reapply the same ManifestWork.
+Quota reservation, commit and release use row locks and update reserved and
+allocated quantities atomically.
 
 API failures use `application/problem+json`. The migration process is separate
 from API startup so deployment tooling controls schema rollout order. Migration

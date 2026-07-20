@@ -76,9 +76,10 @@ startup/liveness checks on `/health/live` and PostgreSQL readiness on
 `/health/ready`. The default disruption budget keeps two replicas available.
 
 The control-plane Pods use UID/GID `65532`, runtime-default seccomp, a
-read-only root filesystem, no privilege escalation, no Linux capabilities and
-no ServiceAccount token mount. The Chart creates no RBAC binding, database,
-database user or database Secret. Change `database.secretRevision` whenever
+read-only root filesystem, no privilege escalation and no Linux capabilities.
+The ServiceAccount token and least-privilege ManifestWork ClusterRole are enabled
+only through `ocm.enabled=true`. The Chart creates no database, database user or
+database Secret. Change `database.secretRevision` whenever
 the external Secret data rotates so the Deployment replaces Pods. See
 `charts/gpu-control-plane/README.md` for the complete value contract.
 
@@ -105,7 +106,7 @@ go -C apps/control-plane test ./...
 go -C apps/control-plane run ./cmd/control-plane
 ```
 
-`DATABASE_URL` is mandatory. Runtime configuration also supports `HTTP_ADDR`, `CONTROL_PLANE_VERSION`, `CONTROL_PLANE_COMMIT`, `SHUTDOWN_TIMEOUT`, `READINESS_TIMEOUT`, `DB_MAX_OPEN_CONNS`, `DB_MAX_IDLE_CONNS` and `DB_CONN_MAX_LIFETIME`. Compose uses `CONTROL_PLANE_STOP_GRACE_PERIOD=20s`; this value must remain greater than `SHUTDOWN_TIMEOUT`, whose default is `15s`, so the process can finish graceful shutdown before the container is terminated.
+`DATABASE_URL` is mandatory. Runtime configuration also supports `HTTP_ADDR`, build metadata, shutdown/readiness settings, database pool settings and the `OCM_*` shared-isolation profile documented in `apps/control-plane/README.md`. Compose keeps OCM disabled. Kubernetes deployments enable it with an OCM Hub URL, default ManagedCluster ID and either a ServiceAccount token or client certificate credentials. Compose uses `CONTROL_PLANE_STOP_GRACE_PERIOD=20s`; this value remains greater than the default `SHUTDOWN_TIMEOUT=15s` so the process can finish graceful shutdown before container termination.
 
 Phase 0 currently exposes foundational endpoints and includes the first OCM fleet/Add-on implementation. Its certification status remains pending until the Actions conformance run succeeds. Real GPU scheduling, tenant APIs and billing execution require later phase components.
 
@@ -171,7 +172,7 @@ GitHub Actions is the authoritative delivery gate. Local work in this delivery w
 - `.github/workflows/pipeline.yml` is the fast gate for pull requests and pushes to `main`. Three jobs run in parallel: frontend/API formatting, lint, type checks, unit tests and build; Go module, formatting, vet, unit tests and command builds; Helm, shell, version and Compose static validation.
 - `.github/workflows/certification.yml` is the full runtime certification gate. It runs at 18:17 UTC each day, through manual dispatch and for `v*` release tags. It starts MongoDB, Redis and PostgreSQL; runs service-backed tests and migrations; builds container images; executes v2 Compose smoke, three-replica HA, two-cluster OCM, Add-on N/N-1, GPUStack and observability evidence workflows.
 
-A green fast gate certifies source-level feedback for the commit. Release readiness requires a current green Certification run. The interval before the scheduled full run carries database, container and multi-cluster integration risk, so release tags also invoke the complete suite.
+A green fast gate certifies source-level feedback for the commit. Development iterations wait only for this 30–60 second gate. Release readiness requires a current green Certification run; the scheduled and tag-triggered suite carries database, container and multi-cluster integration evidence outside the per-commit feedback loop.
 
 Fast-gate benchmark [Pipeline `29744901088`](https://github.com/nya-a-cat/gpu-rental-platform/actions/runs/29744901088) completed in 36 seconds for commit `66de03bd714834aa34e3335184f1fef4b61529a0`. Delivery static checks completed in 7 seconds, Go quality in 32 seconds and frontend/API quality in 32 seconds. Path-aware [Pages run `29744901085`](https://github.com/nya-a-cat/gpu-rental-platform/actions/runs/29744901085) completed independently in 36 seconds.
 

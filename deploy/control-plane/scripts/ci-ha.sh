@@ -508,19 +508,24 @@ wait_until "baseline service version" 30 1 service_reports_version ha-baseline
 
 phase0_migration_row="$(run_in_postgres "SELECT version || '|' || checksum FROM control_plane_schema_migrations WHERE version = '000001_phase0_foundation';")"
 phase1_migration_row="$(run_in_postgres "SELECT version || '|' || checksum FROM control_plane_schema_migrations WHERE version = '000002_phase1_tenancy';")"
+phase1_isolation_migration_row="$(run_in_postgres "SELECT version || '|' || checksum FROM control_plane_schema_migrations WHERE version = '000003_phase1_shared_isolation';")"
 phase0_migration_checksum="${phase0_migration_row#*|}"
 phase1_migration_checksum="${phase1_migration_row#*|}"
+phase1_isolation_migration_checksum="${phase1_isolation_migration_row#*|}"
 migration_tables="$(run_in_postgres "SELECT string_agg(table_name, ',' ORDER BY table_name) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY (ARRAY['audit_events','audit_events_default','idempotency_records','operations','outbox_events','tenants','projects','role_bindings','project_quotas','quota_reservations']::text[]);")"
 [[ "${phase0_migration_row%%|*}" == "000001_phase0_foundation" ]]
 [[ "${phase1_migration_row%%|*}" == "000002_phase1_tenancy" ]]
+[[ "${phase1_isolation_migration_row%%|*}" == "000003_phase1_shared_isolation" ]]
 [[ "${phase0_migration_checksum}" =~ ^[0-9a-f]{64}$ ]]
 [[ "${phase1_migration_checksum}" =~ ^[0-9a-f]{64}$ ]]
+[[ "${phase1_isolation_migration_checksum}" =~ ^[0-9a-f]{64}$ ]]
 [[ "${migration_tables}" == "audit_events,audit_events_default,idempotency_records,operations,outbox_events,project_quotas,projects,quota_reservations,role_bindings,tenants" ]]
 jq -n \
   --arg phase0Checksum "${phase0_migration_checksum}" \
   --arg phase1Checksum "${phase1_migration_checksum}" \
+  --arg phase1IsolationChecksum "${phase1_isolation_migration_checksum}" \
   --arg tables "${migration_tables}" \
-  '{status:"passed",migrations:[{version:"000001_phase0_foundation",checksum:$phase0Checksum},{version:"000002_phase1_tenancy",checksum:$phase1Checksum}],requiredTables:($tables | split(","))}' \
+  '{status:"passed",migrations:[{version:"000001_phase0_foundation",checksum:$phase0Checksum},{version:"000002_phase1_tenancy",checksum:$phase1Checksum},{version:"000003_phase1_shared_isolation",checksum:$phase1IsolationChecksum}],requiredTables:($tables | split(","))}' \
   >"${ARTIFACT_DIR}/migration-validation.json"
 
 wait_until "PodDisruptionBudget health" 30 2 pdb_is_valid

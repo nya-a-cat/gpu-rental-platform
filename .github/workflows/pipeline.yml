@@ -130,6 +130,18 @@ jobs:
           helm lint charts/gpu-control-plane --kube-version "${kube_version}"
           helm lint charts/gpu-observability --kube-version "${kube_version}"
 
+      - name: Validate OCM-enabled control-plane render
+        run: |
+          helm template gpu-control-plane charts/gpu-control-plane \
+            --namespace gpu-control-plane-system \
+            --set ocm.enabled=true \
+            --set ocm.defaultClusterID=cluster1 > /tmp/gpu-control-plane-ocm.yaml
+          grep -q 'automountServiceAccountToken: true' /tmp/gpu-control-plane-ocm.yaml
+          grep -q 'name: OCM_DEFAULT_CLUSTER_ID' /tmp/gpu-control-plane-ocm.yaml
+          grep -q 'kind: ClusterRole' /tmp/gpu-control-plane-ocm.yaml
+          grep -q 'resources: \["manifestworks"\]' /tmp/gpu-control-plane-ocm.yaml
+          grep -q 'verbs: \["get", "create", "update", "patch"\]' /tmp/gpu-control-plane-ocm.yaml
+
       - name: Validate delivery scripts
         run: |
           bash -n deploy/ocm/scripts/*.sh

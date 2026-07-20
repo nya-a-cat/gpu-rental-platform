@@ -13,8 +13,10 @@ import (
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/authn"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/authorization"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/config"
+	fleetocm "github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/fleet/ocm"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/httpapi"
 	platformpostgres "github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/platform/postgres"
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/sharedisolation"
 	storagepostgres "github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/storage/postgres"
 )
 
@@ -38,6 +40,52 @@ func main() {
 	defer database.Close()
 
 	repository := storagepostgres.NewRepository(database)
+	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	capabilities := []string{"operations", "transactional-outbox", "audit-foundation", "engine-ports", "agent-health-policy", "tenancy", "postgres-rbac", "quota-reservations"}
+	var isolationRunner *sharedisolation.Runner
+	if cfg.OCM.Enabled {
+		fleetManager, err := fleetocm.NewClient(fleetocm.Config{
+			HubURL:         cfg.OCM.HubURL,
+			TokenFile:      cfg.OCM.TokenFile,
+			CAFile:         cfg.OCM.CAFile,
+			ClientCertFile: cfg.OCM.ClientCertFile,
+			ClientKeyFile:  cfg.OCM.ClientKeyFile,
+			PollInterval:   cfg.OCM.PollInterval,
+		})
+		if err != nil {
+			logger.Error("initialize OCM fleet manager", "error", err)
+			os.Exit(1)
+		}
+		reconciler, err := sharedisolation.NewReconciler(
+			repository,
+			fleetManager,
+			cfg.OCM.DefaultClusterID,
+			cfg.OCM.AddonInstallNamespace,
+			cfg.OCM.AddonServiceAccount,
+		)
+		if err != nil {
+			logger.Error("initialize shared-isolation reconciler", "error", err)
+			os.Exit(1)
+		}
+		workerID := cfg.ServiceName
+		if hostname, hostnameErr := os.Hostname(); hostnameErr == nil && hostname != "" {
+			workerID += ":" + hostname
+		}
+		isolationRunner, err = sharedisolation.NewRunner(logger, repository, reconciler, sharedisolation.RunnerConfig{
+			WorkerID:         workerID,
+			PollInterval:     cfg.OCM.PollInterval,
+			ReconcileTimeout: cfg.OCM.ReconcileTimeout,
+			MaxAttempts:      cfg.OCM.MaxAttempts,
+		})
+		if err != nil {
+			logger.Error("initialize shared-isolation runner", "error", err)
+			os.Exit(1)
+		}
+		capabilities = append(capabilities, "ocm-manifestwork", "shared-project-isolation")
+	}
+
 	var authenticator authn.Authenticator
 	if cfg.BreakGlassAdminToken != "" {
 		authenticator, err = authn.NewBreakGlassAuthenticator(cfg.BreakGlassAdminSubject, cfg.BreakGlassAdminToken)
@@ -70,7 +118,7 @@ func main() {
 				DegradedAfterSeconds:     float64(cfg.AgentHealthPolicy.DegradedAfter) / float64(time.Second),
 				OfflineAfterSeconds:      float64(cfg.AgentHealthPolicy.OfflineAfter) / float64(time.Second),
 			},
-			Capabilities: []string{"operations", "transactional-outbox", "audit-foundation", "engine-ports", "agent-health-policy", "tenancy", "postgres-rbac", "quota-reservations"},
+			Capabilities: capabilities,
 		},
 	})
 	server := &http.Server{
@@ -83,6 +131,11 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
+	if isolationRunner != nil {
+		go isolationRunner.Run(shutdownContext)
+		logger.Info("shared-isolation reconciler started", "managedCluster", cfg.OCM.DefaultClusterID)
+	}
+
 	serverErrors := make(chan error, 1)
 	go func() {
 		logger.Info("GPU cloud control plane started",
@@ -93,8 +146,6 @@ func main() {
 		serverErrors <- server.ListenAndServe()
 	}()
 
-	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	select {
 	case <-shutdownContext.Done():
 		logger.Info("control-plane shutdown requested")
