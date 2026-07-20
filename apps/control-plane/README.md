@@ -103,7 +103,9 @@ allocated quantities atomically.
 Vendor resource catalog routes require the system-administrator principal. Cluster
 inventory replacement atomically persists the Cluster, NodePool, Node, opaque GPU
 Device, Trait and Inventory hierarchy. `expectedGeneration` prevents lost updates;
-Agent epoch and report sequence reject stale snapshots. Real Alpha accepts the
+Agent epoch and report sequence reject stale snapshots. Reports with an unchanged
+source Generation refresh connectivity without rewriting resource facts or advancing
+the inventory Generation. Real Alpha accepts the
 `gpu.nvidia.full` whole-GPU resource class. Capacity pools bind one NodePool to one
 AcceleratorProfile and one scheduler profile. Physical identifiers remain confined
 to the vendor-only inventory response.

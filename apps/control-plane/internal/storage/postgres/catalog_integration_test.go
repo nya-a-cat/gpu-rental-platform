@@ -80,9 +80,26 @@ func TestCatalogInventoryGenerationAndCapacityLifecycle(t *testing.T) {
 		t.Fatalf("cluster GPU total = %d, want 3", clusterTotal)
 	}
 
+	fixedNow = fixedNow.Add(time.Second)
+	_, err = repository.ReplaceClusterInventory(ctx, catalog.ReplaceInventoryParams{
+		Mutation: catalogMutation("inventory-heartbeat-key", strings.Repeat("4", 64)), ClusterID: created.ResourceID,
+		ExpectedGeneration: 1, SourceGeneration: strings.Repeat("c", 64), AgentEpoch: "epoch-0001", ReportSequence: 2,
+		FencingToken: "fence-1", FencingEnabled: true, ExecutionHealthy: true, ObservedAt: fixedNow,
+	})
+	if err != nil {
+		t.Fatalf("unchanged ReplaceClusterInventory() error = %v", err)
+	}
+	inventory, err = repository.GetClusterInventory(ctx, created.ResourceID)
+	if err != nil {
+		t.Fatalf("unchanged GetClusterInventory() error = %v", err)
+	}
+	if inventory.Cluster.InventoryGeneration != 1 || inventory.Cluster.ReportSequence != 2 || inventory.Cluster.LastInventoryAt == nil || !inventory.Cluster.LastInventoryAt.Equal(fixedNow) {
+		t.Fatalf("unchanged inventory advanced resource generation or missed heartbeat: %#v", inventory.Cluster)
+	}
+
 	stale := catalog.ReplaceInventoryParams{
 		Mutation: catalogMutation("inventory-stale-key", strings.Repeat("d", 64)), ClusterID: created.ResourceID,
-		ExpectedGeneration: 1, SourceGeneration: strings.Repeat("e", 64), AgentEpoch: "epoch-0001", ReportSequence: 1,
+		ExpectedGeneration: 1, SourceGeneration: strings.Repeat("e", 64), AgentEpoch: "epoch-0001", ReportSequence: 2,
 		FencingToken: "fence-1", FencingEnabled: true, ExecutionHealthy: true, ObservedAt: fixedNow,
 	}
 	if _, err := repository.ReplaceClusterInventory(ctx, stale); !errors.Is(err, catalog.ErrStaleReport) {
@@ -92,7 +109,7 @@ func TestCatalogInventoryGenerationAndCapacityLifecycle(t *testing.T) {
 	fixedNow = fixedNow.Add(time.Second)
 	_, err = repository.ReplaceClusterInventory(ctx, catalog.ReplaceInventoryParams{
 		Mutation: catalogMutation("inventory-replace-key-2", strings.Repeat("f", 64)), ClusterID: created.ResourceID,
-		ExpectedGeneration: 1, SourceGeneration: strings.Repeat("1", 64), AgentEpoch: "epoch-0001", ReportSequence: 2,
+		ExpectedGeneration: 1, SourceGeneration: strings.Repeat("1", 64), AgentEpoch: "epoch-0001", ReportSequence: 3,
 		FencingToken: "fence-1", FencingEnabled: true, ExecutionHealthy: true, ObservedAt: fixedNow,
 		NodePools: []catalog.NodePoolSnapshot{{Name: "pool-a", ManagementState: catalog.ManagementEnabled, Nodes: []catalog.NodeSnapshot{{
 			OpaqueKey: "node-a", ManagementState: catalog.ManagementEnabled, HealthState: catalog.HealthHealthy, Schedulable: true,

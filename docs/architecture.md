@@ -123,7 +123,9 @@ recovery. Management state and health state remain separate for clusters and
 nodes. The Phase 1 resource catalog persists Cluster, NodePool, Node, opaque GPU Device,
 ResourceProvider, Trait, Inventory, AcceleratorProfile and CapacityPool facts.
 Inventory snapshots use optimistic Generation checks plus Agent epoch and monotonic
-report sequence fencing. Omitted resources remain as vendor audit facts and become
+report sequence fencing. An unchanged source Generation updates heartbeat and health
+state without rewriting ResourceProvider facts or advancing inventory Generation.
+Omitted resources remain as vendor audit facts and become
 unreachable or disabled, which removes them from schedulable capacity. Placement
 Reservations and Allocations remain the next resource-control delivery unit.
 

@@ -89,11 +89,12 @@ func (repository *Repository) ReplaceClusterInventory(ctx context.Context, param
 			var currentGeneration int64
 			var currentEpoch sql.NullString
 			var currentSequence int64
+			var currentSourceGeneration sql.NullString
 			var lastInventory sql.NullTime
 			err := tx.QueryRowContext(ctx, `
-SELECT inventory_generation, agent_epoch, report_sequence, last_inventory_at
+SELECT inventory_generation, agent_epoch, report_sequence, source_generation, last_inventory_at
 FROM clusters WHERE id = $1 FOR UPDATE`, params.ClusterID).Scan(
-				&currentGeneration, &currentEpoch, &currentSequence, &lastInventory,
+				&currentGeneration, &currentEpoch, &currentSequence, &currentSourceGeneration, &lastInventory,
 			)
 			if errors.Is(err, sql.ErrNoRows) {
 				return catalog.ErrNotFound
@@ -109,6 +110,9 @@ FROM clusters WHERE id = $1 FOR UPDATE`, params.ClusterID).Scan(
 			}
 			if lastInventory.Valid && params.ObservedAt.Before(lastInventory.Time) {
 				return catalog.ErrStaleReport
+			}
+			if currentSourceGeneration.Valid && currentSourceGeneration.String == params.SourceGeneration {
+				return updateClusterObservation(ctx, tx, params, currentGeneration, now)
 			}
 			generation := currentGeneration + 1
 			for _, pool := range params.NodePools {
@@ -171,29 +175,32 @@ ON CONFLICT (id) DO UPDATE SET node_id = EXCLUDED.node_id, resource_class = EXCL
 			if err := refreshCatalogInventories(ctx, tx, params.ClusterID, generation, now); err != nil {
 				return err
 			}
-			status, err := clusterstate.Evaluate(clusterstate.Signals{
-				Now: now, LastHeartbeatAt: params.ObservedAt, LastInventoryAt: params.ObservedAt,
-				ManuallySchedulable: true, ExecutionHealthy: params.ExecutionHealthy, Fenced: params.Fenced,
-			}, clusterstate.DefaultThresholds())
-			if err != nil {
-				return fmt.Errorf("evaluate cluster state: %w", err)
-			}
-			_, err = tx.ExecContext(ctx, `
+			return updateClusterObservation(ctx, tx, params, generation, now)
+		},
+	})
+}
+
+func updateClusterObservation(ctx context.Context, tx *sql.Tx, params catalog.ReplaceInventoryParams, inventoryGeneration int64, now time.Time) error {
+	status, err := clusterstate.Evaluate(clusterstate.Signals{
+		Now: now, LastHeartbeatAt: params.ObservedAt, LastInventoryAt: params.ObservedAt,
+		ManuallySchedulable: true, ExecutionHealthy: params.ExecutionHealthy, Fenced: params.Fenced,
+	}, clusterstate.DefaultThresholds())
+	if err != nil {
+		return fmt.Errorf("evaluate cluster state: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `
 UPDATE clusters SET connection_state = $2, connected = $3, schedulable = $4, inventory_fresh = $5,
   execution_healthy = $6, fenced = $7, agent_epoch = $8, report_sequence = $9,
   fencing_token = $10, fencing_enabled = $11, inventory_generation = $12, source_generation = $13,
   last_heartbeat_at = $14, last_inventory_at = $14, generation = generation + 1, updated_at = $15
 WHERE id = $1`, params.ClusterID, status.ConnectionState, status.Connected, status.Schedulable,
-				status.InventoryFresh, status.ExecutionHealthy, params.Fenced, params.AgentEpoch, params.ReportSequence,
-				params.FencingToken, params.FencingEnabled, generation, params.SourceGeneration, params.ObservedAt, now)
-			if err != nil {
-				return fmt.Errorf("update cluster inventory state: %w", err)
-			}
-			return nil
-		},
-	})
+		status.InventoryFresh, status.ExecutionHealthy, params.Fenced, params.AgentEpoch, params.ReportSequence,
+		params.FencingToken, params.FencingEnabled, inventoryGeneration, params.SourceGeneration, params.ObservedAt, now)
+	if err != nil {
+		return fmt.Errorf("update cluster inventory state: %w", err)
+	}
+	return nil
 }
-
 func (repository *Repository) GetClusterInventory(ctx context.Context, clusterID string) (catalog.ClusterInventory, error) {
 	cluster, err := repository.GetCluster(ctx, clusterID)
 	if err != nil {
