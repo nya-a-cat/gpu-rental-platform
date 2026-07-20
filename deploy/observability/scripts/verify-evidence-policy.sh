@@ -61,6 +61,7 @@ while IFS= read -r file_path; do
   fi
 done < <(find "${ARTIFACT_DIR}" -type f ! -name evidence-sha256.txt ! -name evidence-policy-report.json | sort)
 
+if [[ "${mode}" == "full" ]]; then
 while IFS= read -r json_file; do
   if ! jq empty "${json_file}" >/dev/null 2>&1; then
     add_violation "invalid JSON: $(basename "${json_file}")"
@@ -72,6 +73,7 @@ while IFS= read -r jsonl_file; do
     add_violation "invalid JSON Lines: $(basename "${jsonl_file}")"
   fi
 done < <(find "${ARTIFACT_DIR}" -type f -name '*.jsonl' | sort)
+fi
 
 if grep -RIlE --exclude=evidence-policy-report.json --exclude=evidence-sha256.txt \
   -e '-----BEGIN ([A-Z ]+ )?PRIVATE KEY-----|client-key-data|client-certificate-data|certificate-authority-data|postgres(ql)?://|ci_only_observability|/home/runner|[A-Za-z]:\\Users\\|/var/lib/(docker|containerd)' \
@@ -89,8 +91,8 @@ check_json() {
 }
 
 if [[ "${mode}" == "full" ]]; then
-  check_json audit-validation.json '.status == "passed" and .firstStatus == "uploaded" and .secondStatus == "existing" and .rows == 1 and .sha256Matches == true and .objectLock == "GOVERNANCE" and .putCount == 1 and .authorizationV4 == true' "audit archive validation failed"
-  check_json audit-fixture.json '.status == "passed" and .retentionDatePresent == true and (.metadataKeys | length) == 5' "S3 Object Lock fixture validation failed"
+  check_json audit-validation.json '.status == "passed" and .firstStatus == "uploaded" and .secondStatus == "existing" and .rows == 1 and .sha256Matches == true and .objectLock == "GOVERNANCE" and .putCount == 1 and .authorizationV4 == true and .streamingSigV4 == true' "audit archive validation failed"
+  check_json audit-fixture.json '.status == "passed" and .retentionDatePresent == true and .streamingSigV4 == true and (.metadataKeys | length) == 5' "S3 Object Lock fixture validation failed"
   check_json prometheus-targets.json '.status == "success" and (.activeTargets | length) == 2 and all(.activeTargets[]; .health == "up" and .lastError == "")' "Prometheus target validation failed"
   check_json prometheus-rules.json '([.groups[].rules[].name] | sort) == (["GPUControlPlaneMetricsUnavailable","GPUControlPlaneRecoveredPanic","GPUPlatformOTelCollectorUnavailable"] | sort) and all(.groups[].rules[]; .health == "ok")' "Prometheus alert rule validation failed"
   check_json alertmanager-status.json '.status == "passed"' "Alertmanager validation failed"

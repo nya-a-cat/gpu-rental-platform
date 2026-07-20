@@ -170,9 +170,10 @@ jq -n \
       sha256Matches:($first[0].sha256 == $fixture[0].sha256),
       objectLock:$fixture[0].retentionMode,
       putCount:$fixture[0].putCount,
-      authorizationV4:$fixture[0].authorizationV4
+      authorizationV4:$fixture[0].authorizationV4,
+      streamingSigV4:$fixture[0].streamingSigV4
     }
-    | .status = (if .firstStatus == "uploaded" and .secondStatus == "existing" and .rows == 1 and .sha256Matches and .objectLock == "GOVERNANCE" and .putCount == 1 and .authorizationV4 then "passed" else "failed" end)
+    | .status = (if .firstStatus == "uploaded" and .secondStatus == "existing" and .rows == 1 and .sha256Matches and .objectLock == "GOVERNANCE" and .putCount == 1 and .authorizationV4 and .streamingSigV4 then "passed" else "failed" end)
   ' >"${ARTIFACT_DIR}/audit-validation.json"
 jq -e '.status == "passed"' "${ARTIFACT_DIR}/audit-validation.json" >/dev/null
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import hashlib
+import io
 import json
 import os
 import threading
@@ -19,6 +20,7 @@ class State:
         self.retention_mode = ""
         self.retention_until = ""
         self.authorization_v4 = False
+        self.streaming_sigv4 = False
         self.put_count = 0
         self.head_count = 0
 
@@ -38,6 +40,7 @@ class State:
             and self.retention_mode in {"GOVERNANCE", "COMPLIANCE"}
             and bool(self.retention_until)
             and self.authorization_v4
+            and self.streaming_sigv4
             and required_metadata.issubset(self.metadata)
         )
         report = {
@@ -50,11 +53,33 @@ class State:
             "retentionMode": self.retention_mode,
             "retentionDatePresent": bool(self.retention_until),
             "authorizationV4": self.authorization_v4,
+            "streamingSigV4": self.streaming_sigv4,
             "metadataKeys": metadata_keys,
         }
         temporary = self.report_path.with_suffix(".tmp")
         temporary.write_text(json.dumps(report, separators=(",", ":")) + "\n", encoding="utf-8")
         os.replace(temporary, self.report_path)
+
+
+def decode_aws_chunked(payload: bytes) -> bytes:
+    stream = io.BytesIO(payload)
+    decoded = bytearray()
+    while True:
+        header = stream.readline()
+        if not header.endswith(b"\r\n"):
+            raise ValueError("invalid AWS chunk header")
+        try:
+            chunk_size = int(header[:-2].split(b";", 1)[0], 16)
+        except ValueError as error:
+            raise ValueError("invalid AWS chunk size") from error
+        chunk = stream.read(chunk_size)
+        if len(chunk) != chunk_size or stream.read(2) != b"\r\n":
+            raise ValueError("truncated AWS chunk")
+        decoded.extend(chunk)
+        if chunk_size == 0:
+            if stream.read() != b"":
+                raise ValueError("unexpected AWS chunk trailer")
+            return bytes(decoded)
 
 
 def handler_factory(state: State):
@@ -90,7 +115,18 @@ def handler_factory(state: State):
 
         def do_PUT(self) -> None:
             length = int(self.headers.get("Content-Length", "0"))
-            body = self.rfile.read(length)
+            encoded_body = self.rfile.read(length)
+            streaming_sigv4 = self.headers.get("X-Amz-Content-Sha256", "").startswith(
+                "STREAMING-AWS4-HMAC-SHA256-PAYLOAD"
+            )
+            try:
+                body = decode_aws_chunked(encoded_body) if streaming_sigv4 else encoded_body
+                decoded_length = self.headers.get("X-Amz-Decoded-Content-Length")
+                if decoded_length is not None and len(body) != int(decoded_length):
+                    raise ValueError("decoded content length mismatch")
+            except ValueError as error:
+                self.send_error(400, str(error))
+                return
             with state.lock:
                 state.body = body
                 state.body_path.write_bytes(body)
@@ -103,6 +139,7 @@ def handler_factory(state: State):
                 state.retention_mode = self.headers.get("X-Amz-Object-Lock-Mode", "")
                 state.retention_until = self.headers.get("X-Amz-Object-Lock-Retain-Until-Date", "")
                 state.authorization_v4 = self.headers.get("Authorization", "").startswith("AWS4-HMAC-SHA256 ")
+                state.streaming_sigv4 = streaming_sigv4
                 state.put_count += 1
                 state.write_report()
             self.send_response(200)
