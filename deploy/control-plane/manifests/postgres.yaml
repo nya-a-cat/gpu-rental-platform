@@ -58,7 +58,8 @@ spec:
                 - --dbname=gpu_cloud
             periodSeconds: 2
             timeoutSeconds: 2
-            failureThreshold: 30
+            failureThreshold: 1
+            successThreshold: 3
           livenessProbe:
             exec:
               command:
