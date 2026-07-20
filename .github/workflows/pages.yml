@@ -1,0 +1,114 @@
+name: Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/web/**"
+      - "packages/contracts/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "tsconfig.base.json"
+      - ".github/workflows/pages.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  pages:
+    name: Build and deploy default GitHub Pages demo
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout classic release
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # 固定 v7.0.0
+        with:
+          ref: refs/tags/ui-v1.0.0
+          path: classic-source
+
+      - name: Checkout current release
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # 固定 v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          path: release-source
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # 固定 v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Enable pnpm
+        run: corepack enable && pnpm --version
+
+      - name: Install classic dependencies
+        working-directory: classic-source
+        run: pnpm install --frozen-lockfile
+
+      - name: Install current release dependencies
+        working-directory: release-source
+        run: pnpm install --frozen-lockfile
+
+      - name: Build classic demo
+        env:
+          VITE_RUNTIME_MODE: demo
+          VITE_BASE_PATH: /gpu-rental-platform/classic/
+        working-directory: classic-source
+        run: pnpm --filter @gpu-rental/web exec vite build --base=/gpu-rental-platform/classic/
+
+      - name: Build default demo
+        env:
+          VITE_RUNTIME_MODE: demo
+          VITE_BASE_PATH: /gpu-rental-platform/
+        working-directory: release-source
+        run: pnpm --filter @gpu-rental/web exec vite build --base=/gpu-rental-platform/
+
+      - name: Assemble default and classic site
+        run: |
+          mkdir -p pages-root
+          cp -R release-source/apps/web/dist/. pages-root/
+          mkdir -p pages-root/classic pages-root/next
+          cp -R classic-source/apps/web/dist/. pages-root/classic/
+          cp release-source/apps/web/dist/index.html pages-root/404.html
+          cp release-source/apps/web/dist/index.html pages-root/next/index.html
+          cp release-source/apps/web/dist/favicon.svg pages-root/classic/favicon.svg
+          sed -i '/<meta name="theme-color"/a\    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />' pages-root/classic/index.html
+          touch pages-root/.nojekyll
+
+      - name: Verify default and classic site
+        run: |
+          test -f pages-root/index.html
+          test -f pages-root/classic/index.html
+          test -f pages-root/classic/favicon.svg
+          test -f pages-root/next/index.html
+          grep -q '/gpu-rental-platform/' pages-root/index.html
+          ! grep -q '/gpu-rental-platform/next/' pages-root/index.html
+          grep -q 'rel="icon"' pages-root/classic/index.html
+          grep -q '/gpu-rental-platform/classic/' pages-root/classic/index.html
+          cmp -s pages-root/index.html pages-root/next/index.html
+
+      - name: Configure Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # 固定 v6.0.0
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # 固定 v5.0.0
+        with:
+          path: pages-root
+
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # 固定 v5.0.0

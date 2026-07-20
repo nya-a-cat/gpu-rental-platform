@@ -199,10 +199,10 @@ The full Certification workflow adds:
 
 The simulated reservation suite includes concurrent attempts to reserve one GPU and verifies a single active order. Hardware-backed GPU acceptance remains assigned to a self-hosted runner.
 
-Pages deployment depends on the three successful fast-gate jobs and runs from `main` on a push or manual fast-gate dispatch:
+The path-aware `.github/workflows/pages.yml` workflow builds and deploys the static demo when web, shared-contract or JavaScript dependency inputs change. It runs independently from the source fast gate and retains its own frozen installation, production build and site verification steps. Start it manually with:
 
 ```bash
-gh workflow run pipeline.yml --ref main
+gh workflow run pages.yml --ref main
 ```
 
 Run the complete certification suite on demand with:
