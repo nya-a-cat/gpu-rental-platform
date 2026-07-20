@@ -2,7 +2,7 @@
 
 ## 业务结论
 
-Phase 0 固定 Kubernetes 1.34.x 为首个生产认证线，生产目标为 Kubernetes 1.34.9。GitHub Actions 使用 kind 0.32.0 官方发布的 Kubernetes 1.34.8 节点镜像及完整摘要。GitHub-hosted CI 集成及 ManagedCluster、Add-on 客户端证书轮换已由 Actions `29694658483` 通过。生产目标 patch、GPU 硬件和厂商交付仍为 `unverified`。
+Phase 0 固定 Kubernetes 1.34.x 为首个生产认证线，生产目标为 Kubernetes 1.34.9。GitHub Actions 使用 kind 0.32.0 官方发布的 Kubernetes 1.34.8 节点镜像及完整摘要。GitHub-hosted CI 集成、ManagedCluster 与 Add-on 客户端证书轮换，以及控制面三副本 Helm 生命周期与单副本故障恢复均已通过。生产目标 patch、GPU 硬件和厂商交付仍为 `unverified`。
 
 本文件定义版本选择、上游依据和项目自证范围。机器可读版本位于 [`config/certification/versions.yaml`](../../config/certification/versions.yaml)。版本进入生产支持清单需要同时满足对应的 GitHub Actions 门禁和 GPU 自托管认证门禁。
 
@@ -54,6 +54,7 @@ GitHub-hosted runner 没有 NVIDIA GPU。当前 Phase 0 门禁与后续扩展项
 - 验证 OCM 双向注册、首次 CSR 批准与证书签发、ManagedCluster 条件和 Lease 续期。
 - 验证 ManifestWork 下发及 smoke ConfigMap 到达托管集群。
 - 验证 GPU Platform Add-on 注册、安装、Lease 健康和脱敏容量指纹上报。
+- 验证控制面 Helm Chart 的三副本部署、迁移 Hook、PDB、安全上下文、Secret 轮换、滚动升级、失败升级回滚、单副本强制故障、共享持久化和卸载清理。
 - 执行 Add-on Go 格式、vet、单元测试、构建、Helm lint/render 与 shell 语法检查。
 
 运行 `29694658483` 已成功完成：Quality job `88213213524`、OCM conformance job `88213213557` 和 Pages job `88214243600` 均通过。OCM job 上传 artifact `ocm-conformance-48a58987f845cdb21431a9e49862330b8029ba12`，证明临时 Hub 的 `7m` 签发上限实际生效。ManagedCluster 和 Add-on 均创建了新的自动批准 CSR，Secret UID 保持稳定，Secret resourceVersion、客户端证书、私钥、证书序列号和指纹均完成更新，轮换重叠时间分别为 115 秒和 118 秒。两个 Agent Pod 在轮换期间保持原 Pod UID 且重启次数为 0；旧证书过期后，Hub kube-apiserver 容器已重建，ManagedCluster Lease、Add-on Lease 和库存上报继续推进，独立临时凭据 API 检查通过。
@@ -78,6 +79,16 @@ The lifecycle gate requires distinct Add-on source-tree hashes and immutable rev
 The lifecycle profile is verified by [Pipeline `29700482298`](https://github.com/nya-a-cat/gpu-rental-platform/actions/runs/29700482298) for commit `c9d9655057adac61ecf7083f610981e69e63ec27`. Quality job `88228601999` completed in 3m06s, OCM conformance job `88228601989` completed in 12m28s, lifecycle job `88228601978` completed in 14m44s, and Pages job `88229892975` deployed successfully. The lifecycle run passed idempotent installation, both current/N-1 manager-agent combinations, agent rollback, stable credentials, per-cluster deletion, Lease/Secret/RBAC/inventory cleanup, re-enablement, Helm uninstall, final reinstall and pre-upload evidence policy checks.
 
 Lifecycle artifact `8446431580` (`ocm-addon-lifecycle-c9d9655057adac61ecf7083f610981e69e63ec27`) and conformance artifact `8446410025` (`ocm-conformance-c9d9655057adac61ecf7083f610981e69e63ec27`) were downloaded and reviewed. Both SHA-256 manifests matched every file, both evidence-policy reports were `passed`, lifecycle and policy exit codes were zero, and the current/N-1 source trees and two-image provenance were distinct. The review found no private-key or kubeconfig markers, runner or Docker storage paths, node identity fields, CSR request/certificate/free-text fields, or Secret data. GPU hardware certification remains unexecuted.
+
+## GPU control plane Helm and high availability
+
+The Phase 0 control-plane profile deploys the Go API as three replicas with a `RollingUpdate` strategy, `maxUnavailable: 0`, `maxSurge: 1`, a `minAvailable: 2` PodDisruptionBudget, restricted security contexts and an external PostgreSQL credential Secret. Database migrations run through a Helm pre-install/pre-upgrade hook. Secret revision changes explicitly roll the Pods while retaining the externally managed Secret.
+
+[Pipeline `29711315388`](https://github.com/nya-a-cat/gpu-rental-platform/actions/runs/29711315388) verified commit `65074eb5ce832e9465ffcc262264a71ffc8278f2`. Quality job `88255544699`, OCM conformance job `88255544708`, Add-on lifecycle job `88255544719`, control-plane HA job `88255544721` and Pages job `88256460224` all completed successfully. The HA profile used kind 0.32.0 with Kubernetes 1.34.8 and distinct baseline/candidate container image IDs.
+
+HA artifact `8449023806` (`gpu-control-plane-ha-65074eb5ce832e9465ffcc262264a71ffc8278f2`) passed the full evidence policy across 61 files. Its SHA-256 manifest matched every file. Assertions covered migration `000001_phase0_foundation`, PDB and workload security, external Secret rotation, rejected invalid upgrade, rolling image upgrade, endpoint continuity, shared PostgreSQL persistence, zero-grace single-Pod failure recovery, Helm uninstall and post-run cleanup. Rolling upgrade and forced Pod failure recorded zero probe failures; ready endpoints stayed at three during the rolling upgrade and at least two during the single-Pod failure.
+
+This result certifies the repository's Phase 0 Helm lifecycle on ephemeral Kubernetes 1.34.8 kind infrastructure. PostgreSQL uses the CI fixture image `postgres:17`. Kubernetes 1.34.9, production PostgreSQL topology, real GPU hardware, GPU Operator and vendor operating-system combinations remain unverified.
 
 ## GPU 自托管认证范围
 
