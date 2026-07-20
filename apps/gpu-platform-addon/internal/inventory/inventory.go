@@ -191,7 +191,8 @@ func detailedNode(identitySeed string, node *corev1.Node, health HealthState, sc
 		OpaqueKey: opaqueNode, ManagementState: ManagementEnabled, HealthState: health,
 		Schedulable: schedulable, Traits: nodeTraits(node.Labels), GPUDevices: []GPUDevice{},
 	}
-	count := node.Status.Allocatable[corev1.ResourceName("nvidia.com/gpu")].Value()
+	gpuQuantity := node.Status.Allocatable[corev1.ResourceName("nvidia.com/gpu")]
+	count := gpuQuantity.Value()
 	model := strings.TrimSpace(node.Labels[labelGPUProduct])
 	memoryMiB, memoryOK := parsePositiveInt64(node.Labels[labelGPUMemory])
 	if count <= 0 || model == "" || !memoryOK {
