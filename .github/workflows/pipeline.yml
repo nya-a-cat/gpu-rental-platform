@@ -208,6 +208,10 @@ jobs:
             --set-string database.existingSecret=gpu-control-plane-database \
             --set-string database.secretKey=DATABASE_URL \
             --set-string database.secretRevision=ci-revision \
+            --set-string auth.breakGlass.existingSecret=gpu-control-plane-break-glass \
+            --set-string auth.breakGlass.tokenKey=BREAK_GLASS_ADMIN_TOKEN \
+            --set-string auth.breakGlass.subject=ci-break-glass-admin \
+            --set-string auth.breakGlass.secretRevision=ci-auth-revision \
             --set-string config.version=ci \
             --set-string config.commit="${GITHUB_SHA}" > /tmp/gpu-control-plane-rendered.yaml
           test -s /tmp/gpu-control-plane-rendered.yaml
@@ -219,6 +223,10 @@ jobs:
           grep -q 'helm.sh/hook: pre-install,pre-upgrade' /tmp/gpu-control-plane-rendered.yaml
           grep -q 'secretKeyRef:' /tmp/gpu-control-plane-rendered.yaml
           grep -q 'gpu.platform.nyaacat.dev/database-secret-revision: "ci-revision"' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'gpu.platform.nyaacat.dev/break-glass-secret-revision: "ci-auth-revision"' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'name: BREAK_GLASS_ADMIN_TOKEN' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'name: gpu-control-plane-break-glass' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'key: BREAK_GLASS_ADMIN_TOKEN' /tmp/gpu-control-plane-rendered.yaml
           ! grep -q 'postgres://' /tmp/gpu-control-plane-rendered.yaml
 
       - name: Validate GPU observability Helm chart
@@ -334,6 +342,10 @@ jobs:
 
       - name: Run v2 Compose runtime smoke
         id: v2_smoke
+        env:
+          BREAK_GLASS_ADMIN_TOKEN: 0123456789abcdef0123456789abcdef
+          BREAK_GLASS_ADMIN_SUBJECT: ci-break-glass-admin
+          CI_BREAK_GLASS_TOKEN: 0123456789abcdef0123456789abcdef
         run: |
           set -euo pipefail
           docker compose -f docker-compose.v2.yml up --wait --wait-timeout 120 postgres control-plane
@@ -341,6 +353,69 @@ jobs:
           curl --fail-with-body --silent --show-error http://127.0.0.1:8081/health/ready > /dev/null
           curl --fail-with-body --silent --show-error http://127.0.0.1:8081/metrics > /dev/null
           curl --fail-with-body --silent --show-error http://127.0.0.1:8081/api/v1/system/info > /dev/null
+
+          tenant_response="$(curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CI_BREAK_GLASS_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -H 'Idempotency-Key: ci-tenant-create' \
+            --data '{"name":"CI Tenant","slug":"ci-tenant"}' \
+            http://127.0.0.1:8081/api/v1/tenants)"
+          tenant_id="$(jq -r '.resourceId' <<<"${tenant_response}")"
+          tenant_operation_id="$(jq -r '.operationId' <<<"${tenant_response}")"
+          test "${tenant_id}" != "null"
+          test "${tenant_operation_id}" != "null"
+
+          tenant_replay="$(curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CI_BREAK_GLASS_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -H 'Idempotency-Key: ci-tenant-create' \
+            --data '{"name":"CI Tenant","slug":"ci-tenant"}' \
+            http://127.0.0.1:8081/api/v1/tenants)"
+          test "$(jq -r '.resourceId' <<<"${tenant_replay}")" = "${tenant_id}"
+          test "$(jq -r '.operationId' <<<"${tenant_replay}")" = "${tenant_operation_id}"
+
+          conflict_status="$(curl --silent --show-error --output /tmp/tenant-idempotency-conflict.json --write-out '%{http_code}' \
+            -H "Authorization: Bearer ${CI_BREAK_GLASS_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -H 'Idempotency-Key: ci-tenant-create' \
+            --data '{"name":"Changed Tenant","slug":"changed-tenant"}' \
+            http://127.0.0.1:8081/api/v1/tenants)"
+          test "${conflict_status}" = "409"
+          test "$(jq -r '.code' /tmp/tenant-idempotency-conflict.json)" = "idempotency_conflict"
+
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CI_BREAK_GLASS_TOKEN}" \
+            "http://127.0.0.1:8081/api/v1/tenants/${tenant_id}" > /dev/null
+
+          project_response="$(curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CI_BREAK_GLASS_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -H 'Idempotency-Key: ci-project-create' \
+            --data "{\"tenantId\":\"${tenant_id}\",\"name\":\"CI Project\",\"slug\":\"ci-project\",\"isolationClass\":\"shared\"}" \
+            http://127.0.0.1:8081/api/v1/projects)"
+          project_id="$(jq -r '.resourceId' <<<"${project_response}")"
+          test "${project_id}" != "null"
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CI_BREAK_GLASS_TOKEN}" \
+            "http://127.0.0.1:8081/api/v1/projects/${project_id}" | jq -e '.provisioningState == "pending" and .isolationClass == "shared"' > /dev/null
+
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CI_BREAK_GLASS_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -H 'Idempotency-Key: ci-role-binding-create' \
+            --data "{\"scopeType\":\"tenant\",\"scopeId\":\"${tenant_id}\",\"subjectType\":\"user\",\"subjectId\":\"owner@example.test\",\"role\":\"tenant_owner\"}" \
+            http://127.0.0.1:8081/api/v1/role-bindings > /dev/null
+
+          curl --fail-with-body --silent --show-error \
+            -X PUT \
+            -H "Authorization: Bearer ${CI_BREAK_GLASS_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -H 'Idempotency-Key: ci-quota-set' \
+            --data '{"hardLimit":2}' \
+            "http://127.0.0.1:8081/api/v1/projects/${project_id}/quotas/gpu.nvidia.full" > /dev/null
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CI_BREAK_GLASS_TOKEN}" \
+            "http://127.0.0.1:8081/api/v1/projects/${project_id}/quotas/gpu.nvidia.full" | jq -e '.hardLimit == 2 and .reserved == 0 and .allocated == 0' > /dev/null
 
       - name: Show v2 Compose logs after smoke failure
         if: failure() && steps.v2_smoke.outcome == 'failure'

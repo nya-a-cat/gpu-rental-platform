@@ -23,6 +23,13 @@ database:
   secretKey: DATABASE_URL
   secretRevision: ""
 
+auth:
+  breakGlass:
+    existingSecret: ""
+    tokenKey: BREAK_GLASS_ADMIN_TOKEN
+    subject: break-glass-admin
+    secretRevision: ""
+
 config:
   version: ""
   commit: unknown

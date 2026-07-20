@@ -506,18 +506,21 @@ PROXY_PID=$!
 wait_until "Kubernetes API proxy" 30 1 curl --silent --fail --max-time 2 "${PROXY_BASE_URL}/version"
 wait_until "baseline service version" 30 1 service_reports_version ha-baseline
 
-migration_row="$(run_in_postgres "SELECT version || '|' || checksum FROM control_plane_schema_migrations WHERE version = '000001_phase0_foundation';")"
-migration_version="${migration_row%%|*}"
-migration_checksum="${migration_row#*|}"
-migration_tables="$(run_in_postgres "SELECT string_agg(table_name, ',' ORDER BY table_name) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY (ARRAY['audit_events','audit_events_default','idempotency_records','operations','outbox_events']::text[]);")"
-[[ "${migration_version}" == "000001_phase0_foundation" ]]
-[[ "${migration_checksum}" =~ ^[0-9a-f]{64}$ ]]
-[[ "${migration_tables}" == "audit_events,audit_events_default,idempotency_records,operations,outbox_events" ]]
+phase0_migration_row="$(run_in_postgres "SELECT version || '|' || checksum FROM control_plane_schema_migrations WHERE version = '000001_phase0_foundation';")"
+phase1_migration_row="$(run_in_postgres "SELECT version || '|' || checksum FROM control_plane_schema_migrations WHERE version = '000002_phase1_tenancy';")"
+phase0_migration_checksum="${phase0_migration_row#*|}"
+phase1_migration_checksum="${phase1_migration_row#*|}"
+migration_tables="$(run_in_postgres "SELECT string_agg(table_name, ',' ORDER BY table_name) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY (ARRAY['audit_events','audit_events_default','idempotency_records','operations','outbox_events','tenants','projects','role_bindings','project_quotas','quota_reservations']::text[]);")"
+[[ "${phase0_migration_row%%|*}" == "000001_phase0_foundation" ]]
+[[ "${phase1_migration_row%%|*}" == "000002_phase1_tenancy" ]]
+[[ "${phase0_migration_checksum}" =~ ^[0-9a-f]{64}$ ]]
+[[ "${phase1_migration_checksum}" =~ ^[0-9a-f]{64}$ ]]
+[[ "${migration_tables}" == "audit_events,audit_events_default,idempotency_records,operations,outbox_events,project_quotas,projects,quota_reservations,role_bindings,tenants" ]]
 jq -n \
-  --arg version "${migration_version}" \
-  --arg checksum "${migration_checksum}" \
+  --arg phase0Checksum "${phase0_migration_checksum}" \
+  --arg phase1Checksum "${phase1_migration_checksum}" \
   --arg tables "${migration_tables}" \
-  '{status:"passed",version:$version,checksum:$checksum,requiredTables:($tables | split(","))}' \
+  '{status:"passed",migrations:[{version:"000001_phase0_foundation",checksum:$phase0Checksum},{version:"000002_phase1_tenancy",checksum:$phase1Checksum}],requiredTables:($tables | split(","))}' \
   >"${ARTIFACT_DIR}/migration-validation.json"
 
 wait_until "PodDisruptionBudget health" 30 2 pdb_is_valid

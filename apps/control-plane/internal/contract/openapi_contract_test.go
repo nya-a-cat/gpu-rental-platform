@@ -11,6 +11,7 @@ import (
 
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/httpapi"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/operation"
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/tenancy"
 	"gopkg.in/yaml.v3"
 )
 
@@ -43,6 +44,12 @@ func TestOperationDTOsMatchOpenAPI(t *testing.T) {
 	assertSchemaMatchesDTO(t, document, "ResourceReference", reflect.TypeOf(operation.ResourceRef{}))
 	assertSchemaMatchesDTO(t, document, "OperationStep", reflect.TypeOf(operation.Step{}))
 	assertSchemaMatchesDTO(t, document, "OperationError", reflect.TypeOf(operation.StructuredError{}))
+	assertSchemaMatchesDTO(t, document, "MutationAcceptance", reflect.TypeOf(tenancy.Acceptance{}))
+	assertSchemaMatchesDTO(t, document, "Tenant", reflect.TypeOf(tenancy.Tenant{}))
+	assertSchemaMatchesDTO(t, document, "Project", reflect.TypeOf(tenancy.Project{}))
+	assertSchemaMatchesDTO(t, document, "Condition", reflect.TypeOf(tenancy.Condition{}))
+	assertSchemaMatchesDTO(t, document, "RoleBinding", reflect.TypeOf(tenancy.RoleBinding{}))
+	assertSchemaMatchesDTO(t, document, "Quota", reflect.TypeOf(tenancy.Quota{}))
 
 	stepStatus, ok := reflect.TypeOf(operation.Step{}).FieldByName("Status")
 	if !ok {

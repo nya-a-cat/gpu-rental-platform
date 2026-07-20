@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/authn"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/identity"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/operation"
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/ports"
 )
 
 type ReadinessChecker interface {
@@ -37,6 +39,9 @@ type Dependencies struct {
 	Logger           *slog.Logger
 	Readiness        ReadinessChecker
 	Operations       operation.Reader
+	Tenancy          TenancyStore
+	Authenticator    authn.Authenticator
+	Authorization    ports.AuthorizationEngine
 	ReadinessTimeout time.Duration
 	Info             SystemInfo
 }
@@ -60,6 +65,7 @@ func NewHandler(dependencies Dependencies) http.Handler {
 		writeJSON(response, http.StatusOK, dependencies.Info)
 	}))
 	registerGET(mux, "/api/v1/operations/{operationID}", operationHandler(dependencies.Operations))
+	registerTenancyRoutes(mux, dependencies)
 	mux.HandleFunc("/", routeNotFoundHandler)
 
 	var handler http.Handler = mux

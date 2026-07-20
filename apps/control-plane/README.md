@@ -36,31 +36,50 @@ replacement, zero-grace single-Pod recovery and Helm release cleanup.
 
 ## Runtime contract
 
-| Variable                      |   Default | Purpose                                                      |
-| ----------------------------- | --------: | ------------------------------------------------------------ |
-| `DATABASE_URL`                |  required | PostgreSQL connection string                                 |
-| `HTTP_ADDR`                   |   `:8080` | HTTP listen address                                          |
-| `CONTROL_PLANE_VERSION`       |     `dev` | Build or release version                                     |
-| `CONTROL_PLANE_COMMIT`        | `unknown` | Source revision                                              |
-| `SHUTDOWN_TIMEOUT`            |     `15s` | Graceful HTTP shutdown deadline                              |
-| `READINESS_TIMEOUT`           |      `2s` | PostgreSQL readiness deadline                                |
-| `AGENT_HEARTBEAT_INTERVAL`    |     `15s` | Expected managed-cluster Agent report interval               |
-| `AGENT_DEGRADED_AFTER`        |     `45s` | Age that changes connectivity from connected to degraded     |
-| `AGENT_OFFLINE_AFTER`         |     `90s` | Age that changes connectivity from degraded to offline       |
-| `DB_MAX_OPEN_CONNS`           |      `20` | Maximum open PostgreSQL connections                          |
-| `DB_MAX_IDLE_CONNS`           |       `5` | Maximum idle PostgreSQL connections                          |
-| `DB_CONN_MAX_LIFETIME`        |     `30m` | PostgreSQL connection lifetime                               |
-| `MIGRATION_TIMEOUT`           |      `5m` | Total migration process deadline, including database startup |
-| `MIGRATION_LOCK_TIMEOUT`      |     `30s` | PostgreSQL lock wait limit during migrations                 |
-| `MIGRATION_STATEMENT_TIMEOUT` |      `2m` | PostgreSQL per-statement limit during migrations             |
+| Variable                      |             Default | Purpose                                                          |
+| ----------------------------- | ------------------: | ---------------------------------------------------------------- |
+| `DATABASE_URL`                |            required | PostgreSQL connection string                                     |
+| `HTTP_ADDR`                   |             `:8080` | HTTP listen address                                              |
+| `CONTROL_PLANE_VERSION`       |               `dev` | Build or release version                                         |
+| `CONTROL_PLANE_COMMIT`        |           `unknown` | Source revision                                                  |
+| `BREAK_GLASS_ADMIN_TOKEN`     |            disabled | Opaque bearer token for the single local emergency administrator |
+| `BREAK_GLASS_ADMIN_SUBJECT`   | `break-glass-admin` | Stable audit subject for the emergency administrator             |
+| `SHUTDOWN_TIMEOUT`            |               `15s` | Graceful HTTP shutdown deadline                                  |
+| `READINESS_TIMEOUT`           |                `2s` | PostgreSQL readiness deadline                                    |
+| `AGENT_HEARTBEAT_INTERVAL`    |               `15s` | Expected managed-cluster Agent report interval                   |
+| `AGENT_DEGRADED_AFTER`        |               `45s` | Age that changes connectivity from connected to degraded         |
+| `AGENT_OFFLINE_AFTER`         |               `90s` | Age that changes connectivity from degraded to offline           |
+| `DB_MAX_OPEN_CONNS`           |                `20` | Maximum open PostgreSQL connections                              |
+| `DB_MAX_IDLE_CONNS`           |                 `5` | Maximum idle PostgreSQL connections                              |
+| `DB_CONN_MAX_LIFETIME`        |               `30m` | PostgreSQL connection lifetime                                   |
+| `MIGRATION_TIMEOUT`           |                `5m` | Total migration process deadline, including database startup     |
+| `MIGRATION_LOCK_TIMEOUT`      |               `30s` | PostgreSQL lock wait limit during migrations                     |
+| `MIGRATION_STATEMENT_TIMEOUT` |                `2m` | PostgreSQL per-statement limit during migrations                 |
 
-Available foundation endpoints are:
+Available endpoints are:
 
-- `GET /health/live`
-- `GET /health/ready`
-- `GET /metrics`
+- `GET /health/live`, `GET /health/ready`, `GET /metrics`
 - `GET /api/v1/system/info`
 - `GET /api/v1/operations/{operationID}`
+- `POST /api/v1/tenants`, `GET /api/v1/tenants/{tenantID}`
+- `POST /api/v1/projects`, `GET /api/v1/projects/{projectID}`
+- `POST /api/v1/role-bindings`, `GET /api/v1/role-bindings/{bindingID}`
+- `GET` and `PUT /api/v1/projects/{projectID}/quotas/{resourceClass}`
+
+Tenancy mutations require an authenticated bearer principal and an
+`Idempotency-Key` containing 8 to 255 characters. Accepted mutations return
+HTTP 202, `Location`, `Operation-Location`, a resource ID and an Operation ID.
+The break-glass token is optional at process startup; authenticated tenancy
+routes return HTTP 503 until a token is supplied. PostgreSQL RoleBinding
+authorization is active for future OIDC principals, and the break-glass
+principal has system-administrator scope.
+
+Project creation currently accepts the `shared` isolation class and records a
+stable namespace name plus independent desired, observed and provisioning
+states. The initial state is pending until the OCM reconciliation unit creates
+and verifies Namespace, RBAC, ResourceQuota, NetworkPolicy and Pod Security
+artifacts. Quota reservation, commit and release use row locks and update
+reserved and allocated quantities atomically.
 
 API failures use `application/problem+json`. The migration process is separate
 from API startup so deployment tooling controls schema rollout order. Migration

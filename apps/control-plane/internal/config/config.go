@@ -22,7 +22,8 @@ const (
 	defaultMigrationLockTimeout      = 30 * time.Second
 	defaultMigrationStatementTimeout = 2 * time.Minute
 	defaultControlPlaneName          = "gpu-cloud-control-plane"
-	defaultControlPlaneStage         = "phase-0-foundation"
+	defaultControlPlaneStage         = "phase-1-tenancy-foundation"
+	defaultBreakGlassAdminSubject    = "break-glass-admin"
 )
 
 // Config contains the process configuration shared by the API and migration
@@ -35,6 +36,8 @@ type Config struct {
 	Commit                    string
 	ShutdownTimeout           time.Duration
 	ReadinessTimeout          time.Duration
+	BreakGlassAdminToken      string
+	BreakGlassAdminSubject    string
 	AgentHealthPolicy         clusterstate.Thresholds
 	MaxOpenConns              int
 	MaxIdleConns              int
@@ -60,6 +63,15 @@ func Load() (Config, error) {
 	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	if databaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")
+	}
+
+	breakGlassAdminToken := strings.TrimSpace(os.Getenv("BREAK_GLASS_ADMIN_TOKEN"))
+	breakGlassAdminSubject := stringEnv("BREAK_GLASS_ADMIN_SUBJECT", defaultBreakGlassAdminSubject)
+	if breakGlassAdminToken != "" && len(breakGlassAdminToken) < 32 {
+		return Config{}, errors.New("BREAK_GLASS_ADMIN_TOKEN must contain at least 32 characters")
+	}
+	if len(breakGlassAdminSubject) > 255 {
+		return Config{}, errors.New("BREAK_GLASS_ADMIN_SUBJECT must contain at most 255 characters")
 	}
 
 	shutdownTimeout, err := durationEnv("SHUTDOWN_TIMEOUT", defaultShutdownTimeout)
@@ -121,6 +133,8 @@ func Load() (Config, error) {
 		Commit:                    stringEnv("CONTROL_PLANE_COMMIT", "unknown"),
 		ShutdownTimeout:           shutdownTimeout,
 		ReadinessTimeout:          readinessTimeout,
+		BreakGlassAdminToken:      breakGlassAdminToken,
+		BreakGlassAdminSubject:    breakGlassAdminSubject,
 		AgentHealthPolicy:         agentHealthPolicy,
 		MaxOpenConns:              maxOpenConns,
 		MaxIdleConns:              maxIdleConns,

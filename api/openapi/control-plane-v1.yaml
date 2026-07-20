@@ -1,14 +1,15 @@
 openapi: 3.1.0
 info:
   title: GPU Container Cloud Control Plane API
-  version: 0.1.0
-  summary: Phase 0 contract for the GPU Container Cloud product control plane.
+  version: 0.2.0
+  summary: Phase 1 tenancy foundation contract for the GPU Container Cloud control plane.
   description: |
     This document defines the initial versioned `/api/v1` surface for the v2 control
     plane. The current contract exposes health, telemetry discovery, build
-    information, and asynchronous operation status.
+    information, asynchronous operation status, tenants, projects, role bindings,
+    and project quotas.
 
-    Every future state-changing endpoint under `/api/v1` MUST require an
+    Every state-changing endpoint under `/api/v1` MUST require an
     `Idempotency-Key` header and return an Operation reference when work is
     accepted asynchronously. Request correlation uses `X-Request-ID`; W3C
     `traceparent` and `tracestate` are reserved in the contract for the later
@@ -22,6 +23,10 @@ tags:
   - name: Observability
   - name: System
   - name: Operations
+  - name: Tenants
+  - name: Projects
+  - name: IAM
+  - name: Quotas
 paths:
   /health/live:
     get:
@@ -163,7 +168,252 @@ paths:
                 $ref: "#/components/schemas/ProblemDetails"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/tenants:
+    post:
+      tags: [Tenants]
+      operationId: createTenant
+      summary: Accept creation of a tenant account.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTenantRequest"
+      responses:
+        "202":
+          $ref: "#/components/responses/MutationAccepted"
+        "400":
+          $ref: "#/components/responses/ProblemResponse"
+        "401":
+          $ref: "#/components/responses/ProblemResponse"
+        "403":
+          $ref: "#/components/responses/ProblemResponse"
+        "409":
+          $ref: "#/components/responses/ProblemResponse"
+        "503":
+          $ref: "#/components/responses/ProblemResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenants/{tenantId}:
+    get:
+      tags: [Tenants]
+      operationId: getTenant
+      summary: Retrieve a tenant account.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/TenantId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The tenant was found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+        "401":
+          $ref: "#/components/responses/ProblemResponse"
+        "403":
+          $ref: "#/components/responses/ProblemResponse"
+        "404":
+          $ref: "#/components/responses/ProblemResponse"
+        "503":
+          $ref: "#/components/responses/ProblemResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/projects:
+    post:
+      tags: [Projects]
+      operationId: createProject
+      summary: Accept creation of a shared-isolation project.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectRequest"
+      responses:
+        "202":
+          $ref: "#/components/responses/MutationAccepted"
+        "400":
+          $ref: "#/components/responses/ProblemResponse"
+        "401":
+          $ref: "#/components/responses/ProblemResponse"
+        "403":
+          $ref: "#/components/responses/ProblemResponse"
+        "404":
+          $ref: "#/components/responses/ProblemResponse"
+        "409":
+          $ref: "#/components/responses/ProblemResponse"
+        "503":
+          $ref: "#/components/responses/ProblemResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/projects/{projectId}:
+    get:
+      tags: [Projects]
+      operationId: getProject
+      summary: Retrieve a project and its isolation state.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The project was found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "401":
+          $ref: "#/components/responses/ProblemResponse"
+        "403":
+          $ref: "#/components/responses/ProblemResponse"
+        "404":
+          $ref: "#/components/responses/ProblemResponse"
+        "503":
+          $ref: "#/components/responses/ProblemResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/role-bindings:
+    post:
+      tags: [IAM]
+      operationId: createRoleBinding
+      summary: Accept creation of a tenant or project role binding.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleBindingRequest"
+      responses:
+        "202":
+          $ref: "#/components/responses/MutationAccepted"
+        "400":
+          $ref: "#/components/responses/ProblemResponse"
+        "401":
+          $ref: "#/components/responses/ProblemResponse"
+        "403":
+          $ref: "#/components/responses/ProblemResponse"
+        "404":
+          $ref: "#/components/responses/ProblemResponse"
+        "409":
+          $ref: "#/components/responses/ProblemResponse"
+        "503":
+          $ref: "#/components/responses/ProblemResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/role-bindings/{bindingId}:
+    get:
+      tags: [IAM]
+      operationId: getRoleBinding
+      summary: Retrieve a tenant or project role binding.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/BindingId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The role binding was found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleBinding"
+        "401":
+          $ref: "#/components/responses/ProblemResponse"
+        "403":
+          $ref: "#/components/responses/ProblemResponse"
+        "404":
+          $ref: "#/components/responses/ProblemResponse"
+        "503":
+          $ref: "#/components/responses/ProblemResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/projects/{projectId}/quotas/{resourceClass}:
+    get:
+      tags: [Quotas]
+      operationId: getProjectQuota
+      summary: Retrieve a project quota.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/ResourceClass"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The quota was found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quota"
+        "401":
+          $ref: "#/components/responses/ProblemResponse"
+        "403":
+          $ref: "#/components/responses/ProblemResponse"
+        "404":
+          $ref: "#/components/responses/ProblemResponse"
+        "503":
+          $ref: "#/components/responses/ProblemResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      tags: [Quotas]
+      operationId: setProjectQuota
+      summary: Accept creation or replacement of a project quota limit.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/ResourceClass"
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetQuotaRequest"
+      responses:
+        "202":
+          $ref: "#/components/responses/MutationAccepted"
+        "400":
+          $ref: "#/components/responses/ProblemResponse"
+        "401":
+          $ref: "#/components/responses/ProblemResponse"
+        "403":
+          $ref: "#/components/responses/ProblemResponse"
+        "404":
+          $ref: "#/components/responses/ProblemResponse"
+        "409":
+          $ref: "#/components/responses/ProblemResponse"
+        "503":
+          $ref: "#/components/responses/ProblemResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
   parameters:
     OperationId:
       name: operationId
@@ -173,6 +423,34 @@ components:
       schema:
         type: string
         format: uuid
+    TenantId:
+      name: tenantId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    BindingId:
+      name: bindingId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ResourceClass:
+      name: resourceClass
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[a-z0-9][a-z0-9._-]{0,63}$"
     RequestId:
       name: X-Request-ID
       in: header
@@ -218,6 +496,32 @@ components:
         minLength: 1
         maxLength: 128
   responses:
+    MutationAccepted:
+      description: The mutation was accepted and can be tracked through its Operation.
+      headers:
+        Location:
+          description: Canonical resource URL.
+          schema:
+            type: string
+        Operation-Location:
+          description: Canonical Operation URL.
+          schema:
+            type: string
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MutationAcceptance"
+    ProblemResponse:
+      description: The request was rejected or a required dependency is unavailable.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
     InternalError:
       description: The request failed because of an unexpected server error.
       headers:
@@ -419,6 +723,268 @@ components:
           type: object
           description: Optional field-level or domain-specific error data.
           additionalProperties: true
+    MutationAcceptance:
+      type: object
+      additionalProperties: false
+      required: [resourceId, operationId]
+      properties:
+        resourceId:
+          type: string
+        operationId:
+          type: string
+          format: uuid
+    CreateTenantRequest:
+      type: object
+      additionalProperties: false
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        slug:
+          type: string
+          pattern: "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$"
+    Tenant:
+      type: object
+      additionalProperties: false
+      required: [id, name, slug, status, generation, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        status:
+          type: string
+          enum: [active, suspended]
+        generation:
+          type: integer
+          format: int64
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateProjectRequest:
+      type: object
+      additionalProperties: false
+      required: [tenantId, name, slug, isolationClass]
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        slug:
+          type: string
+          pattern: "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$"
+        isolationClass:
+          type: string
+          const: shared
+    Project:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - tenantId
+        - name
+        - slug
+        - isolationClass
+        - namespaceName
+        - desiredState
+        - observedState
+        - provisioningState
+        - conditions
+        - generation
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        isolationClass:
+          type: string
+          enum: [shared, dedicated-node-pool, dedicated-cluster]
+        namespaceName:
+          type: string
+        desiredState:
+          type: string
+          enum: [active, suspended, deleted]
+        observedState:
+          type: string
+          enum: [pending, active, suspended, deleted, unknown]
+        provisioningState:
+          type: string
+          enum: [pending, provisioning, succeeded, failed, deleting]
+        conditions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Condition"
+        generation:
+          type: integer
+          format: int64
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Condition:
+      type: object
+      additionalProperties: false
+      required: [type, status, lastTransitionTime]
+      properties:
+        type:
+          type: string
+        status:
+          type: string
+        reason:
+          type: string
+        message:
+          type: string
+        lastTransitionTime:
+          type: string
+          format: date-time
+    CreateRoleBindingRequest:
+      type: object
+      additionalProperties: false
+      required: [scopeType, scopeId, subjectType, subjectId, role]
+      properties:
+        scopeType:
+          type: string
+          enum: [tenant, project]
+        scopeId:
+          type: string
+          format: uuid
+        subjectType:
+          type: string
+          enum: [user, group, service_account]
+        subjectId:
+          type: string
+          minLength: 1
+          maxLength: 255
+        role:
+          type: string
+          enum:
+            [
+              tenant_owner,
+              project_admin,
+              operator,
+              developer,
+              viewer,
+              billing_admin,
+              auditor,
+              service_account,
+            ]
+    RoleBinding:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          scopeType,
+          scopeId,
+          subjectType,
+          subjectId,
+          role,
+          createdBy,
+          createdAt,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        scopeType:
+          type: string
+          enum: [tenant, project]
+        scopeId:
+          type: string
+          format: uuid
+        subjectType:
+          type: string
+          enum: [user, group, service_account]
+        subjectId:
+          type: string
+        role:
+          type: string
+          enum:
+            [
+              tenant_owner,
+              project_admin,
+              operator,
+              developer,
+              viewer,
+              billing_admin,
+              auditor,
+              service_account,
+            ]
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    SetQuotaRequest:
+      type: object
+      additionalProperties: false
+      required: [hardLimit]
+      properties:
+        hardLimit:
+          type: integer
+          format: int64
+          minimum: 0
+    Quota:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          projectId,
+          resourceClass,
+          hardLimit,
+          reserved,
+          allocated,
+          generation,
+          updatedAt,
+        ]
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        resourceClass:
+          type: string
+        hardLimit:
+          type: integer
+          format: int64
+          minimum: 0
+        reserved:
+          type: integer
+          format: int64
+          minimum: 0
+        allocated:
+          type: integer
+          format: int64
+          minimum: 0
+        generation:
+          type: integer
+          format: int64
+          minimum: 1
+        updatedAt:
+          type: string
+          format: date-time
     ProblemDetails:
       type: object
       description: RFC 9457 problem details with stable machine-readable extensions.

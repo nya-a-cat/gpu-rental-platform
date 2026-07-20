@@ -24,10 +24,14 @@ kubectl create namespace gpu-control-plane-system
 kubectl --namespace gpu-control-plane-system create secret generic gpu-control-plane-database \
   --from-literal=DATABASE_URL='postgres://user:password@postgres.example:5432/gpu_cloud?sslmode=require'
 
+kubectl --namespace gpu-control-plane-system create secret generic gpu-control-plane-break-glass \
+  --from-literal=BREAK_GLASS_ADMIN_TOKEN='replace-with-at-least-32-random-characters'
+
 helm upgrade --install gpu-control-plane charts/gpu-control-plane \
   --namespace gpu-control-plane-system \
   --set image.repository=registry.example/gpu-cloud-control-plane \
   --set image.tag=0.1.0 \
+  --set auth.breakGlass.existingSecret=gpu-control-plane-break-glass \
   --atomic \
   --timeout 11m
 ```
@@ -54,6 +58,10 @@ The chart maps the runtime contract from `apps/control-plane/README.md`:
 | ------------------------------------------------ | ----------------------------- | --------------------------------------------- |
 | `database.existingSecret` / `database.secretKey` | `DATABASE_URL`                | `gpu-control-plane-database` / `DATABASE_URL` |
 | `database.secretRevision`                        | Pod rollout annotation        | Empty string                                  |
+| `auth.breakGlass.existingSecret`                 | `BREAK_GLASS_ADMIN_TOKEN`     | Empty; authenticated tenancy API disabled     |
+| `auth.breakGlass.tokenKey`                       | Secret key                    | `BREAK_GLASS_ADMIN_TOKEN`                     |
+| `auth.breakGlass.subject`                        | `BREAK_GLASS_ADMIN_SUBJECT`   | `break-glass-admin`                           |
+| `auth.breakGlass.secretRevision`                 | Pod rollout annotation        | Empty string                                  |
 | `config.version`                                 | `CONTROL_PLANE_VERSION`       | Chart app version                             |
 | `config.commit`                                  | `CONTROL_PLANE_COMMIT`        | `unknown`                                     |
 | `config.shutdownTimeout`                         | `SHUTDOWN_TIMEOUT`            | `15s`                                         |
@@ -75,6 +83,11 @@ Kubernetes does not restart Pods when an externally managed Secret changes.
 After rotating `database.existingSecret`, set `database.secretRevision` to a new
 operator-controlled value in the same Helm upgrade. The pod-template annotation
 then triggers a rolling replacement of all control-plane Pods.
+
+After rotating `auth.breakGlass.existingSecret`, update
+`auth.breakGlass.secretRevision` in the same Helm upgrade. Keep the emergency
+token in a namespace-local Secret and restrict Secret access to vendor
+operators.
 
 ## Availability and scheduling
 

@@ -9,7 +9,7 @@ flowchart LR
     UI["React vendor and tenant console"]
     UI --> V2["apps/control-plane<br/>Go + PostgreSQL production track"]
     UI --> BASE["apps/api<br/>NestJS + MongoDB simulated baseline"]
-    V2 --> OCM["OCM fleet and GPU add-on<br/>Phase 0 Actions conformance"]
+    V2 --> OCM["OCM fleet and GPU add-on<br/>certified Actions conformance"]
     BASE --> DEMO["Workflow and UI regression baseline"]
 ```
 
@@ -49,22 +49,29 @@ flowchart TB
 
 ## Current implementation boundary
 
-Phase 0 currently establishes the production foundation and first fleet integration:
+Phase 0 production foundations and the first OCM fleet integration are certified
+through GitHub Actions. The active Phase 1 tenancy foundation adds:
 
-- a Go 1.25 control plane with validated configuration and process lifecycle;
-- PostgreSQL migrations for Operation, idempotency, Outbox and audit foundations;
-- transactional Operation and Outbox repositories;
-- health, readiness, Prometheus metrics, system information and Operation query endpoints;
-- an OpenAPI 3.1 contract under `api/openapi/control-plane-v1.yaml`;
-- OCM 1.3.1 Hub/ManagedCluster bootstrap assets with CSR, certificate, Lease and ManifestWork checks;
-- an Addon Framework 1.3.0 manager and agent that publish a sanitized Phase 0 capacity fingerprint and OCM health Lease;
-- container, Helm, isolated v2 Compose and GitHub Actions validation entry points.
+- PostgreSQL tables for Tenant, Project, RoleBinding, project quota and quota reservation facts;
+- authenticated tenant, project, role-binding and quota endpoints under `/api/v1`;
+- a single optional break-glass bearer principal for vendor bootstrap and emergency access;
+- PostgreSQL RoleBinding authorization for tenant and project scopes;
+- transactional mutation writes that combine domain state, Operation, Outbox, audit and idempotency records;
+- row-locked quota reservation, commit, release and expiry transitions;
+- Project desired, observed and provisioning states with a stable namespace name.
 
-The OCM and Add-on certification result remains pending until the Actions conformance job completes. Hardware GPU inventory, tenant authorization, billing calculation and workload APIs remain subsequent delivery units.
+The OCM and Add-on certification covers two managed clusters, certificate
+rotation, per-cluster inventory authorization and current/N-1 lifecycle
+compatibility. Project creation currently records `shared` isolation intent and
+returns a pending Operation. Namespace, RBAC, ResourceQuota, NetworkPolicy and
+Restricted Pod Security reconciliation enter in the next Phase 1 delivery unit.
+Hardware GPU inventory, workload lifecycle and financial rating remain open
+acceptance areas.
 
 ## API and consistency model
 
-Production APIs use `/api/v1`. `X-Request-ID` supplies request correlation. `traceparent` and `tracestate` are currently reserved as the W3C Trace Context header contract for clients and gateways; span creation and export enter with the later OpenTelemetry integration. Future mutation endpoints require `Idempotency-Key`.
+Production APIs use `/api/v1`. `X-Request-ID` supplies request correlation. `traceparent` and `tracestate` are currently reserved as the W3C Trace Context header contract for clients and gateways; span creation and export enter with the later OpenTelemetry integration. Tenancy mutation endpoints require `Idempotency-Key`; the key is scoped to the
+authenticated principal and operation kind.
 
 Accepted long-running work returns HTTP 202 and a stable Operation reference. Operation status uses `queued`, `running`, `succeeded`, `failed`, `cancelled` and `timed_out`. The record includes target resource, optional parent operation, steps, progress, deadline, retryability, request ID and structured error data.
 
@@ -90,6 +97,12 @@ Provider
 Placement uses ResourceClass, Trait, Inventory, Reservation, Allocation, AcceleratorProfile and DeviceClaim. Inventory updates use a Generation for optimistic concurrency. Tenant APIs expose stable capability references and keep physical GPU identifiers private.
 
 The commercial hierarchy is `System → Domain / Reseller → Tenant / Account → Project`. Projects select `shared`, `dedicated-node-pool` or `dedicated-cluster` isolation. Namespace isolation is treated as a soft multi-tenant boundary.
+
+Phase 1 currently exposes Tenant and Project records, tenant/project RoleBinding
+facts and project quota. The local emergency principal has system scope.
+Tenant-owner bindings inherit into project authorization. Project quotas store
+hard, reserved and allocated quantities, and reservation transitions hold the
+quota row lock while updating counters.
 
 ## Cluster and failure model
 
@@ -126,7 +139,9 @@ GPU and instance delivery remains simulated. Access addresses use reserved `.inv
 ## Deployment stacks
 
 - **Default Compose:** runs React, NestJS, MongoDB and Redis at `127.0.0.1:8080`.
-- **Dedicated v2 Compose stack:** `docker-compose.v2.yml` uses the fixed `gpu-cloud-control-plane-v2` project. PostgreSQL and migrations attach only to the internal backend network; the Go API attaches to backend and edge networks and publishes the edge side at `127.0.0.1:8081`. PostgreSQL uses its own volume.
+- **Dedicated v2 Compose stack:** `docker-compose.v2.yml` uses the fixed `gpu-cloud-control-plane-v2` project. PostgreSQL and migrations attach only to the internal backend network; the Go API attaches to backend and edge networks and publishes the edge side at `127.0.0.1:8081`. PostgreSQL uses its own volume. The authenticated tenancy API reads its
+  optional emergency bearer token from `BREAK_GLASS_ADMIN_TOKEN`; Helm reads the
+  token from an externally managed Secret.
 - **GitHub Pages:** runs the labelled browser-only simulated adapter and contains no backend services.
 - **Future vendor deployment:** packages the Go control plane, OCM Hub integration, GPU Add-on, observability stack and supported cluster profiles through Helm and signed OCI artifacts.
 

@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/authn"
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/authorization"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/config"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/httpapi"
 	platformpostgres "github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/platform/postgres"
@@ -36,10 +38,24 @@ func main() {
 	defer database.Close()
 
 	repository := storagepostgres.NewRepository(database)
+	var authenticator authn.Authenticator
+	if cfg.BreakGlassAdminToken != "" {
+		authenticator, err = authn.NewBreakGlassAuthenticator(cfg.BreakGlassAdminSubject, cfg.BreakGlassAdminToken)
+		if err != nil {
+			logger.Error("invalid break-glass authentication configuration", "error", err)
+			os.Exit(1)
+		}
+	} else {
+		logger.Warn("authenticated tenancy API is disabled because BREAK_GLASS_ADMIN_TOKEN is unset")
+	}
+	authorizationEngine := authorization.NewPostgresEngine(database)
 	handler := httpapi.NewHandler(httpapi.Dependencies{
 		Logger:           logger,
 		Readiness:        database,
 		Operations:       repository,
+		Tenancy:          repository,
+		Authenticator:    authenticator,
+		Authorization:    authorizationEngine,
 		ReadinessTimeout: cfg.ReadinessTimeout,
 		Info: httpapi.SystemInfo{
 			Product:      "gpu-container-cloud",
@@ -54,7 +70,7 @@ func main() {
 				DegradedAfterSeconds:     float64(cfg.AgentHealthPolicy.DegradedAfter) / float64(time.Second),
 				OfflineAfterSeconds:      float64(cfg.AgentHealthPolicy.OfflineAfter) / float64(time.Second),
 			},
-			Capabilities: []string{"operations", "transactional-outbox", "audit-foundation", "engine-ports", "agent-health-policy"},
+			Capabilities: []string{"operations", "transactional-outbox", "audit-foundation", "engine-ports", "agent-health-policy", "tenancy", "postgres-rbac", "quota-reservations"},
 		},
 	})
 	server := &http.Server{

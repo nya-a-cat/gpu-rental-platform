@@ -24,6 +24,7 @@ spec:
         {{- end }}
       annotations:
         gpu.platform.nyaacat.dev/database-secret-revision: {{ .Values.database.secretRevision | quote }}
+        gpu.platform.nyaacat.dev/break-glass-secret-revision: {{ .Values.auth.breakGlass.secretRevision | quote }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -54,6 +55,15 @@ spec:
                   key: {{ required "database.secretKey is required" .Values.database.secretKey }}
             - name: HTTP_ADDR
               value: ":8080"
+            {{ if .Values.auth.breakGlass.existingSecret }}
+            - name: BREAK_GLASS_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.breakGlass.existingSecret }}
+                  key: {{ required "auth.breakGlass.tokenKey is required when the break-glass Secret is configured" .Values.auth.breakGlass.tokenKey }}
+            - name: BREAK_GLASS_ADMIN_SUBJECT
+              value: {{ .Values.auth.breakGlass.subject | quote }}
+            {{ end }}
             - name: CONTROL_PLANE_VERSION
               value: {{ default .Chart.AppVersion .Values.config.version | quote }}
             - name: CONTROL_PLANE_COMMIT

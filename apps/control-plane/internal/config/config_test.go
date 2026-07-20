@@ -106,3 +106,25 @@ func TestLoadRejectsInvalidAgentHealthPolicyOrder(t *testing.T) {
 		t.Fatal("Load() error = nil, want agent health policy validation error")
 	}
 }
+
+func TestLoadConfiguresBreakGlassAdmin(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://control-plane:secret@postgres/control-plane")
+	t.Setenv("BREAK_GLASS_ADMIN_TOKEN", "0123456789abcdef0123456789abcdef")
+	t.Setenv("BREAK_GLASS_ADMIN_SUBJECT", "emergency-admin")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.BreakGlassAdminToken != "0123456789abcdef0123456789abcdef" || cfg.BreakGlassAdminSubject != "emergency-admin" {
+		t.Fatalf("break-glass config = %q/%q", cfg.BreakGlassAdminSubject, cfg.BreakGlassAdminToken)
+	}
+}
+
+func TestLoadRejectsShortBreakGlassToken(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://control-plane:secret@postgres/control-plane")
+	t.Setenv("BREAK_GLASS_ADMIN_TOKEN", "short")
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil, want break-glass token validation error")
+	}
+}
