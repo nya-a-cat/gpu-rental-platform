@@ -11,6 +11,7 @@ import (
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/identity"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/operation"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/ports"
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/workspace"
 )
 
 type ReadinessChecker interface {
@@ -41,6 +42,7 @@ type Dependencies struct {
 	Operations       operation.Reader
 	Tenancy          TenancyStore
 	Catalog          CatalogStore
+	Workspace        workspace.Repository
 	Authenticator    authn.Authenticator
 	Authorization    ports.AuthorizationEngine
 	ReadinessTimeout time.Duration
@@ -68,6 +70,7 @@ func NewHandler(dependencies Dependencies) http.Handler {
 	registerGET(mux, "/api/v1/operations/{operationID}", operationHandler(dependencies.Operations))
 	registerTenancyRoutes(mux, dependencies)
 	registerCatalogRoutes(mux, dependencies)
+	registerWorkspaceRoutes(mux, dependencies)
 	mux.HandleFunc("/", routeNotFoundHandler)
 
 	var handler http.Handler = mux

@@ -7,7 +7,7 @@ info:
     This document defines the initial versioned `/api/v1` surface for the v2 control
     plane. The current contract exposes health, telemetry discovery, build
     information, asynchronous operation status, tenants, projects, role bindings,
-    project quotas, clusters, inventory, accelerator profiles, and capacity pools.
+    project quotas, clusters, inventory, accelerator profiles, capacity pools, and GPU Workspace instances.
 
     Every state-changing endpoint under `/api/v1` MUST require an
     `Idempotency-Key` header and return an Operation reference when work is
@@ -28,6 +28,7 @@ tags:
   - name: IAM
   - name: Quotas
   - name: Resource Catalog
+  - name: Instances
   - name: Capacity
 paths:
   /health/live:
@@ -619,6 +620,68 @@ paths:
               application/json:
                 { schema: { $ref: "#/components/schemas/CapacityPool" } },
             }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "404": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/instances:
+    post:
+      tags: [Instances]
+      operationId: createInstance
+      summary: Create a GPU Workspace instance.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateInstanceRequest" }
+      responses:
+        "202": { $ref: "#/components/responses/MutationAccepted" }
+        "400": { $ref: "#/components/responses/ProblemResponse" }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "409": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/instances/{instanceId}:
+    parameters:
+      - name: instanceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Instances]
+      operationId: getInstance
+      summary: Retrieve a GPU Workspace instance.
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The instance was found.
+          content:
+            application/json:
+              { schema: { $ref: "#/components/schemas/Instance" } }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "404": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
+    patch:
+      tags: [Instances]
+      operationId: setInstanceDesiredState
+      summary: Change the desired lifecycle state of an instance.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            { schema: { $ref: "#/components/schemas/SetInstanceDesiredStateRequest" } }
+      responses:
+        "202": { $ref: "#/components/responses/MutationAccepted" }
+        "400": { $ref: "#/components/responses/ProblemResponse" }
         "401": { $ref: "#/components/responses/ProblemResponse" }
         "403": { $ref: "#/components/responses/ProblemResponse" }
         "404": { $ref: "#/components/responses/ProblemResponse" }
@@ -1596,6 +1659,42 @@ components:
         allocated: { type: integer, format: int64, minimum: 0 }
         enabled: { type: boolean }
         generation: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateInstanceRequest:
+      type: object
+      additionalProperties: false
+      required: [projectId, clusterId, acceleratorProfileId, name]
+      properties:
+        projectId: { type: string, format: uuid }
+        clusterId: { type: string, format: uuid }
+        acceleratorProfileId: { type: string, format: uuid }
+        name: { type: string, pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", maxLength: 63 }
+    SetInstanceDesiredStateRequest:
+      type: object
+      additionalProperties: false
+      required: [desiredState]
+      properties:
+        desiredState: { type: string, enum: [running, stopped, terminated] }
+    Instance:
+      type: object
+      additionalProperties: false
+      required: [id, projectId, clusterId, acceleratorProfileId, name, gpuCount, namespaceName, desiredState, observedState, provisioningState, conditions, generation, observedGeneration, manifestWorkName, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        clusterId: { type: string, format: uuid }
+        acceleratorProfileId: { type: string, format: uuid }
+        name: { type: string }
+        gpuCount: { type: integer, minimum: 1 }
+        namespaceName: { type: string }
+        desiredState: { type: string, enum: [running, stopped, terminated] }
+        observedState: { type: string }
+        provisioningState: { type: string }
+        conditions: { type: array, items: { $ref: "#/components/schemas/Condition" } }
+        generation: { type: integer, minimum: 1 }
+        observedGeneration: { type: integer, minimum: 0 }
+        manifestWorkName: { type: string }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     ProblemDetails:

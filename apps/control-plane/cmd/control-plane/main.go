@@ -44,7 +44,7 @@ func main() {
 	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	capabilities := []string{"operations", "transactional-outbox", "audit-foundation", "engine-ports", "agent-health-policy", "tenancy", "postgres-rbac", "quota-reservations", "resource-catalog", "placement-inventory"}
+	capabilities := []string{"operations", "transactional-outbox", "audit-foundation", "engine-ports", "agent-health-policy", "tenancy", "postgres-rbac", "quota-reservations", "resource-catalog", "placement-inventory", "gpu-workspace-api"}
 	var isolationRunner *sharedisolation.Runner
 	var inventoryRunner *inventorysync.Runner
 	if cfg.OCM.Enabled {
@@ -118,6 +118,7 @@ func main() {
 		Operations:       repository,
 		Tenancy:          repository,
 		Catalog:          repository,
+		Workspace:        repository,
 		Authenticator:    authenticator,
 		Authorization:    authorizationEngine,
 		ReadinessTimeout: cfg.ReadinessTimeout,
