@@ -31,9 +31,7 @@ stop_active_monitors() {
 }
 
 remove_transient_artifacts() {
-  find "${ARTIFACT_DIR}" -maxdepth 1 -type f \(
-    -name '*.stop' -o -name '*.records' -o -name '*.tmp'
-  \) -delete 2>/dev/null || true
+  find "${ARTIFACT_DIR}" -maxdepth 1 -type f \( -name '*.stop' -o -name '*.records' -o -name '*.tmp' \) -delete 2>/dev/null || true
 }
 
 cleanup_on_exit() {
@@ -436,7 +434,7 @@ require_command awk
 require_command find
 
 export TOOLS_ROOT
-"${OCM_DEPLOY_ROOT}/scripts/install-tools.sh"
+bash "${OCM_DEPLOY_ROOT}/scripts/install-tools.sh"
 
 [[ -x "${KIND_BIN}" && -x "${KUBECTL_BIN}" && -x "${HELM_BIN}" ]]
 [[ -d "${CONTROL_PLANE_CHART}" ]]
