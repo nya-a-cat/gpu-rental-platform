@@ -19,7 +19,7 @@ type ReconcileState struct {
 	Generation  int64
 }
 
-type Repository interface {
+type ReconcileRepository interface {
 	LoadWorkspace(context.Context, string) (Workspace, error)
 	StartWorkspace(context.Context, ReconcileState) error
 	CompleteWorkspace(context.Context, ReconcileState) error
@@ -27,11 +27,11 @@ type Repository interface {
 }
 
 type Reconciler struct {
-	repository Repository
+	repository ReconcileRepository
 	fleet      ports.FleetManager
 }
 
-func NewReconciler(repository Repository, fleet ports.FleetManager) (*Reconciler, error) {
+func NewReconciler(repository ReconcileRepository, fleet ports.FleetManager) (*Reconciler, error) {
 	if repository == nil || fleet == nil {
 		return nil, errors.New("workspace repository and fleet manager are required")
 	}
