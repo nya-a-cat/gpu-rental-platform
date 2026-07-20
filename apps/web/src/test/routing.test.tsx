@@ -111,12 +111,12 @@ describe("role routes", () => {
       name: "价格上限: ¥32.90",
     });
     const powerControl = screen.getByRole("button", {
-      name: "控制总线 接通",
+      name: "控制总线接通",
     });
     fireEvent.click(powerControl);
     expect(priceControl).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "控制总线 断开" }));
+    fireEvent.click(screen.getByRole("button", { name: "控制总线断开" }));
     fireEvent.click(screen.getByRole("button", { name: "排序方式: 最新" }));
     await waitFor(() => {
       expect((screen.getByLabelText("排序") as HTMLSelectElement).value).toBe(
