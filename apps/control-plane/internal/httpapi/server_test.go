@@ -47,6 +47,11 @@ func testHandler(readiness ReadinessChecker, operations operation.Reader) http.H
 			Stage:        "phase-0-foundation",
 			Architecture: "modular-monolith",
 			Persistence:  "postgresql",
+			AgentHealthPolicy: AgentHealthPolicy{
+				HeartbeatIntervalSeconds: 15,
+				DegradedAfterSeconds:     45,
+				OfflineAfterSeconds:      90,
+			},
 			Capabilities: []string{"operations", "outbox"},
 		},
 	})
@@ -108,6 +113,25 @@ func TestReadinessSuccessIncludesPostgreSQLCheck(t *testing.T) {
 	}
 	if status.Status != "ready" || status.Checks.PostgreSQL.Status != "ready" || status.Checks.PostgreSQL.LatencyMS < 0 {
 		t.Fatalf("readiness status = %#v", status)
+	}
+}
+
+func TestSystemInfoIncludesAgentHealthPolicy(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/system/info", nil)
+	response := httptest.NewRecorder()
+	testHandler(readinessStub{}, operationReaderStub{}).ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", response.Code)
+	}
+	var info SystemInfo
+	if err := json.NewDecoder(response.Body).Decode(&info); err != nil {
+		t.Fatalf("decode system info: %v", err)
+	}
+	if info.AgentHealthPolicy.HeartbeatIntervalSeconds != 15 ||
+		info.AgentHealthPolicy.DegradedAfterSeconds != 45 ||
+		info.AgentHealthPolicy.OfflineAfterSeconds != 90 {
+		t.Fatalf("agent health policy = %#v", info.AgentHealthPolicy)
 	}
 }
 

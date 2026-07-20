@@ -272,6 +272,7 @@ components:
         - stage
         - architecture
         - persistence
+        - agentHealthPolicy
         - capabilities
       properties:
         product:
@@ -290,10 +291,29 @@ components:
           type: string
         persistence:
           type: string
+        agentHealthPolicy:
+          $ref: "#/components/schemas/AgentHealthPolicy"
         capabilities:
           type: array
           items:
             type: string
+    AgentHealthPolicy:
+      type: object
+      additionalProperties: false
+      required:
+        - heartbeatIntervalSeconds
+        - degradedAfterSeconds
+        - offlineAfterSeconds
+      properties:
+        heartbeatIntervalSeconds:
+          type: number
+          exclusiveMinimum: 0
+        degradedAfterSeconds:
+          type: number
+          exclusiveMinimum: 0
+        offlineAfterSeconds:
+          type: number
+          exclusiveMinimum: 0
     Operation:
       type: object
       additionalProperties: false

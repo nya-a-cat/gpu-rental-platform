@@ -2,6 +2,8 @@ package addonagent
 
 import (
 	"context"
+	"encoding/hex"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -26,6 +28,7 @@ func TestReporterOwnsInventoryConfigMapWhenAddonUIDIsAvailable(t *testing.T) {
 		clusterName:   "cluster-a",
 		addonName:     "gpu-platform-addon",
 		addonUID:      "uid-current",
+		agentEpoch:    "epoch-current",
 	}
 	observedAt := time.Date(2026, time.July, 20, 12, 0, 0, 0, time.UTC)
 
@@ -48,6 +51,13 @@ func TestReporterOwnsInventoryConfigMapWhenAddonUIDIsAvailable(t *testing.T) {
 	if owner.Controller == nil || !*owner.Controller {
 		t.Fatalf("expected controller owner reference, got %#v", owner)
 	}
+	snapshot := decodeInventorySnapshot(t, configMap)
+	if snapshot.AgentEpoch != "epoch-current" || snapshot.Sequence != 1 {
+		t.Fatalf("unexpected agent session metadata %#v", snapshot)
+	}
+	if !snapshot.FencingEnabled || snapshot.FencingToken != "uid-current" {
+		t.Fatalf("unexpected fencing metadata %#v", snapshot)
+	}
 
 	reporter.addonUID = "uid-recreated"
 	if err := reporter.report(context.Background(), observedAt.Add(time.Minute)); err != nil {
@@ -62,6 +72,13 @@ func TestReporterOwnsInventoryConfigMapWhenAddonUIDIsAvailable(t *testing.T) {
 	if len(configMap.OwnerReferences) != 1 || string(configMap.OwnerReferences[0].UID) != "uid-recreated" {
 		t.Fatalf("expected recreated add-on ownership, got %#v", configMap.OwnerReferences)
 	}
+	snapshot = decodeInventorySnapshot(t, configMap)
+	if snapshot.AgentEpoch != "epoch-current" || snapshot.Sequence != 2 {
+		t.Fatalf("unexpected updated agent session metadata %#v", snapshot)
+	}
+	if !snapshot.FencingEnabled || snapshot.FencingToken != "uid-recreated" {
+		t.Fatalf("unexpected updated fencing metadata %#v", snapshot)
+	}
 }
 
 func TestReporterKeepsNMinusOneManagerCompatibilityWithoutAddonUID(t *testing.T) {
@@ -72,6 +89,7 @@ func TestReporterKeepsNMinusOneManagerCompatibilityWithoutAddonUID(t *testing.T)
 		hubClient:     hubClient,
 		clusterName:   "cluster-a",
 		addonName:     "gpu-platform-addon",
+		agentEpoch:    "epoch-n-minus-one",
 	}
 
 	if err := reporter.report(context.Background(), time.Now()); err != nil {
@@ -85,6 +103,13 @@ func TestReporterKeepsNMinusOneManagerCompatibilityWithoutAddonUID(t *testing.T)
 	}
 	if len(configMap.OwnerReferences) != 0 {
 		t.Fatalf("expected no owner reference for N-1 manager compatibility, got %#v", configMap.OwnerReferences)
+	}
+	snapshot := decodeInventorySnapshot(t, configMap)
+	if snapshot.AgentEpoch != "epoch-n-minus-one" || snapshot.Sequence != 1 {
+		t.Fatalf("unexpected N-1 session metadata %#v", snapshot)
+	}
+	if snapshot.FencingEnabled || snapshot.FencingToken != "" {
+		t.Fatalf("expected fencing to be disabled without add-on UID, got %#v", snapshot)
 	}
 }
 
@@ -109,6 +134,7 @@ func TestReporterPreservesInventoryOwnershipWithoutAddonUID(t *testing.T) {
 		hubClient:     hubClient,
 		clusterName:   "cluster-a",
 		addonName:     "gpu-platform-addon",
+		agentEpoch:    "epoch-preserve",
 	}
 
 	if err := reporter.report(context.Background(), time.Now()); err != nil {
@@ -123,4 +149,38 @@ func TestReporterPreservesInventoryOwnershipWithoutAddonUID(t *testing.T) {
 	if len(configMap.OwnerReferences) != 1 || string(configMap.OwnerReferences[0].UID) != "uid-current" {
 		t.Fatalf("expected existing ownership to remain, got %#v", configMap.OwnerReferences)
 	}
+}
+
+func TestReporterRequiresAgentEpoch(t *testing.T) {
+	reporter := &reporter{
+		managedClient: fake.NewSimpleClientset(),
+		hubClient:     fake.NewSimpleClientset(),
+		clusterName:   "cluster-a",
+	}
+	if err := reporter.report(context.Background(), time.Now()); err == nil {
+		t.Fatal("report inventory without agent epoch succeeded")
+	}
+}
+
+func TestNewAgentEpochUsesRandom128BitHex(t *testing.T) {
+	epoch, err := newAgentEpoch()
+	if err != nil {
+		t.Fatalf("generate agent epoch: %v", err)
+	}
+	decoded, err := hex.DecodeString(epoch)
+	if err != nil {
+		t.Fatalf("agent epoch is not hexadecimal: %v", err)
+	}
+	if len(decoded) != agentEpochBytes {
+		t.Fatalf("agent epoch has %d bytes, want %d", len(decoded), agentEpochBytes)
+	}
+}
+
+func decodeInventorySnapshot(t *testing.T, configMap *corev1.ConfigMap) inventory.Snapshot {
+	t.Helper()
+	var snapshot inventory.Snapshot
+	if err := json.Unmarshal([]byte(configMap.Data[inventory.ConfigMapDataKey]), &snapshot); err != nil {
+		t.Fatalf("decode inventory snapshot: %v", err)
+	}
+	return snapshot
 }

@@ -49,7 +49,12 @@ func main() {
 			Stage:        cfg.Stage,
 			Architecture: "modular-monolith",
 			Persistence:  "postgresql",
-			Capabilities: []string{"operations", "transactional-outbox", "audit-foundation", "engine-ports"},
+			AgentHealthPolicy: httpapi.AgentHealthPolicy{
+				HeartbeatIntervalSeconds: float64(cfg.AgentHealthPolicy.HeartbeatInterval) / float64(time.Second),
+				DegradedAfterSeconds:     float64(cfg.AgentHealthPolicy.DegradedAfter) / float64(time.Second),
+				OfflineAfterSeconds:      float64(cfg.AgentHealthPolicy.OfflineAfter) / float64(time.Second),
+			},
+			Capabilities: []string{"operations", "transactional-outbox", "audit-foundation", "engine-ports", "agent-health-policy"},
 		},
 	})
 	server := &http.Server{

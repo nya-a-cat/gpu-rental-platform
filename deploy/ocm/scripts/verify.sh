@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
 require_command base64
+require_command grep
 require_command jq
 require_command kubectl
 require_command mktemp
@@ -71,17 +72,21 @@ verify_managed_cluster() {
   wait_until "renewed ${cluster_name} GPU Platform Add-on Lease" lease_renewed_since \
     "${spoke_context}" "${ADDON_INSTALL_NAMESPACE}" "${ADDON_NAME}" "${addon_lease_before}"
 
+  addon_uid="$(kubectl --context "${HUB_CONTEXT}" -n "${cluster_name}" get managedclusteraddon "${ADDON_NAME}" -o jsonpath='{.metadata.uid}')"
   kubectl --context "${HUB_CONTEXT}" -n "${cluster_name}" \
-    get configmap gpu-platform-inventory -o json | jq -e --arg cluster "${cluster_name}" '
+    get configmap gpu-platform-inventory -o json | jq -e --arg cluster "${cluster_name}" --arg addon_uid "${addon_uid}" '
       .data["inventory.json"]
         | fromjson
         | .schemaVersion == "gpu.platform.nyaacat.dev/v1alpha1" and
           .clusterName == $cluster and
+          (.agentEpoch | test("^[a-f0-9]{32}$")) and
+          (.sequence | type == "number" and . >= 1) and
+          .fencingToken == $addon_uid and
+          .fencingEnabled == true and
           (.generation | test("^[a-f0-9]{64}$")) and
           (.resources | type == "array")
     ' >/dev/null
 
-  addon_uid="$(kubectl --context "${HUB_CONTEXT}" -n "${cluster_name}" get managedclusteraddon "${ADDON_NAME}" -o jsonpath='{.metadata.uid}')"
   kubectl --context "${HUB_CONTEXT}" -n "${cluster_name}" get configmap gpu-platform-inventory -o json | jq -e --arg addon_uid "${addon_uid}" '
     any(.metadata.ownerReferences[]?;
       .apiVersion == "addon.open-cluster-management.io/v1beta1" and
@@ -105,19 +110,21 @@ materialize_addon_kubeconfig() {
 
 authorization_result() {
   local kubeconfig="$1"
-  local verb="$2"
-  local resource="$3"
-  local namespace="$4"
-  local hub_api_server="$5"
-  local result
+  local hub_api_server="$2"
+  local output
+  shift 2
 
-  result="$("${KUBECTL_BIN}" --kubeconfig "${kubeconfig}" --server "${hub_api_server}" \
-    auth can-i "${verb}" "${resource}" --namespace "${namespace}" 2>/dev/null || true)"
-  if [[ "${result}" == "yes" ]]; then
+  if output="$("${KUBECTL_BIN}" --kubeconfig "${kubeconfig}" --server "${hub_api_server}" "$@" 2>&1)"; then
     printf 'true'
-  else
-    printf 'false'
+    return 0
   fi
+  if grep -qi 'forbidden' <<<"${output}"; then
+    printf 'false'
+    return 0
+  fi
+
+  echo "authorization probe failed unexpectedly: ${output}" >&2
+  return 1
 }
 
 assert_authorization() {
@@ -135,6 +142,8 @@ verify_cross_cluster_authorization() {
   local credential_root
   local primary_kubeconfig
   local secondary_kubeconfig
+  local primary_inventory_manifest
+  local secondary_inventory_manifest
   local primary_own_get
   local primary_own_update
   local primary_own_create
@@ -155,23 +164,26 @@ verify_cross_cluster_authorization() {
   secondary_kubeconfig="${credential_root}/secondary"
   materialize_addon_kubeconfig "${SPOKE_CONTEXT}" "${primary_kubeconfig}"
   materialize_addon_kubeconfig "${SECONDARY_SPOKE_CONTEXT}" "${secondary_kubeconfig}"
+  primary_inventory_manifest="${credential_root}/primary-inventory.json"
+  secondary_inventory_manifest="${credential_root}/secondary-inventory.json"
+  kubectl --context "${HUB_CONTEXT}" -n "${MANAGED_CLUSTER_NAME}" get configmap gpu-platform-inventory -o json >"${primary_inventory_manifest}"
+  kubectl --context "${HUB_CONTEXT}" -n "${SECONDARY_MANAGED_CLUSTER_NAME}" get configmap gpu-platform-inventory -o json >"${secondary_inventory_manifest}"
 
   hub_api_server="$(kubectl --context "${HUB_CONTEXT}" config view --minify -o jsonpath='{.clusters[0].cluster.server}')"
 
-  primary_own_get="$(authorization_result "${primary_kubeconfig}" get configmap/gpu-platform-inventory "${MANAGED_CLUSTER_NAME}" "${hub_api_server}")"
-  primary_own_update="$(authorization_result "${primary_kubeconfig}" update configmap/gpu-platform-inventory "${MANAGED_CLUSTER_NAME}" "${hub_api_server}")"
-  primary_own_create="$(authorization_result "${primary_kubeconfig}" create configmaps "${MANAGED_CLUSTER_NAME}" "${hub_api_server}")"
-  primary_foreign_get="$(authorization_result "${primary_kubeconfig}" get configmap/gpu-platform-inventory "${SECONDARY_MANAGED_CLUSTER_NAME}" "${hub_api_server}")"
-  primary_foreign_update="$(authorization_result "${primary_kubeconfig}" update configmap/gpu-platform-inventory "${SECONDARY_MANAGED_CLUSTER_NAME}" "${hub_api_server}")"
-  primary_foreign_create="$(authorization_result "${primary_kubeconfig}" create configmaps "${SECONDARY_MANAGED_CLUSTER_NAME}" "${hub_api_server}")"
+  primary_own_get="$(authorization_result "${primary_kubeconfig}" "${hub_api_server}" get configmap gpu-platform-inventory --namespace "${MANAGED_CLUSTER_NAME}")"
+  primary_own_update="$(authorization_result "${primary_kubeconfig}" "${hub_api_server}" replace --filename "${primary_inventory_manifest}" --dry-run=server)"
+  primary_own_create="$(authorization_result "${primary_kubeconfig}" "${hub_api_server}" create configmap gpu-platform-authorization-probe --namespace "${MANAGED_CLUSTER_NAME}" --from-literal=probe=true --dry-run=server --output name)"
+  primary_foreign_get="$(authorization_result "${primary_kubeconfig}" "${hub_api_server}" get configmap gpu-platform-inventory --namespace "${SECONDARY_MANAGED_CLUSTER_NAME}")"
+  primary_foreign_update="$(authorization_result "${primary_kubeconfig}" "${hub_api_server}" replace --filename "${secondary_inventory_manifest}" --dry-run=server)"
+  primary_foreign_create="$(authorization_result "${primary_kubeconfig}" "${hub_api_server}" create configmap gpu-platform-authorization-probe --namespace "${SECONDARY_MANAGED_CLUSTER_NAME}" --from-literal=probe=true --dry-run=server --output name)"
 
-  secondary_own_get="$(authorization_result "${secondary_kubeconfig}" get configmap/gpu-platform-inventory "${SECONDARY_MANAGED_CLUSTER_NAME}" "${hub_api_server}")"
-  secondary_own_update="$(authorization_result "${secondary_kubeconfig}" update configmap/gpu-platform-inventory "${SECONDARY_MANAGED_CLUSTER_NAME}" "${hub_api_server}")"
-  secondary_own_create="$(authorization_result "${secondary_kubeconfig}" create configmaps "${SECONDARY_MANAGED_CLUSTER_NAME}" "${hub_api_server}")"
-  secondary_foreign_get="$(authorization_result "${secondary_kubeconfig}" get configmap/gpu-platform-inventory "${MANAGED_CLUSTER_NAME}" "${hub_api_server}")"
-  secondary_foreign_update="$(authorization_result "${secondary_kubeconfig}" update configmap/gpu-platform-inventory "${MANAGED_CLUSTER_NAME}" "${hub_api_server}")"
-  secondary_foreign_create="$(authorization_result "${secondary_kubeconfig}" create configmaps "${MANAGED_CLUSTER_NAME}" "${hub_api_server}")"
-
+  secondary_own_get="$(authorization_result "${secondary_kubeconfig}" "${hub_api_server}" get configmap gpu-platform-inventory --namespace "${SECONDARY_MANAGED_CLUSTER_NAME}")"
+  secondary_own_update="$(authorization_result "${secondary_kubeconfig}" "${hub_api_server}" replace --filename "${secondary_inventory_manifest}" --dry-run=server)"
+  secondary_own_create="$(authorization_result "${secondary_kubeconfig}" "${hub_api_server}" create configmap gpu-platform-authorization-probe --namespace "${SECONDARY_MANAGED_CLUSTER_NAME}" --from-literal=probe=true --dry-run=server --output name)"
+  secondary_foreign_get="$(authorization_result "${secondary_kubeconfig}" "${hub_api_server}" get configmap gpu-platform-inventory --namespace "${MANAGED_CLUSTER_NAME}")"
+  secondary_foreign_update="$(authorization_result "${secondary_kubeconfig}" "${hub_api_server}" replace --filename "${primary_inventory_manifest}" --dry-run=server)"
+  secondary_foreign_create="$(authorization_result "${secondary_kubeconfig}" "${hub_api_server}" create configmap gpu-platform-authorization-probe --namespace "${MANAGED_CLUSTER_NAME}" --from-literal=probe=true --dry-run=server --output name)"
   assert_authorization "primary Add-on reads own inventory" true "${primary_own_get}"
   assert_authorization "primary Add-on updates own inventory" true "${primary_own_update}"
   assert_authorization "primary Add-on creates own inventory" true "${primary_own_create}"

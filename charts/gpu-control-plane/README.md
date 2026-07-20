@@ -58,6 +58,9 @@ The chart maps the runtime contract from `apps/control-plane/README.md`:
 | `config.commit`                                  | `CONTROL_PLANE_COMMIT`        | `unknown`                                     |
 | `config.shutdownTimeout`                         | `SHUTDOWN_TIMEOUT`            | `15s`                                         |
 | `config.readinessTimeout`                        | `READINESS_TIMEOUT`           | `2s`                                          |
+| `config.agentHeartbeatInterval`                  | `AGENT_HEARTBEAT_INTERVAL`    | `15s`                                         |
+| `config.agentDegradedAfter`                      | `AGENT_DEGRADED_AFTER`        | `45s`                                         |
+| `config.agentOfflineAfter`                       | `AGENT_OFFLINE_AFTER`         | `90s`                                         |
 | `config.dbMaxOpenConns`                          | `DB_MAX_OPEN_CONNS`           | `20`                                          |
 | `config.dbMaxIdleConns`                          | `DB_MAX_IDLE_CONNS`           | `5`                                           |
 | `config.dbConnMaxLifetime`                       | `DB_CONN_MAX_LIFETIME`        | `30m`                                         |

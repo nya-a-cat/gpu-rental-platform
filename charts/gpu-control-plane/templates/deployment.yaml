@@ -62,6 +62,12 @@ spec:
               value: {{ .Values.config.shutdownTimeout | quote }}
             - name: READINESS_TIMEOUT
               value: {{ .Values.config.readinessTimeout | quote }}
+            - name: AGENT_HEARTBEAT_INTERVAL
+              value: {{ .Values.config.agentHeartbeatInterval | quote }}
+            - name: AGENT_DEGRADED_AFTER
+              value: {{ .Values.config.agentDegradedAfter | quote }}
+            - name: AGENT_OFFLINE_AFTER
+              value: {{ .Values.config.agentOfflineAfter | quote }}
             - name: DB_MAX_OPEN_CONNS
               value: {{ .Values.config.dbMaxOpenConns | quote }}
             - name: DB_MAX_IDLE_CONNS

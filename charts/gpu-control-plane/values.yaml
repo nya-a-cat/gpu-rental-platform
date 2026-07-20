@@ -28,6 +28,9 @@ config:
   commit: unknown
   shutdownTimeout: 15s
   readinessTimeout: 2s
+  agentHeartbeatInterval: 15s
+  agentDegradedAfter: 45s
+  agentOfflineAfter: 90s
   dbMaxOpenConns: 20
   dbMaxIdleConns: 5
   dbConnMaxLifetime: 30m

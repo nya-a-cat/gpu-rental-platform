@@ -44,6 +44,9 @@ replacement, zero-grace single-Pod recovery and Helm release cleanup.
 | `CONTROL_PLANE_COMMIT`        | `unknown` | Source revision                                              |
 | `SHUTDOWN_TIMEOUT`            |     `15s` | Graceful HTTP shutdown deadline                              |
 | `READINESS_TIMEOUT`           |      `2s` | PostgreSQL readiness deadline                                |
+| `AGENT_HEARTBEAT_INTERVAL`    |     `15s` | Expected managed-cluster Agent report interval               |
+| `AGENT_DEGRADED_AFTER`        |     `45s` | Age that changes connectivity from connected to degraded     |
+| `AGENT_OFFLINE_AFTER`         |     `90s` | Age that changes connectivity from degraded to offline       |
 | `DB_MAX_OPEN_CONNS`           |      `20` | Maximum open PostgreSQL connections                          |
 | `DB_MAX_IDLE_CONNS`           |       `5` | Maximum idle PostgreSQL connections                          |
 | `DB_CONN_MAX_LIFETIME`        |     `30m` | PostgreSQL connection lifetime                               |

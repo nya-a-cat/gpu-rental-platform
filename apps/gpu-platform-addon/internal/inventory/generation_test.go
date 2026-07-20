@@ -27,6 +27,19 @@ func TestGenerationIsStableForEquivalentInventory(t *testing.T) {
 	}
 }
 
+func TestGenerationIgnoresAgentSessionMetadata(t *testing.T) {
+	snapshot := Aggregate("cluster-a", nil, time.Unix(100, 0))
+	generation := snapshot.Generation
+	snapshot.AgentEpoch = "epoch-a"
+	snapshot.Sequence = 42
+	snapshot.FencingToken = "token-a"
+	snapshot.FencingEnabled = true
+
+	if actual := calculateGeneration(snapshot); actual != generation {
+		t.Fatalf("agent session metadata changed capacity generation: %q and %q", generation, actual)
+	}
+}
+
 func TestGenerationChangesWhenCapacityChanges(t *testing.T) {
 	baseNodes := []corev1.Node{
 		{

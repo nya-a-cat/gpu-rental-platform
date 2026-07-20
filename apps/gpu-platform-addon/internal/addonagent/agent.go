@@ -2,6 +2,8 @@ package addonagent
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"time"
@@ -18,9 +20,16 @@ import (
 	"open-cluster-management.io/addon-framework/pkg/lease"
 )
 
-const managedByLabel = "gpu-platform-addon"
+const (
+	managedByLabel  = "gpu-platform-addon"
+	agentEpochBytes = 16
+)
 
 func Run(ctx context.Context, opts options.Agent) error {
+	agentEpoch, err := newAgentEpoch()
+	if err != nil {
+		return fmt.Errorf("generate agent epoch: %w", err)
+	}
 	managedConfig, err := kubeconfig.Load(opts.ManagedKubeconfig)
 	if err != nil {
 		return fmt.Errorf("load managed-cluster client configuration: %w", err)
@@ -48,6 +57,7 @@ func Run(ctx context.Context, opts options.Agent) error {
 		clusterName:   opts.ClusterName,
 		addonName:     opts.AddonName,
 		addonUID:      opts.AddonUID,
+		agentEpoch:    agentEpoch,
 	}
 	reporter.Run(ctx, opts.ReportInterval)
 	return nil
@@ -59,6 +69,8 @@ type reporter struct {
 	clusterName   string
 	addonName     string
 	addonUID      string
+	agentEpoch    string
+	sequence      uint64
 }
 
 func (r *reporter) Run(ctx context.Context, interval time.Duration) {
@@ -83,12 +95,21 @@ func (r *reporter) reportAndLog(ctx context.Context) {
 }
 
 func (r *reporter) report(ctx context.Context, observedAt time.Time) error {
+	if r.agentEpoch == "" {
+		return fmt.Errorf("agent epoch is required")
+	}
+
 	nodes, err := r.managedClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("list managed-cluster nodes: %w", err)
 	}
 
 	snapshot := inventory.Aggregate(r.clusterName, nodes.Items, observedAt)
+	r.sequence++
+	snapshot.AgentEpoch = r.agentEpoch
+	snapshot.Sequence = r.sequence
+	snapshot.FencingToken = r.addonUID
+	snapshot.FencingEnabled = r.addonUID != ""
 	data, err := inventory.Marshal(snapshot)
 	if err != nil {
 		return fmt.Errorf("serialize accelerator inventory: %w", err)
@@ -148,4 +169,12 @@ func (r *reporter) inventoryOwnerReferences() []metav1.OwnerReference {
 		UID:        types.UID(r.addonUID),
 		Controller: &controller,
 	}}
+}
+
+func newAgentEpoch() (string, error) {
+	value := make([]byte, agentEpochBytes)
+	if _, err := rand.Read(value); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(value), nil
 }

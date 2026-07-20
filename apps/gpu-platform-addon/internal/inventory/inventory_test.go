@@ -58,6 +58,10 @@ func TestMarshalInventoryIsStableAndContainsNoNodeIdentity(t *testing.T) {
 	snapshot := Snapshot{
 		SchemaVersion:        SchemaVersion,
 		ClusterName:          "cluster-a",
+		AgentEpoch:           "0123456789abcdef0123456789abcdef",
+		Sequence:             7,
+		FencingToken:         "uid-current",
+		FencingEnabled:       true,
 		Generation:           "generation-1",
 		ObservedAt:           time.Date(2026, 7, 18, 18, 0, 0, 0, time.UTC),
 		NodeCount:            1,
@@ -71,7 +75,7 @@ func TestMarshalInventoryIsStableAndContainsNoNodeIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal inventory: %v", err)
 	}
-	want := `{"schemaVersion":"gpu.platform.nyaacat.dev/v1alpha1","clusterName":"cluster-a","generation":"generation-1","observedAt":"2026-07-18T18:00:00Z","nodeCount":1,"schedulableNodeCount":1,"resources":[{"name":"nvidia.com/gpu","allocatable":2,"schedulableAllocatable":2}]}`
+	want := `{"schemaVersion":"gpu.platform.nyaacat.dev/v1alpha1","clusterName":"cluster-a","agentEpoch":"0123456789abcdef0123456789abcdef","sequence":7,"fencingToken":"uid-current","fencingEnabled":true,"generation":"generation-1","observedAt":"2026-07-18T18:00:00Z","nodeCount":1,"schedulableNodeCount":1,"resources":[{"name":"nvidia.com/gpu","allocatable":2,"schedulableAllocatable":2}]}`
 	if string(data) != want {
 		t.Fatalf("unexpected serialized inventory:\nwant %s\n got %s", want, data)
 	}

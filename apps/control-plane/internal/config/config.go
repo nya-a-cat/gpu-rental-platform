@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/clusterstate"
 )
 
 const (
@@ -33,6 +35,7 @@ type Config struct {
 	Commit                    string
 	ShutdownTimeout           time.Duration
 	ReadinessTimeout          time.Duration
+	AgentHealthPolicy         clusterstate.Thresholds
 	MaxOpenConns              int
 	MaxIdleConns              int
 	ConnMaxLifetime           time.Duration
@@ -65,6 +68,22 @@ func Load() (Config, error) {
 	}
 	readinessTimeout, err := durationEnv("READINESS_TIMEOUT", defaultReadinessTimeout)
 	if err != nil {
+		return Config{}, err
+	}
+	agentHealthPolicy := clusterstate.DefaultThresholds()
+	agentHealthPolicy.HeartbeatInterval, err = durationEnv("AGENT_HEARTBEAT_INTERVAL", agentHealthPolicy.HeartbeatInterval)
+	if err != nil {
+		return Config{}, err
+	}
+	agentHealthPolicy.DegradedAfter, err = durationEnv("AGENT_DEGRADED_AFTER", agentHealthPolicy.DegradedAfter)
+	if err != nil {
+		return Config{}, err
+	}
+	agentHealthPolicy.OfflineAfter, err = durationEnv("AGENT_OFFLINE_AFTER", agentHealthPolicy.OfflineAfter)
+	if err != nil {
+		return Config{}, err
+	}
+	if err := agentHealthPolicy.Validate(); err != nil {
 		return Config{}, err
 	}
 	maxOpenConns, err := positiveIntEnv("DB_MAX_OPEN_CONNS", defaultMaxOpenConns)
@@ -102,6 +121,7 @@ func Load() (Config, error) {
 		Commit:                    stringEnv("CONTROL_PLANE_COMMIT", "unknown"),
 		ShutdownTimeout:           shutdownTimeout,
 		ReadinessTimeout:          readinessTimeout,
+		AgentHealthPolicy:         agentHealthPolicy,
 		MaxOpenConns:              maxOpenConns,
 		MaxIdleConns:              maxIdleConns,
 		ConnMaxLifetime:           connMaxLifetime,

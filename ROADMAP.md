@@ -21,12 +21,13 @@
 - [x] 开发最小 GPU Platform Add-on，并通过 ManifestWork 完成安装和状态回传。
 - [x] 验证 ManagedCluster 与 Add-on CSR 证书轮换。
 - [x] 验证 Add-on 升级、删除清理和 N/N-1 兼容。
-- [ ] 收紧 Add-on Agent 跨集群库存写权限，并增加双集群反向授权断言。
-- [ ] 实现 Agent Epoch、命令序列、Fencing Token 与 15/45/90 秒状态语义。
+- [x] 收紧 Add-on Agent 跨集群库存写权限，并增加双集群反向授权断言。
+- [x] 实现 Agent Epoch、单调上报序列、Fencing Token 报告与 15/45/90 秒状态求值。
+- [ ] 在首个工作负载命令通道中实现命令序列、Fencing Token 校验与陈旧命令拒绝。
 - [x] 固定 Kubernetes 1.34.x、OCM、GPU Operator、Volcano 和 KServe 的首个候选认证版本矩阵，并区分 GitHub-hosted 与 GPU 自托管证据。
 - [x] 完成 GPUStack v2.2.1 源码与文档对照报告，建立实例生命周期、Worker Tunnel、多集群、PVC 和用量统计的 GS 验收矩阵。
 - [x] 在 GitHub Actions 部署 GPUStack v2.2.1 运行基线，并执行首轮 GS 对照项。
-- [ ] 建立 Prometheus、OTel Collector、审计归档和基础告警链路。
+- [x] 建立 Prometheus、OTel Collector、审计归档和基础告警链路。
 - [x] 提供 Helm Chart，并完成三副本滚动升级和单副本故障验证。
 
 ## Phase 1 — Real Alpha：真实整卡实例

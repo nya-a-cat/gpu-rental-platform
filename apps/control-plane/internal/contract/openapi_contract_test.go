@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/httpapi"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/operation"
 	"gopkg.in/yaml.v3"
 )
@@ -36,6 +37,8 @@ type openAPIProperty struct {
 func TestOperationDTOsMatchOpenAPI(t *testing.T) {
 	document := loadOpenAPI(t)
 
+	assertSchemaMatchesDTO(t, document, "SystemInfo", reflect.TypeOf(httpapi.SystemInfo{}))
+	assertSchemaMatchesDTO(t, document, "AgentHealthPolicy", reflect.TypeOf(httpapi.AgentHealthPolicy{}))
 	assertSchemaMatchesDTO(t, document, "Operation", reflect.TypeOf(operation.Operation{}))
 	assertSchemaMatchesDTO(t, document, "ResourceReference", reflect.TypeOf(operation.ResourceRef{}))
 	assertSchemaMatchesDTO(t, document, "OperationStep", reflect.TypeOf(operation.Step{}))
@@ -53,6 +56,11 @@ func TestOperationDTOsMatchOpenAPI(t *testing.T) {
 	if stepSchema.Properties["status"].Ref != "#/components/schemas/OperationStatus" {
 		t.Fatalf("OperationStep.status ref = %q", stepSchema.Properties["status"].Ref)
 	}
+	systemInfoSchema := document.Components.Schemas["SystemInfo"]
+	if systemInfoSchema.Properties["agentHealthPolicy"].Ref != "#/components/schemas/AgentHealthPolicy" {
+		t.Fatalf("SystemInfo.agentHealthPolicy ref = %q", systemInfoSchema.Properties["agentHealthPolicy"].Ref)
+	}
+
 	operationSchema := document.Components.Schemas["Operation"]
 	if operationSchema.Properties["target"].Ref != "#/components/schemas/ResourceReference" {
 		t.Fatalf("Operation.target ref = %q", operationSchema.Properties["target"].Ref)

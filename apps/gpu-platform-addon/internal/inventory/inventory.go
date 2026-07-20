@@ -27,6 +27,10 @@ type Resource struct {
 type Snapshot struct {
 	SchemaVersion        string     `json:"schemaVersion"`
 	ClusterName          string     `json:"clusterName"`
+	AgentEpoch           string     `json:"agentEpoch"`
+	Sequence             uint64     `json:"sequence"`
+	FencingToken         string     `json:"fencingToken,omitempty"`
+	FencingEnabled       bool       `json:"fencingEnabled"`
 	Generation           string     `json:"generation"`
 	ObservedAt           time.Time  `json:"observedAt"`
 	NodeCount            int        `json:"nodeCount"`

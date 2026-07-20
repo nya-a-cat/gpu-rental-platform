@@ -15,15 +15,22 @@ type ReadinessChecker interface {
 	PingContext(context.Context) error
 }
 
+type AgentHealthPolicy struct {
+	HeartbeatIntervalSeconds float64 `json:"heartbeatIntervalSeconds"`
+	DegradedAfterSeconds     float64 `json:"degradedAfterSeconds"`
+	OfflineAfterSeconds      float64 `json:"offlineAfterSeconds"`
+}
+
 type SystemInfo struct {
-	Product      string   `json:"product"`
-	APIVersion   string   `json:"apiVersion"`
-	Version      string   `json:"version"`
-	Commit       string   `json:"commit"`
-	Stage        string   `json:"stage"`
-	Architecture string   `json:"architecture"`
-	Persistence  string   `json:"persistence"`
-	Capabilities []string `json:"capabilities"`
+	Product           string            `json:"product"`
+	APIVersion        string            `json:"apiVersion"`
+	Version           string            `json:"version"`
+	Commit            string            `json:"commit"`
+	Stage             string            `json:"stage"`
+	Architecture      string            `json:"architecture"`
+	Persistence       string            `json:"persistence"`
+	AgentHealthPolicy AgentHealthPolicy `json:"agentHealthPolicy"`
+	Capabilities      []string          `json:"capabilities"`
 }
 
 type Dependencies struct {

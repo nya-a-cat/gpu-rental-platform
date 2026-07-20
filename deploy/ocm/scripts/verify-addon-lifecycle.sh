@@ -95,6 +95,30 @@ inventory_owner_uid() {
   kubectl --context "${HUB_CONTEXT}" -n "${MANAGED_CLUSTER_NAME}" get configmap gpu-platform-inventory -o jsonpath='{.metadata.ownerReferences[0].uid}'
 }
 
+inventory_agent_epoch() {
+  kubectl --context "${HUB_CONTEXT}" -n "${MANAGED_CLUSTER_NAME}" get configmap gpu-platform-inventory -o json | jq -er '.data["inventory.json"] | fromjson | .agentEpoch'
+}
+
+inventory_sequence() {
+  kubectl --context "${HUB_CONTEXT}" -n "${MANAGED_CLUSTER_NAME}" get configmap gpu-platform-inventory -o json | jq -er '.data["inventory.json"] | fromjson | .sequence'
+}
+
+inventory_session_matches() {
+  local fencing_enabled="$1"
+  local fencing_token="$2"
+
+  kubectl --context "${HUB_CONTEXT}" -n "${MANAGED_CLUSTER_NAME}" get configmap gpu-platform-inventory -o json | jq -e \
+    --argjson fencing_enabled "${fencing_enabled}" \
+    --arg fencing_token "${fencing_token}" '
+      .data["inventory.json"]
+        | fromjson
+        | (.agentEpoch | test("^[a-f0-9]{32}$")) and
+          (.sequence | type == "number" and . >= 1) and
+          .fencingEnabled == $fencing_enabled and
+          (.fencingToken // "") == $fencing_token
+    ' >/dev/null
+}
+
 addon_csr_uids() {
   kubectl --context "${HUB_CONTEXT}" get certificatesigningrequests -o json | jq -r '[.items[] | select(.metadata.labels["open-cluster-management.io/addon-name"] == "gpu-platform-addon") | .metadata.uid] | sort | join(",")'
 }
@@ -174,6 +198,8 @@ capture_stage() {
     echo "inventory_observed_at=$(inventory_observed_at 2>/dev/null || true)"
     echo "inventory_generation=$(inventory_generation 2>/dev/null || true)"
     echo "inventory_owner_uid=$(inventory_owner_uid 2>/dev/null || true)"
+    echo "inventory_agent_epoch=$(inventory_agent_epoch 2>/dev/null || true)"
+    echo "inventory_sequence=$(inventory_sequence 2>/dev/null || true)"
     echo "addon_csr_uids=$(addon_csr_uids 2>/dev/null || true)"
     echo "applied_addon_work_count=$(applied_addon_work_count 2>/dev/null || true)"
   } >"${destination}"
@@ -281,6 +307,8 @@ assert_not_equal "N agent Pod UID" "${previous_agent_uid}" "$(agent_pod_uid)"
 assert_not_equal "N agent image ID" "${BASELINE_AGENT_IMAGE_ID}" "$(agent_image_id)"
 assert_upgrade_credentials_stable
 assert_equal "N agent ownership with N-1 manager" "" "$(inventory_owner_uid 2>/dev/null || true)"
+wait_until "N agent unfenced session with N-1 manager" inventory_session_matches false ""
+N_AGENT_EPOCH_WITH_N_MINUS_ONE_MANAGER="$(inventory_agent_epoch)"
 capture_stage 10-n-minus-one-manager-n-agent
 
 previous_agent_uid="$(agent_pod_uid)"
@@ -313,6 +341,8 @@ assert_not_equal "N agent final Pod UID" "${previous_agent_uid}" "$(agent_pod_ui
 assert_not_equal "N agent final image ID" "${BASELINE_AGENT_IMAGE_ID}" "$(agent_image_id)"
 assert_upgrade_credentials_stable
 wait_until "inventory ManagedClusterAddOn ownership" inventory_is_owned_by "${BASELINE_MCA_UID}"
+wait_until "N agent fenced session with N manager" inventory_session_matches true "${BASELINE_MCA_UID}"
+assert_not_equal "N agent epoch after rollback and rollout" "${N_AGENT_EPOCH_WITH_N_MINUS_ONE_MANAGER}" "$(inventory_agent_epoch)"
 capture_stage 30-n-manager-n-agent
 
 BASELINE_PERMISSION_RESOURCES="$(hub_owned_permissions "${BASELINE_MCA_UID}")"
@@ -329,6 +359,7 @@ wait_for_continuity "re-enabled current add-on"
 REENABLED_MCA_UID="$(managed_cluster_addon_uid)"
 assert_not_equal "re-enabled ManagedClusterAddOn UID" "${BASELINE_MCA_UID}" "${REENABLED_MCA_UID}"
 wait_until "re-enabled inventory ownership" inventory_is_owned_by "${REENABLED_MCA_UID}"
+wait_until "re-enabled fenced agent session" inventory_session_matches true "${REENABLED_MCA_UID}"
 REENABLED_PERMISSION_RESOURCES="$(hub_owned_permissions "${REENABLED_MCA_UID}")"
 if (( $(hub_permission_count "${REENABLED_MCA_UID}") < 2 )); then
   echo "re-enabled Add-on Hub permissions are incomplete" >&2
