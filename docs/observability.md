@@ -17,6 +17,9 @@ This profile uses one replica for each telemetry component, 24 hours of
 Prometheus retention, and bounded ephemeral storage. Prometheus HA, Thanos,
 long-term metric storage, and production alert receivers remain Phase 2 work.
 
+The default Pod security context fixes UID and GID 65534 so Kubernetes can
+enforce non-root execution for images that declare the symbolic user `nobody`.
+
 ## Helm deployment
 
 The chart is located at `charts/gpu-observability`. Its certified Phase 0 image
