@@ -29,6 +29,11 @@ fencing validation. The stable Phase 0 capacity fingerprint excludes observation
 and Agent session metadata, so restart and N/N-1 transitions do not create false
 capacity generations.
 
+Hub inventory access uses a namespace RoleBinding containing only the
+cluster-specific kube-client registration user. The shared Add-on group is
+excluded from that binding, preserving authorization boundaries between managed
+cluster namespaces.
+
 The agent also refreshes the `gpu-platform-addon` Lease in its installation
 namespace. OCM uses that Lease for `ManagedClusterAddOn` connectivity health;
 the current manager includes the Lease in ManifestWork with

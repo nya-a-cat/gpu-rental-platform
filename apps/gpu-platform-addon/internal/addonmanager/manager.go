@@ -8,6 +8,7 @@ import (
 	"github.com/nya-a-cat/gpu-rental-platform/apps/gpu-platform-addon/internal/inventory"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/gpu-platform-addon/internal/kubeconfig"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/gpu-platform-addon/internal/options"
+	certificatesv1 "k8s.io/api/certificates/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -137,13 +138,58 @@ func registrationOption(hubConfig *rest.Config, addonName string) (*frameworkage
 		},
 	}
 
-	permissionConfig := utils.NewRBACPermissionConfigBuilder(hubClient).
-		BindKubeClientRole(role).
-		Build()
-
 	return &frameworkagent.RegistrationOption{
 		Configurations:   frameworkagent.KubeClientSignerConfigurations(addonName, agentName),
 		CSRApproveCheck:  utils.DefaultCSRApprover(agentName),
-		PermissionConfig: permissionConfig,
+		PermissionConfig: inventoryPermissionConfig(hubClient, role),
 	}, nil
+}
+
+func inventoryPermissionConfig(hubClient kubernetes.Interface, role *rbacv1.Role) frameworkagent.PermissionConfigFunc {
+	return func(ctx context.Context, cluster *clusterv1.ManagedCluster, addon *addonv1beta1.ManagedClusterAddOn) error {
+		subjects := utils.BuildSubjectsFromRegistration(addon, certificatesv1.KubeAPIServerClientSignerName)
+		var userSubject *rbacv1.Subject
+		for index := range subjects {
+			if subjects[index].Kind == rbacv1.UserKind {
+				userSubject = &subjects[index]
+				break
+			}
+		}
+		if userSubject == nil || userSubject.Name == "" {
+			return &frameworkagent.SubjectNotReadyError{}
+		}
+
+		blockOwnerDeletion := true
+		ownerReference := metav1.OwnerReference{
+			APIVersion:         addonv1beta1.GroupVersion.String(),
+			Kind:               "ManagedClusterAddOn",
+			Name:               addon.Name,
+			UID:                addon.UID,
+			BlockOwnerDeletion: &blockOwnerDeletion,
+		}
+		scopedRole := role.DeepCopy()
+		scopedRole.Namespace = cluster.Name
+		scopedRole.OwnerReferences = []metav1.OwnerReference{ownerReference}
+		if _, _, err := utils.ApplyRole(ctx, hubClient.RbacV1(), scopedRole); err != nil {
+			return fmt.Errorf("apply inventory role: %w", err)
+		}
+
+		binding := &rbacv1.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            role.Name,
+				Namespace:       cluster.Name,
+				OwnerReferences: []metav1.OwnerReference{ownerReference},
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind:     "Role",
+				Name:     role.Name,
+			},
+			Subjects: []rbacv1.Subject{*userSubject},
+		}
+		if _, _, err := utils.ApplyRoleBinding(ctx, hubClient.RbacV1(), binding); err != nil {
+			return fmt.Errorf("apply inventory role binding: %w", err)
+		}
+		return nil
+	}
 }
