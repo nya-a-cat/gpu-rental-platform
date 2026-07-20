@@ -505,11 +505,11 @@ PROXY_PID=$!
 wait_until "Kubernetes API proxy" 30 1 curl --silent --fail --max-time 2 "${PROXY_BASE_URL}/version"
 wait_until "baseline service version" 30 1 service_reports_version ha-baseline
 
-migration_row="$(run_in_postgres "SELECT version || '|' || checksum FROM control_plane_schema_migrations WHERE version = '000001';")"
+migration_row="$(run_in_postgres "SELECT version || '|' || checksum FROM control_plane_schema_migrations WHERE version = '000001_phase0_foundation';")"
 migration_version="${migration_row%%|*}"
 migration_checksum="${migration_row#*|}"
 migration_tables="$(run_in_postgres "SELECT string_agg(table_name, ',' ORDER BY table_name) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY (ARRAY['audit_events','audit_events_default','idempotency_records','operations','outbox_events']::text[]);")"
-[[ "${migration_version}" == "000001" ]]
+[[ "${migration_version}" == "000001_phase0_foundation" ]]
 [[ "${migration_checksum}" =~ ^[0-9a-f]{64}$ ]]
 [[ "${migration_tables}" == "audit_events,audit_events_default,idempotency_records,operations,outbox_events" ]]
 jq -n \
