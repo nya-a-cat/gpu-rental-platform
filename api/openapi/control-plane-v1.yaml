@@ -678,7 +678,10 @@ paths:
         required: true
         content:
           application/json:
-            { schema: { $ref: "#/components/schemas/SetInstanceDesiredStateRequest" } }
+            {
+              schema:
+                { $ref: "#/components/schemas/SetInstanceDesiredStateRequest" },
+            }
       responses:
         "202": { $ref: "#/components/responses/MutationAccepted" }
         "400": { $ref: "#/components/responses/ProblemResponse" }
@@ -1669,7 +1672,12 @@ components:
         projectId: { type: string, format: uuid }
         clusterId: { type: string, format: uuid }
         acceleratorProfileId: { type: string, format: uuid }
-        name: { type: string, pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", maxLength: 63 }
+        name:
+          {
+            type: string,
+            pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+            maxLength: 63,
+          }
     SetInstanceDesiredStateRequest:
       type: object
       additionalProperties: false
@@ -1679,7 +1687,25 @@ components:
     Instance:
       type: object
       additionalProperties: false
-      required: [id, projectId, clusterId, acceleratorProfileId, name, gpuCount, namespaceName, desiredState, observedState, provisioningState, conditions, generation, observedGeneration, manifestWorkName, createdAt, updatedAt]
+      required:
+        [
+          id,
+          projectId,
+          clusterId,
+          acceleratorProfileId,
+          name,
+          gpuCount,
+          namespaceName,
+          desiredState,
+          observedState,
+          provisioningState,
+          conditions,
+          generation,
+          observedGeneration,
+          manifestWorkName,
+          createdAt,
+          updatedAt,
+        ]
       properties:
         id: { type: string, format: uuid }
         projectId: { type: string, format: uuid }
@@ -1691,7 +1717,8 @@ components:
         desiredState: { type: string, enum: [running, stopped, terminated] }
         observedState: { type: string }
         provisioningState: { type: string }
-        conditions: { type: array, items: { $ref: "#/components/schemas/Condition" } }
+        conditions:
+          { type: array, items: { $ref: "#/components/schemas/Condition" } }
         generation: { type: integer, minimum: 1 }
         observedGeneration: { type: integer, minimum: 0 }
         manifestWorkName: { type: string }
