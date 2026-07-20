@@ -98,14 +98,19 @@ verify_managed_cluster() {
   ' >/dev/null
 }
 
-materialize_addon_kubeconfig() {
+materialize_addon_credentials() {
   local spoke_context="$1"
   local destination="$2"
+  local key
 
-  kubectl --context "${spoke_context}" -n "${ADDON_INSTALL_NAMESPACE}" \
-    get secret "${ADDON_HUB_KUBECONFIG_SECRET}" -o jsonpath='{.data.kubeconfig}' |
-    base64 --decode >"${destination}"
-  chmod 600 "${destination}"
+  mkdir -p "${destination}"
+  for key in kubeconfig tls.crt tls.key; do
+    kubectl --context "${spoke_context}" -n "${ADDON_INSTALL_NAMESPACE}" \
+      get secret "${ADDON_HUB_KUBECONFIG_SECRET}" -o json |
+      jq -er --arg key "${key}" '.data[$key]' |
+      base64 --decode >"${destination}/${key}"
+    chmod 600 "${destination}/${key}"
+  done
 }
 
 authorization_result() {
@@ -140,7 +145,10 @@ assert_authorization() {
 
 verify_cross_cluster_authorization() {
   local credential_root
+  local credential_root_quoted
+  local primary_credential_dir
   local primary_kubeconfig
+  local secondary_credential_dir
   local secondary_kubeconfig
   local primary_inventory_manifest
   local secondary_inventory_manifest
@@ -159,11 +167,14 @@ verify_cross_cluster_authorization() {
   local hub_api_server
 
   credential_root="$(mktemp -d "${TOOLS_ROOT}/addon-authorization.XXXXXX")"
-  trap 'rm -rf -- "${credential_root}"' EXIT
-  primary_kubeconfig="${credential_root}/primary"
-  secondary_kubeconfig="${credential_root}/secondary"
-  materialize_addon_kubeconfig "${SPOKE_CONTEXT}" "${primary_kubeconfig}"
-  materialize_addon_kubeconfig "${SECONDARY_SPOKE_CONTEXT}" "${secondary_kubeconfig}"
+  printf -v credential_root_quoted '%q' "${credential_root}"
+  trap "rm -rf -- ${credential_root_quoted}" EXIT
+  primary_credential_dir="${credential_root}/primary"
+  secondary_credential_dir="${credential_root}/secondary"
+  materialize_addon_credentials "${SPOKE_CONTEXT}" "${primary_credential_dir}"
+  materialize_addon_credentials "${SECONDARY_SPOKE_CONTEXT}" "${secondary_credential_dir}"
+  primary_kubeconfig="${primary_credential_dir}/kubeconfig"
+  secondary_kubeconfig="${secondary_credential_dir}/kubeconfig"
   primary_inventory_manifest="${credential_root}/primary-inventory.json"
   secondary_inventory_manifest="${credential_root}/secondary-inventory.json"
   kubectl --context "${HUB_CONTEXT}" -n "${MANAGED_CLUSTER_NAME}" get configmap gpu-platform-inventory -o json >"${primary_inventory_manifest}"
