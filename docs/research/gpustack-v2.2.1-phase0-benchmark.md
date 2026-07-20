@@ -4,7 +4,7 @@
 
 GPUStack v2.2.1 已提供可参考的 Kubernetes GPU Instance、持久卷、Worker Tunnel、多集群入口、组织访问控制和用量统计能力。源码中的统一 Principal 模型覆盖 `USER`、`ORG`、`GROUP`、`SYSTEM`，组织成员支持 `OWNER` 与 `MEMBER`，集群 ACL 可以授权给用户、组织或用户组。
 
-GPU Container Cloud 的差异化验收集中在 `Domain / Reseller → Tenant → Project` 商业层级、三副本高可用控制面、OCM Fleet、显式 Reservation/Allocation、统一异步 Operation、三档隔离、财务账本与发票、Volcano 训练调度。当前报告完成来源核验，运行时对照尚未执行，GS-00 至 GS-15 没有通过项。
+GPU Container Cloud 的差异化验收集中在 `Domain / Reseller → Tenant → Project` 商业层级、三副本高可用控制面、OCM Fleet、显式 Reservation/Allocation、统一异步 Operation、三档隔离、财务账本与发票、Volcano 训练调度。当前报告已完成来源核验和首轮服务器运行基线：GS-00 服务器基线已通过，GS-04、GS-07、GS-08、GS-09、GS-10 已验证服务端 API；真实 Worker、GPU、实例、Tunnel、PVC 和用量产生仍待后续环境。
 
 基准版本固定在 [GPUStack v2.2.1](https://github.com/gpustack/gpustack/releases/tag/v2.2.1)，后续版本变更需要新建对照记录。
 
@@ -73,26 +73,26 @@ GPU Container Cloud 采用 OCM 负责注册、CSR、证书、Lease 和 ManifestW
 
 ## GS-00 至 GS-15 验收矩阵
 
-状态仅使用 `来源核验` 与 `未执行`。`来源核验`表示官方 tag 下的源码或文档能够确认产品设计；运行时、性能和故障行为仍待执行。
+状态使用 `运行基线通过`、`服务端 API 已验证`、`来源核验` 与 `未执行`。`运行基线通过`表示该项的服务器级验收证据完整；`服务端 API 已验证`表示真实服务进程上的协议表面和认证访问已通过，相关 Kubernetes/GPU 行为仍待执行；`来源核验`表示官方 tag 下的源码或文档能够确认产品设计。
 
-| ID    | 验收主题           | GPUStack v2.2.1 基准                                        | GPU Container Cloud 对照目标                                    | 验证方式                                          | 当前状态 |
-| ----- | ------------------ | ----------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------- | -------- |
-| GS-00 | 版本与可复现性     | v2.2.1 tag 和 release 可定位                                | 固定依赖、镜像摘要、配置快照和证据归档                          | 记录版本、镜像、配置、时间和环境指纹              | 来源核验 |
-| GS-01 | Principal 类型     | `USER`、`ORG`、`GROUP`、`SYSTEM`                            | System、Domain、Tenant、Project 与 Service Account 映射明确     | API 创建、查询、禁用、删除和审计                  | 来源核验 |
-| GS-02 | 组织成员与角色     | `OWNER`、`MEMBER`，Group 角色可传递给活跃用户               | Domain/Reseller、Tenant、Project 的 Scope RoleBinding           | 用户、组、跨层级角色和最后 Owner 保护测试         | 来源核验 |
-| GS-03 | 集群 ACL           | USER、ORG、GROUP 可获集群访问，所有者控制转授               | Cluster Scope 授权、撤销、审计和最小权限                        | 正向、越权、撤销、缓存失效和重放测试              | 来源核验 |
-| GS-04 | 多集群入口         | 统一界面管理多个 Kubernetes 集群                            | OCM ManagedCluster、Region、Zone、Cluster 与 Placement          | 三集群注册、断线、恢复和库存收敛                  | 来源核验 |
-| GS-05 | GPU 库存与规格     | Operator 自动发现 GPU 并生成 Instance Type                  | Inventory Generation、Trait、AcceleratorProfile 和 CapacityPool | 物理清单对账、更新冲突和陈旧库存测试              | 来源核验 |
-| GS-06 | 创建幂等           | 需要运行时对照                                              | 100 次同键请求产生一个 Instance、Reservation 和 Allocation      | 并发 API、数据库和集群对象计数                    | 未执行   |
-| GS-07 | 实例生命周期       | 创建、日志、事件、停止、启动、删除；启动重建实例            | desired、observed、provisioning 状态与 Operation 全链路         | 逐状态执行并核对 Pod、PVC、Operation、审计        | 来源核验 |
-| GS-08 | SSH 与 Tunnel      | SSH 地址；Worker `proxy_mode=tunnel` 出站长连接             | 十分钟访问令牌、统一网关、管理通道与访问通道分离                | NAT 环境连接、过期、撤销、断线重连和审计          | 来源核验 |
-| GS-09 | PVC 生命周期       | PVC 持久卷、跨实例挂载、延迟删除                            | Volume、Snapshot、停止保留、删除策略和冲突保护                  | 写入数据后停止、启动、删除、重建和快照恢复        | 来源核验 |
-| GS-10 | 用量事实           | GPU Hours、Instance Hours、GB-Hours、Token、Resource Events | UsageFact、RatedUsage、LedgerEntry、Invoice 和冲正              | 重复、乱序、迟到、重放、价格版本和对账            | 来源核验 |
-| GS-11 | Worker/Add-on 故障 | 需要运行时对照                                              | Agent Epoch、序列号、Fencing Token、15/45/90 秒状态语义         | 进程终止、网络隔离、证书轮换和 N/N-1 测试         | 未执行   |
-| GS-12 | 控制面高可用       | 需要运行时对照                                              | 三副本滚动升级、单副本故障、RPO/RTO 与 99.9% 目标               | 故障注入、数据库切换、流量和 Operation 连续性测试 | 未执行   |
-| GS-13 | 三档租户隔离       | 组织所有权和集群 ACL 来源已确认                             | shared、dedicated-node-pool、dedicated-cluster                  | Pod、Secret、网络、节点和集群边界渗透测试         | 未执行   |
-| GS-14 | 商业账本与发票     | 用量统计和 Resource Events 来源已确认                       | 价格版本、预算、账本、发票、冲正和 OpenMeter 双算               | 两个账期影子双算与零差异对账                      | 未执行   |
-| GS-15 | Volcano 训练       | 需要运行时对照                                              | Gang、DRF、队列、公平共享、抢占和多节点训练                     | 资源不足排队、All-or-Nothing、抢占和恢复测试      | 未执行   |
+| ID    | 验收主题           | GPUStack v2.2.1 基准                                        | GPU Container Cloud 对照目标                                    | 验证方式                                          | 当前状态          |
+| ----- | ------------------ | ----------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------- | ----------------- |
+| GS-00 | 版本与可复现性     | v2.2.1 tag 和 release 可定位                                | 固定依赖、发行物摘要、配置快照和证据归档                        | 记录版本、发行物、配置、时间和环境指纹            | 运行基线通过      |
+| GS-01 | Principal 类型     | `USER`、`ORG`、`GROUP`、`SYSTEM`                            | System、Domain、Tenant、Project 与 Service Account 映射明确     | API 创建、查询、禁用、删除和审计                  | 来源核验          |
+| GS-02 | 组织成员与角色     | `OWNER`、`MEMBER`，Group 角色可传递给活跃用户               | Domain/Reseller、Tenant、Project 的 Scope RoleBinding           | 用户、组、跨层级角色和最后 Owner 保护测试         | 来源核验          |
+| GS-03 | 集群 ACL           | USER、ORG、GROUP 可获集群访问，所有者控制转授               | Cluster Scope 授权、撤销、审计和最小权限                        | 正向、越权、撤销、缓存失效和重放测试              | 来源核验          |
+| GS-04 | 多集群入口         | 统一界面管理多个 Kubernetes 集群                            | OCM ManagedCluster、Region、Zone、Cluster 与 Placement          | 三集群注册、断线、恢复和库存收敛                  | 服务端 API 已验证 |
+| GS-05 | GPU 库存与规格     | Operator 自动发现 GPU 并生成 Instance Type                  | Inventory Generation、Trait、AcceleratorProfile 和 CapacityPool | 物理清单对账、更新冲突和陈旧库存测试              | 来源核验          |
+| GS-06 | 创建幂等           | 需要运行时对照                                              | 100 次同键请求产生一个 Instance、Reservation 和 Allocation      | 并发 API、数据库和集群对象计数                    | 未执行            |
+| GS-07 | 实例生命周期       | 创建、日志、事件、停止、启动、删除；启动重建实例            | desired、observed、provisioning 状态与 Operation 全链路         | 逐状态执行并核对 Pod、PVC、Operation、审计        | 服务端 API 已验证 |
+| GS-08 | SSH 与 Tunnel      | SSH 地址；Worker `proxy_mode=tunnel` 出站长连接             | 十分钟访问令牌、统一网关、管理通道与访问通道分离                | NAT 环境连接、过期、撤销、断线重连和审计          | 服务端 API 已验证 |
+| GS-09 | PVC 生命周期       | PVC 持久卷、跨实例挂载、延迟删除                            | Volume、Snapshot、停止保留、删除策略和冲突保护                  | 写入数据后停止、启动、删除、重建和快照恢复        | 服务端 API 已验证 |
+| GS-10 | 用量事实           | GPU Hours、Instance Hours、GB-Hours、Token、Resource Events | UsageFact、RatedUsage、LedgerEntry、Invoice 和冲正              | 重复、乱序、迟到、重放、价格版本和对账            | 服务端 API 已验证 |
+| GS-11 | Worker/Add-on 故障 | 需要运行时对照                                              | Agent Epoch、序列号、Fencing Token、15/45/90 秒状态语义         | 进程终止、网络隔离、证书轮换和 N/N-1 测试         | 未执行            |
+| GS-12 | 控制面高可用       | 需要运行时对照                                              | 三副本滚动升级、单副本故障、RPO/RTO 与 99.9% 目标               | 故障注入、数据库切换、流量和 Operation 连续性测试 | 未执行            |
+| GS-13 | 三档租户隔离       | 组织所有权和集群 ACL 来源已确认                             | shared、dedicated-node-pool、dedicated-cluster                  | Pod、Secret、网络、节点和集群边界渗透测试         | 未执行            |
+| GS-14 | 商业账本与发票     | 用量统计和 Resource Events 来源已确认                       | 价格版本、预算、账本、发票、冲正和 OpenMeter 双算               | 两个账期影子双算与零差异对账                      | 未执行            |
+| GS-15 | Volcano 训练       | 需要运行时对照                                              | Gang、DRF、队列、公平共享、抢占和多节点训练                     | 资源不足排队、All-or-Nothing、抢占和恢复测试      | 未执行            |
 
 ## 执行顺序
 
@@ -108,4 +108,8 @@ GPU Container Cloud 采用 OCM 负责注册、CSR、证书、Lease 和 ManifestW
 
 仓库已加入 `gpustack-baseline` 作业及 `deploy/gpustack` 固定版本配置。该作业使用 GPUStack v2.2.1 官方 wheel、上游 `uv.lock` 导出的精确依赖和 GitHub Ubuntu 24.04 预装 PostgreSQL，执行服务启动、管理员登录、API 表面检查、集合读取和数据库持久化重启检查。
 
-首轮覆盖范围限定为 GS-00 运行来源，以及 GS-04、GS-07、GS-08、GS-09、GS-10 的服务端 API 可达性。实例创建、Worker Tunnel、PVC 创建、GPU 用量产生和多集群调度仍需要 Kubernetes Worker 与 GPU 环境，因此不会由该服务器基线登记为完整通过。当前矩阵状态保持不变，等待首次 Actions 成功证据后更新。
+首轮成功证据来自 Pipeline `29713314184`、job `88261048162`、commit `aed41cb339af1965d5787db10d5a227df331ab8d` 和 Artifact `8449510409`。完整证据策略检查 12 个文件且违规为 0，SHA-256 清单逐文件复核通过。
+
+运行环境为 GPUStack v2.2.1 commit `9e9f841`、Python 3.12.13、uv 0.9.6 和 PostgreSQL 16.14。官方 wheel 校验通过，实际安装 135 个包，最大缓存文件为 63,816,496 bytes，低于 100 MiB 边界。服务启动两次，重启前后管理员 ID 均为 `3`，健康、就绪、登录、集合访问和持久化断言均通过。
+
+首轮覆盖范围限定为 GS-00 运行来源，以及 GS-04、GS-07、GS-08、GS-09、GS-10 的服务端 API 可达性。实例创建、Worker Tunnel、PVC 创建、GPU 用量产生和多集群调度仍需要 Kubernetes Worker 与 GPU 环境，继续保留在 Real Alpha 和 GPU 自托管门禁。

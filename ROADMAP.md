@@ -25,7 +25,7 @@
 - [ ] 实现 Agent Epoch、命令序列、Fencing Token 与 15/45/90 秒状态语义。
 - [x] 固定 Kubernetes 1.34.x、OCM、GPU Operator、Volcano 和 KServe 的首个候选认证版本矩阵，并区分 GitHub-hosted 与 GPU 自托管证据。
 - [x] 完成 GPUStack v2.2.1 源码与文档对照报告，建立实例生命周期、Worker Tunnel、多集群、PVC 和用量统计的 GS 验收矩阵。
-- [ ] 在 GitHub Actions 部署 GPUStack v2.2.1 运行基线，并执行首轮 GS 对照项。
+- [x] 在 GitHub Actions 部署 GPUStack v2.2.1 运行基线，并执行首轮 GS 对照项。
 - [ ] 建立 Prometheus、OTel Collector、审计归档和基础告警链路。
 - [x] 提供 Helm Chart，并完成三副本滚动升级和单副本故障验证。
 

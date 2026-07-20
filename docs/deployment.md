@@ -175,6 +175,13 @@ v2.2.1 wheel and lock-derived dependencies, starts its real API process twice
 against the same PostgreSQL database and uploads only evidence that passes the
 credential, path, file-type and package-size policy.
 
+The first successful baseline is Pipeline `29713314184`, job `88261048162`,
+commit `aed41cb339af1965d5787db10d5a227df331ab8d` and Artifact `8449510409`.
+Its full evidence policy checked 12 files with zero violations. The run used
+GPUStack v2.2.1 commit `9e9f841`, Python 3.12.13, uv 0.9.6 and PostgreSQL
+16.14; it installed 135 packages and measured a largest cached file of
+63,816,496 bytes under the 100 MiB boundary.
+
 ## GitHub Actions
 
 Pull requests and pushes to `main` run the repository quality gate. It covers:
