@@ -59,6 +59,70 @@ func (repository *Repository) GetWorkspace(ctx context.Context, id string) (work
 	return scanWorkspace(repository.database.QueryRowContext(ctx, workspaceSelect+" WHERE w.id = $1", id))
 }
 
+func (repository *Repository) LoadWorkspace(ctx context.Context, id string) (workspace.Workspace, error) {
+	return repository.GetWorkspace(ctx, id)
+}
+
+func (repository *Repository) StartWorkspace(ctx context.Context, state workspace.ReconcileState) error {
+	if !identity.IsUUID(state.WorkspaceID) || state.Generation < 1 {
+		return workspace.ErrNotFound
+	}
+	result, err := repository.database.ExecContext(ctx, `UPDATE workspaces SET provisioning_state = 'provisioning', observed_state = 'unknown', updated_at = $2 WHERE id = $1 AND generation = $3`, state.WorkspaceID, repository.now().UTC(), state.Generation)
+	if err != nil {
+		return fmt.Errorf("start workspace: %w", err)
+	}
+	if affected, err := result.RowsAffected(); err != nil {
+		return fmt.Errorf("inspect workspace start: %w", err)
+	} else if affected == 0 {
+		return workspace.ErrConflict
+	}
+	return nil
+}
+
+func (repository *Repository) CompleteWorkspace(ctx context.Context, state workspace.ReconcileState) error {
+	if !identity.IsUUID(state.WorkspaceID) || state.Generation < 1 {
+		return workspace.ErrNotFound
+	}
+	now := repository.now().UTC()
+	_, err := repository.database.ExecContext(ctx, `
+UPDATE workspaces
+SET observed_state = CASE desired_state WHEN 'running' THEN 'running' WHEN 'stopped' THEN 'stopped' ELSE 'terminated' END,
+    provisioning_state = 'succeeded',
+    observed_generation = generation,
+    updated_at = $2
+WHERE id = $1 AND generation = $3`, state.WorkspaceID, now, state.Generation)
+	if err != nil {
+		return fmt.Errorf("complete workspace: %w", err)
+	}
+	return nil
+}
+
+func (repository *Repository) FailWorkspace(ctx context.Context, state workspace.ReconcileState, reconcileErr error, terminal bool) error {
+	if !identity.IsUUID(state.WorkspaceID) || state.Generation < 1 {
+		return workspace.ErrNotFound
+	}
+	message := "workspace reconciliation failed"
+	if reconcileErr != nil {
+		message = reconcileErr.Error()
+	}
+	if len(message) > 1024 {
+		message = message[:1024]
+	}
+	conditions, err := json.Marshal([]tenancy.Condition{{Type: "Ready", Status: "False", Reason: "ReconciliationFailed", Message: message, LastTransitionTime: repository.now().UTC()}})
+	if err != nil {
+		return fmt.Errorf("encode workspace failure condition: %w", err)
+	}
+	provisioning := "provisioning"
+	if terminal {
+		provisioning = "failed"
+	}
+	_, err = repository.database.ExecContext(ctx, `UPDATE workspaces SET provisioning_state = $2, conditions = $3, updated_at = $4 WHERE id = $1 AND generation = $5`, state.WorkspaceID, provisioning, conditions, repository.now().UTC(), state.Generation)
+	if err != nil {
+		return fmt.Errorf("fail workspace: %w", err)
+	}
+	return nil
+}
+
 func (repository *Repository) SetWorkspaceDesiredState(ctx context.Context, params workspace.SetDesiredStateParams) (tenancy.Acceptance, error) {
 	if !identity.IsUUID(params.WorkspaceID) {
 		return tenancy.Acceptance{}, workspace.ErrNotFound

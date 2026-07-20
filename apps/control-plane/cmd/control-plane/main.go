@@ -19,6 +19,7 @@ import (
 	platformpostgres "github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/platform/postgres"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/sharedisolation"
 	storagepostgres "github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/storage/postgres"
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/workspace"
 )
 
 func main() {
@@ -47,6 +48,7 @@ func main() {
 	capabilities := []string{"operations", "transactional-outbox", "audit-foundation", "engine-ports", "agent-health-policy", "tenancy", "postgres-rbac", "quota-reservations", "resource-catalog", "placement-inventory", "gpu-workspace-api"}
 	var isolationRunner *sharedisolation.Runner
 	var inventoryRunner *inventorysync.Runner
+	var workspaceRunner *workspace.Runner
 	if cfg.OCM.Enabled {
 		fleetManager, err := fleetocm.NewClient(fleetocm.Config{
 			HubURL:         cfg.OCM.HubURL,
@@ -98,7 +100,22 @@ func main() {
 			logger.Error("initialize inventory sync runner", "error", err)
 			os.Exit(1)
 		}
-		capabilities = append(capabilities, "ocm-manifestwork", "shared-project-isolation", "gpu-inventory-sync")
+		workspaceReconciler, err := workspace.NewReconciler(repository, fleetManager)
+		if err != nil {
+			logger.Error("initialize workspace reconciler", "error", err)
+			os.Exit(1)
+		}
+		workspaceRunner, err = workspace.NewRunner(logger, repository, workspaceReconciler, workspace.RunnerConfig{
+			WorkerID:         workerID,
+			PollInterval:     cfg.OCM.PollInterval,
+			ReconcileTimeout: cfg.OCM.ReconcileTimeout,
+			MaxAttempts:      cfg.OCM.MaxAttempts,
+		})
+		if err != nil {
+			logger.Error("initialize workspace runner", "error", err)
+			os.Exit(1)
+		}
+		capabilities = append(capabilities, "ocm-manifestwork", "shared-project-isolation", "gpu-inventory-sync", "gpu-workspace-reconciler")
 	}
 
 	var authenticator authn.Authenticator
@@ -155,6 +172,10 @@ func main() {
 	if inventoryRunner != nil {
 		go inventoryRunner.Run(shutdownContext)
 		logger.Info("GPU inventory synchronizer started", "pollInterval", cfg.OCM.PollInterval.String())
+	}
+	if workspaceRunner != nil {
+		go workspaceRunner.Run(shutdownContext)
+		logger.Info("GPU Workspace reconciler started", "pollInterval", cfg.OCM.PollInterval.String())
 	}
 
 	serverErrors := make(chan error, 1)
