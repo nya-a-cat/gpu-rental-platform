@@ -141,6 +141,9 @@ jobs:
           grep -q 'kind: ClusterRole' /tmp/gpu-control-plane-ocm.yaml
           grep -q 'resources: \["manifestworks"\]' /tmp/gpu-control-plane-ocm.yaml
           grep -q 'verbs: \["get", "create", "update", "patch"\]' /tmp/gpu-control-plane-ocm.yaml
+          grep -q 'resources: \["configmaps"\]' /tmp/gpu-control-plane-ocm.yaml
+          grep -q 'resourceNames: \["gpu-platform-inventory"\]' /tmp/gpu-control-plane-ocm.yaml
+          grep -q 'verbs: \["get"\]' /tmp/gpu-control-plane-ocm.yaml
 
       - name: Validate delivery scripts
         run: |

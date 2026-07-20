@@ -68,8 +68,10 @@ aggregate resources remain for N/N-1 compatibility. The Phase 1 shared-isolation
 reconciler consumes `project.created` and `project.gpu-quota.updated` Outbox events,
 applies a deterministic ManifestWork to the configured managed cluster, and
 records the target cluster, observed generation, applied GPU quota and
-`SharedIsolationReady` Condition. The Hub-to-control-plane inventory consumer,
-workload lifecycle and financial rating remain open acceptance areas.
+`SharedIsolationReady` Condition. The Hub-to-control-plane inventory consumer now
+polls registered clusters, validates the fixed ConfigMap report and persists
+detailed or N/N-1 heartbeat facts. Workload lifecycle and financial rating remain
+open acceptance areas.
 
 ## API and consistency model
 

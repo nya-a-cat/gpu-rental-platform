@@ -77,8 +77,9 @@ startup/liveness checks on `/health/live` and PostgreSQL readiness on
 
 The control-plane Pods use UID/GID `65532`, runtime-default seccomp, a
 read-only root filesystem, no privilege escalation and no Linux capabilities.
-The ServiceAccount token and least-privilege ManifestWork ClusterRole are enabled
-only through `ocm.enabled=true`. The Chart creates no database, database user or
+The ServiceAccount token and least-privilege OCM ClusterRole are enabled only
+through `ocm.enabled=true`. The role grants ManifestWork mutation plus `get` on
+the fixed `gpu-platform-inventory` ConfigMap name. The Chart creates no database, database user or
 database Secret. Change `database.secretRevision` whenever
 the external Secret data rotates so the Deployment replaces Pods. See
 `charts/gpu-control-plane/README.md` for the complete value contract.

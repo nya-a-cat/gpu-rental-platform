@@ -9,6 +9,10 @@ rules:
   - apiGroups: ["work.open-cluster-management.io"]
     resources: ["manifestworks"]
     verbs: ["get", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["gpu-platform-inventory"]
+    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

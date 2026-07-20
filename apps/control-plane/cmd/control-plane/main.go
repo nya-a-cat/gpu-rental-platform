@@ -15,6 +15,7 @@ import (
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/config"
 	fleetocm "github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/fleet/ocm"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/httpapi"
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/inventorysync"
 	platformpostgres "github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/platform/postgres"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/sharedisolation"
 	storagepostgres "github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/storage/postgres"
@@ -45,6 +46,7 @@ func main() {
 
 	capabilities := []string{"operations", "transactional-outbox", "audit-foundation", "engine-ports", "agent-health-policy", "tenancy", "postgres-rbac", "quota-reservations", "resource-catalog", "placement-inventory"}
 	var isolationRunner *sharedisolation.Runner
+	var inventoryRunner *inventorysync.Runner
 	if cfg.OCM.Enabled {
 		fleetManager, err := fleetocm.NewClient(fleetocm.Config{
 			HubURL:         cfg.OCM.HubURL,
@@ -83,7 +85,20 @@ func main() {
 			logger.Error("initialize shared-isolation runner", "error", err)
 			os.Exit(1)
 		}
-		capabilities = append(capabilities, "ocm-manifestwork", "shared-project-isolation")
+		inventoryReconciler, err := inventorysync.NewReconciler(repository, fleetManager)
+		if err != nil {
+			logger.Error("initialize inventory reconciler", "error", err)
+			os.Exit(1)
+		}
+		inventoryRunner, err = inventorysync.NewRunner(logger, repository, inventoryReconciler, inventorysync.RunnerConfig{
+			PollInterval: cfg.OCM.PollInterval,
+			SyncTimeout:  cfg.OCM.ReconcileTimeout,
+		})
+		if err != nil {
+			logger.Error("initialize inventory sync runner", "error", err)
+			os.Exit(1)
+		}
+		capabilities = append(capabilities, "ocm-manifestwork", "shared-project-isolation", "gpu-inventory-sync")
 	}
 
 	var authenticator authn.Authenticator
@@ -135,6 +150,10 @@ func main() {
 	if isolationRunner != nil {
 		go isolationRunner.Run(shutdownContext)
 		logger.Info("shared-isolation reconciler started", "managedCluster", cfg.OCM.DefaultClusterID)
+	}
+	if inventoryRunner != nil {
+		go inventoryRunner.Run(shutdownContext)
+		logger.Info("GPU inventory synchronizer started", "pollInterval", cfg.OCM.PollInterval.String())
 	}
 
 	serverErrors := make(chan error, 1)

@@ -38,7 +38,7 @@
 - [ ] 建立 Cluster、Node、GPU、CapacityPool 和 AcceleratorProfile。
   - [x] 建立 ResourceProvider、Trait、Inventory、Generation、整卡 AcceleratorProfile 与 CapacityPool 的 PostgreSQL 事实和厂商 API。
   - [x] 扩展 GPU Platform Add-on 生成 NodePool、节点与整卡逻辑设备级脱敏库存。
-  - [ ] 通过 OCM Hub 的固定库存 ConfigMap 将详细快照接入控制面库存消费器。
+  - [x] 通过 OCM Hub 的固定库存 ConfigMap 将详细快照接入控制面库存消费器。
 - [ ] 通过 NVIDIA GPU Operator 与 Device Plugin 交付整卡 GPU Workspace。
 - [ ] 完成实例创建、停止、启动、终止，以及 desired/observed/provisioning 状态协调。
 - [ ] 完成 PVC、快照、安全组、SSH/Jupyter/Web Terminal 访问网关。

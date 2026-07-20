@@ -3,8 +3,9 @@
 This Helm v3 chart installs the Go GPU Container Cloud control plane on
 Kubernetes 1.34. It deploys three replicas by default, a `ClusterIP` Service, a
 dedicated ServiceAccount, and a `policy/v1` PodDisruptionBudget. OCM integration
-is disabled by default. When enabled, the chart mounts the ServiceAccount token
-and grants only `get`, `create`, `update` and `patch` on ManifestWork resources.
+is disabled by default. When enabled, the chart mounts the ServiceAccount token,
+grants only `get`, `create`, `update` and `patch` on ManifestWork resources, and
+grants `get` on the fixed `gpu-platform-inventory` ConfigMap name.
 
 ## Prerequisites
 

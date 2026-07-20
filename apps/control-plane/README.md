@@ -110,12 +110,12 @@ the inventory Generation. Real Alpha accepts the
 AcceleratorProfile and one scheduler profile. Physical identifiers remain confined
 to the vendor-only inventory response.
 
-The control-plane module includes a dormant OCM Hub inventory consumer. It reads
+The control-plane module runs an OCM Hub inventory consumer when OCM is enabled. It reads
 only `gpu-platform-inventory/inventory.json` from each registered ManagedCluster
 namespace, enforces the v1alpha1 schema and cluster identity, accepts N-1 aggregate
 reports as heartbeat-only observations, and retries one optimistic Generation
-conflict. Runtime startup and the fixed-name ConfigMap RBAC grant remain disabled
-until the deployment authorization change receives explicit approval.
+conflict. The Helm Chart grants the control-plane ServiceAccount one `get` permission
+for that fixed ConfigMap name.
 
 API failures use `application/problem+json`. The migration process is separate
 from API startup so deployment tooling controls schema rollout order. Migration
