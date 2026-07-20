@@ -1,0 +1,11 @@
+Prometheus:
+  kubectl --namespace {{ .Release.Namespace }} port-forward service/{{ include "gpu-observability.fullname" . }}-prometheus 9090:9090
+
+Alertmanager:
+  kubectl --namespace {{ .Release.Namespace }} port-forward service/{{ include "gpu-observability.fullname" . }}-alertmanager 9093:9093
+
+OpenTelemetry OTLP/HTTP endpoint:
+  {{ include "gpu-observability.fullname" . }}-otel-collector.{{ .Release.Namespace }}.svc:4318
+
+The Phase 0 profile uses one replica and bounded ephemeral storage. Prometheus HA,
+Thanos, durable object storage, and central alert routing enter in Phase 2.

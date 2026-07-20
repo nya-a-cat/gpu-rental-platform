@@ -1,0 +1,106 @@
+nameOverride: ""
+fullnameOverride: ""
+imagePullSecrets: []
+
+clusterName: phase0
+controlPlaneMetricsTarget: gpu-control-plane.gpu-control-plane-system.svc.cluster.local:8080
+
+prometheus:
+  image:
+    repository: prom/prometheus
+    tag: v3.13.1
+    digest: sha256:3c42b892cf723fa54d2f262c37a0e1f80aa8c8ddb1da7b9b0df9455a35a7f893
+    pullPolicy: IfNotPresent
+  retention: 24h
+  storageSizeLimit: 2Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+alertmanager:
+  image:
+    repository: prom/alertmanager
+    tag: v0.33.1
+    digest: sha256:9e082985f56f4c8c9f724e18f2288c6708f472e56a5286b8863d080434ea065d
+    pullPolicy: IfNotPresent
+  storageSizeLimit: 256Mi
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+otelCollector:
+  image:
+    repository: otel/opentelemetry-collector-k8s
+    tag: 0.156.0
+    digest: sha256:4bb87d79b9f4f7971cf0c7c2fbf7decab3ddfda0a8f73794e98d9bc6fe77f609
+    pullPolicy: IfNotPresent
+  memoryLimitMiB: 384
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+auditArchive:
+  enabled: false
+  schedule: "17 2 8 * *"
+  suspend: false
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  activeDeadlineSeconds: 900
+  image:
+    repository: gpu-cloud-control-plane
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+  database:
+    existingSecret: gpu-control-plane-database
+    secretKey: DATABASE_URL
+  s3:
+    endpoint: ""
+    bucket: ""
+    region: us-east-1
+    existingSecret: gpu-audit-archive-s3
+    accessKeyKey: access-key
+    secretKeyKey: secret-key
+  prefix: audit
+  retentionMode: GOVERNANCE
+  retentionDays: 365
+  minimumAge: 168h
+  timeout: 10m
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: 65534
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -15,6 +15,7 @@ GPU Container Cloud 是面向云服务器厂商、渠道商和企业租户建设
 - Internal `BillingEngine`, `AuthorizationEngine`, `JobEngine` and OCM-facing fleet boundaries.
 - OCM 1.3.1 fleet registration assets and a minimal Addon Framework 1.3.0 GPU inventory agent.
 - A three-replica Helm delivery profile with migration hooks, disruption protection and an Actions-only HA gate.
+- A digest-pinned Prometheus, Alertmanager and OpenTelemetry profile with an Object Lock audit archive command and Actions runtime gate.
 - A pinned GPUStack v2.2.1 server baseline for Phase 0 product-surface comparison in GitHub Actions.
 - Health, readiness, Prometheus metrics, request correlation, ManagedCluster Lease and Add-on Lease paths.
 - A versioned OpenAPI 3.1 contract for generated clients and vendor integration.
@@ -99,6 +100,7 @@ helm upgrade --install gpu-control-plane charts/gpu-control-plane \
 ```
 
 See [deployment.md](docs/deployment.md) for environment variables, verification commands and CI behavior.
+See [observability.md](docs/observability.md) for telemetry, alert, audit archive and evidence contracts.
 
 ## Current product boundary
 

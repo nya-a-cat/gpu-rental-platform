@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["clusterName", "controlPlaneMetricsTarget", "prometheus", "alertmanager", "otelCollector", "auditArchive"],
+  "properties": {
+    "clusterName": { "type": "string", "minLength": 1 },
+    "controlPlaneMetricsTarget": { "type": "string", "minLength": 1 },
+    "prometheus": { "$ref": "#/definitions/telemetryComponent" },
+    "alertmanager": { "$ref": "#/definitions/telemetryComponent" },
+    "otelCollector": {
+      "allOf": [
+        { "$ref": "#/definitions/telemetryComponent" },
+        {
+          "type": "object",
+          "required": ["memoryLimitMiB"],
+          "properties": {
+            "memoryLimitMiB": { "type": "integer", "minimum": 64 }
+          }
+        }
+      ]
+    },
+    "auditArchive": {
+      "type": "object",
+      "required": ["enabled", "schedule", "image", "database", "s3", "retentionMode", "retentionDays", "minimumAge", "timeout"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "schedule": { "type": "string", "minLength": 1 },
+        "retentionMode": { "type": "string", "enum": ["GOVERNANCE", "COMPLIANCE"] },
+        "retentionDays": { "type": "integer", "minimum": 1 },
+        "minimumAge": { "type": "string", "minLength": 1 },
+        "timeout": { "type": "string", "minLength": 1 },
+        "image": { "$ref": "#/definitions/image" },
+        "database": {
+          "type": "object",
+          "required": ["existingSecret", "secretKey"],
+          "properties": {
+            "existingSecret": { "type": "string", "minLength": 1 },
+            "secretKey": { "type": "string", "minLength": 1 }
+          }
+        },
+        "s3": {
+          "type": "object",
+          "required": ["endpoint", "bucket", "region", "existingSecret", "accessKeyKey", "secretKeyKey"],
+          "properties": {
+            "endpoint": { "type": "string" },
+            "bucket": { "type": "string" },
+            "region": { "type": "string", "minLength": 1 },
+            "existingSecret": { "type": "string", "minLength": 1 },
+            "accessKeyKey": { "type": "string", "minLength": 1 },
+            "secretKeyKey": { "type": "string", "minLength": 1 }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "enabled": { "const": true } } },
+          "then": {
+            "properties": {
+              "s3": {
+                "properties": {
+                  "endpoint": { "minLength": 1 },
+                  "bucket": { "minLength": 1 }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "image": {
+      "type": "object",
+      "required": ["repository", "tag", "digest", "pullPolicy"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string" },
+        "digest": { "type": "string", "pattern": "^$|^sha256:[a-f0-9]{64}$" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "telemetryComponent": {
+      "type": "object",
+      "required": ["image", "resources"],
+      "properties": {
+        "image": { "$ref": "#/definitions/image" },
+        "resources": { "type": "object" }
+      }
+    }
+  }
+}

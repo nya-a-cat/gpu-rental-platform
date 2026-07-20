@@ -1,3 +1,4 @@
 apps/control-plane/migrations/*.sql text eol=lf
 *.sh text eol=lf
 deploy/ocm/versions.env text eol=lf
+deploy/observability/versions.env text eol=lf

@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "gpu-observability.fullname" . }}-prometheus
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gpu-observability.componentLabels" (dict "root" . "component" "prometheus") | nindent 4 }}
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: {{ .Values.clusterName | quote }}
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+                - {{ printf "%s-alertmanager:9093" (include "gpu-observability.fullname" .) | quote }}
+    rule_files:
+      - /etc/prometheus/rules.yml
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets:
+              - 127.0.0.1:9090
+      - job_name: gpu-control-plane
+        metrics_path: /metrics
+        static_configs:
+          - targets:
+              - {{ .Values.controlPlaneMetricsTarget | quote }}
+      - job_name: otel-collector
+        static_configs:
+          - targets:
+              - {{ printf "%s-otel-collector:8888" (include "gpu-observability.fullname" .) | quote }}
+  rules.yml: |
+    groups:
+      - name: gpu-platform-foundation
+        rules:
+          - alert: GPUControlPlaneMetricsUnavailable
+            expr: up{job="gpu-control-plane"} == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: GPU control plane metrics target is unavailable
+          - alert: GPUControlPlaneRecoveredPanic
+            expr: increase(gpu_control_plane_panics_total[5m]) > 0
+            labels:
+              severity: critical
+            annotations:
+              summary: GPU control plane recovered an HTTP panic
+          - alert: GPUPlatformOTelCollectorUnavailable
+            expr: up{job="otel-collector"} == 0
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: GPU platform OpenTelemetry Collector is unavailable

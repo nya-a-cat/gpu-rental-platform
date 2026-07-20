@@ -1,0 +1,96 @@
+{{- if .Values.auditArchive.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "gpu-observability.fullname" . }}-audit-archive
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gpu-observability.componentLabels" (dict "root" . "component" "audit-archive") | nindent 4 }}
+spec:
+  schedule: {{ .Values.auditArchive.schedule | quote }}
+  concurrencyPolicy: Forbid
+  suspend: {{ .Values.auditArchive.suspend }}
+  successfulJobsHistoryLimit: {{ .Values.auditArchive.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.auditArchive.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: {{ .Values.auditArchive.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "gpu-observability.selectorLabels" (dict "root" . "component" "audit-archive") | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: audit-archive
+              image: {{ include "gpu-observability.image" .Values.auditArchive.image | quote }}
+              imagePullPolicy: {{ .Values.auditArchive.image.pullPolicy }}
+              command:
+                - /usr/local/bin/control-plane-audit-archive
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.auditArchive.database.existingSecret }}
+                      key: {{ .Values.auditArchive.database.secretKey }}
+                - name: AUDIT_ARCHIVE_S3_ENDPOINT
+                  value: {{ required "auditArchive.s3.endpoint is required when auditArchive.enabled is true" .Values.auditArchive.s3.endpoint | quote }}
+                - name: AUDIT_ARCHIVE_S3_BUCKET
+                  value: {{ required "auditArchive.s3.bucket is required when auditArchive.enabled is true" .Values.auditArchive.s3.bucket | quote }}
+                - name: AUDIT_ARCHIVE_S3_REGION
+                  value: {{ .Values.auditArchive.s3.region | quote }}
+                - name: AUDIT_ARCHIVE_S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.auditArchive.s3.existingSecret }}
+                      key: {{ .Values.auditArchive.s3.accessKeyKey }}
+                - name: AUDIT_ARCHIVE_S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.auditArchive.s3.existingSecret }}
+                      key: {{ .Values.auditArchive.s3.secretKeyKey }}
+                - name: AUDIT_ARCHIVE_PREFIX
+                  value: {{ .Values.auditArchive.prefix | quote }}
+                - name: AUDIT_ARCHIVE_RETENTION_MODE
+                  value: {{ .Values.auditArchive.retentionMode | quote }}
+                - name: AUDIT_ARCHIVE_RETENTION_DAYS
+                  value: {{ .Values.auditArchive.retentionDays | quote }}
+                - name: AUDIT_ARCHIVE_MIN_AGE
+                  value: {{ .Values.auditArchive.minimumAge | quote }}
+                - name: AUDIT_ARCHIVE_TIMEOUT
+                  value: {{ .Values.auditArchive.timeout | quote }}
+                - name: TMPDIR
+                  value: /tmp
+              securityContext:
+                {{- toYaml .Values.containerSecurityContext | nindent 16 }}
+              resources:
+                {{- toYaml .Values.auditArchive.resources | nindent 16 }}
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 1Gi
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

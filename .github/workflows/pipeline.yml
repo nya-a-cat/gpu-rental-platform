@@ -150,7 +150,7 @@ jobs:
 
       - name: Build Go control plane commands
         working-directory: apps/control-plane
-        run: go build ./cmd/control-plane ./cmd/migrate ./cmd/healthcheck
+        run: go build ./cmd/control-plane ./cmd/migrate ./cmd/healthcheck ./cmd/audit-archive
 
       - name: Check GPU Platform Add-on formatting
         working-directory: apps/gpu-platform-addon
@@ -220,6 +220,57 @@ jobs:
           grep -q 'secretKeyRef:' /tmp/gpu-control-plane-rendered.yaml
           grep -q 'gpu.platform.nyaacat.dev/database-secret-revision: "ci-revision"' /tmp/gpu-control-plane-rendered.yaml
           ! grep -q 'postgres://' /tmp/gpu-control-plane-rendered.yaml
+
+      - name: Validate GPU observability Helm chart
+        run: |
+          source deploy/ocm/versions.env
+          kube_version="${KUBERNETES_VERSION#v}"
+          helm lint charts/gpu-observability --kube-version "${kube_version}"
+          helm template gpu-observability charts/gpu-observability \
+            --namespace gpu-observability-system \
+            --kube-version "${kube_version}" > /tmp/gpu-observability-rendered.yaml
+          test "$(grep -c '^kind: Deployment$' /tmp/gpu-observability-rendered.yaml)" -eq 3
+          grep -q 'GPUControlPlaneMetricsUnavailable' /tmp/gpu-observability-rendered.yaml
+          grep -q 'GPUControlPlaneRecoveredPanic' /tmp/gpu-observability-rendered.yaml
+          grep -q 'GPUPlatformOTelCollectorUnavailable' /tmp/gpu-observability-rendered.yaml
+          grep -q 'prom/prometheus@sha256:3c42b892cf723fa54d2f262c37a0e1f80aa8c8ddb1da7b9b0df9455a35a7f893' /tmp/gpu-observability-rendered.yaml
+          grep -q 'prom/alertmanager@sha256:9e082985f56f4c8c9f724e18f2288c6708f472e56a5286b8863d080434ea065d' /tmp/gpu-observability-rendered.yaml
+          grep -q 'otel/opentelemetry-collector-k8s@sha256:4bb87d79b9f4f7971cf0c7c2fbf7decab3ddfda0a8f73794e98d9bc6fe77f609' /tmp/gpu-observability-rendered.yaml
+          ! grep -q '^kind: CronJob$' /tmp/gpu-observability-rendered.yaml
+          helm template gpu-observability charts/gpu-observability \
+            --namespace gpu-observability-system \
+            --kube-version "${kube_version}" \
+            --set auditArchive.enabled=true \
+            --set-string auditArchive.image.repository=gpu-control-plane \
+            --set-string auditArchive.image.tag=ci \
+            --set-string auditArchive.image.pullPolicy=Never \
+            --set-string auditArchive.s3.endpoint=https://objects.example.test \
+            --set-string auditArchive.s3.bucket=gpu-audit > /tmp/gpu-observability-audit-rendered.yaml
+          grep -q '^kind: CronJob$' /tmp/gpu-observability-audit-rendered.yaml
+          grep -q '/usr/local/bin/control-plane-audit-archive' /tmp/gpu-observability-audit-rendered.yaml
+          grep -q 'secretKeyRef:' /tmp/gpu-observability-audit-rendered.yaml
+          ! grep -q 'AUDIT_ARCHIVE_S3_ACCESS_KEY.*value:' /tmp/gpu-observability-audit-rendered.yaml
+
+      - name: Validate observability baseline inputs and scripts
+        run: |
+          bash -n deploy/observability/scripts/*.sh
+          python3 -c "import ast,pathlib; ast.parse(pathlib.Path('deploy/observability/scripts/s3-fixture.py').read_text(encoding='utf-8'))"
+          bash deploy/observability/scripts/validate-versions.sh
+
+      - name: Validate observability evidence policy modes
+        run: |
+          safe_dir="${RUNNER_TEMP}/observability-evidence-safe"
+          blocked_dir="${RUNNER_TEMP}/observability-evidence-blocked"
+          mkdir -p "${safe_dir}" "${blocked_dir}"
+          printf '%s\n' 'synthetic safe diagnostic' > "${safe_dir}/ci-observability.log"
+          bash deploy/observability/scripts/verify-evidence-policy.sh "${safe_dir}" partial
+          jq -e '.status == "passed" and .mode == "partial"' "${safe_dir}/evidence-policy-report.json" >/dev/null
+          printf '%s\n' '-----BEGIN PRIVATE KEY-----' 'synthetic blocked diagnostic' > "${blocked_dir}/ci-observability.log"
+          if bash deploy/observability/scripts/verify-evidence-policy.sh "${blocked_dir}" partial; then
+            echo "credential-like observability evidence unexpectedly passed" >&2
+            exit 1
+          fi
+          jq -e '.status == "failed" and .mode == "partial" and (.violations | length) > 0' "${blocked_dir}/evidence-policy-report.json" >/dev/null
 
       - name: Validate OCM shell scripts
         run: bash -n deploy/ocm/scripts/*.sh
@@ -499,6 +550,86 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  observability-baseline:
+    name: Prometheus, OTel, alerts, and audit archive baseline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      ARTIFACT_DIR: ${{ github.workspace }}/artifacts/observability-baseline
+      DATABASE_URL: postgres://gpu_cloud_ci:ci_only_postgres_password@127.0.0.1:5432/gpu_cloud_ci?sslmode=disable
+      AUDIT_ARCHIVE_S3_ACCESS_KEY: ci_only_observability_access
+      AUDIT_ARCHIVE_S3_SECRET_KEY: ci_only_observability_secret
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: gpu_cloud_ci
+          POSTGRES_USER: gpu_cloud_ci
+          POSTGRES_PASSWORD: ci_only_postgres_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gpu_cloud_ci -d gpu_cloud_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+          --health-start-period 10s
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # pinned v7.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # pinned v6.5.0
+        with:
+          go-version: "1.25.1"
+          cache-dependency-path: apps/control-plane/go.sum
+
+      - name: Install pinned Kubernetes tools
+        run: |
+          bash deploy/ocm/scripts/install-tools.sh
+          source deploy/ocm/scripts/lib.sh
+          echo "${BIN_DIR}" >> "${GITHUB_PATH}"
+
+      - name: Run observability and audit archive baseline
+        id: observability_baseline_run
+        run: |
+          set -o pipefail
+          bash deploy/observability/scripts/ci-baseline.sh 2>&1 | tee "${RUNNER_TEMP}/observability-baseline.log"
+
+      - name: Stage observability baseline log
+        if: always() && steps.observability_baseline_run.outcome != 'skipped'
+        run: |
+          mkdir -p "${ARTIFACT_DIR}"
+          if [[ -f "${RUNNER_TEMP}/observability-baseline.log" ]]; then
+            sed \
+              -e "s#${DATABASE_URL}#[database-url]#g" \
+              -e "s#${POSTGRES_PASSWORD}#[redacted]#g" \
+              -e "s#${AUDIT_ARCHIVE_S3_ACCESS_KEY}#[redacted]#g" \
+              -e "s#${AUDIT_ARCHIVE_S3_SECRET_KEY}#[redacted]#g" \
+              -e 's#/home/runner#[runner-home]#g' \
+              "${RUNNER_TEMP}/observability-baseline.log" > "${ARTIFACT_DIR}/ci-observability.log"
+          else
+            printf '%s\n' 'Observability baseline did not create a runtime log.' > "${ARTIFACT_DIR}/ci-observability.log"
+          fi
+
+      - name: Verify observability evidence upload policy
+        id: observability_evidence_policy
+        if: always() && steps.observability_baseline_run.outcome != 'skipped'
+        run: |
+          mode=partial
+          if [[ "${{ steps.observability_baseline_run.outcome }}" == "success" ]]; then
+            mode=full
+          fi
+          bash deploy/observability/scripts/verify-evidence-policy.sh "${ARTIFACT_DIR}" "${mode}"
+
+      - name: Upload observability baseline evidence
+        if: always() && steps.observability_evidence_policy.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned v7.0.1
+        with:
+          name: observability-baseline-${{ github.sha }}
+          path: ${{ env.ARTIFACT_DIR }}/
+          if-no-files-found: error
+          retention-days: 7
   pages:
     name: Build and deploy default GitHub Pages demo
     needs:
@@ -508,6 +639,7 @@ jobs:
         ocm-addon-lifecycle,
         control-plane-ha,
         gpustack-baseline,
+        observability-baseline,
       ]
     if: >-
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
