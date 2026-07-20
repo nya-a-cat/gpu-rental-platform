@@ -11,7 +11,7 @@ import {
 } from "@gpu-rental/contracts";
 import {
   Types,
-  type FilterQuery,
+  type QueryFilter,
   type Model,
   type PipelineStage,
 } from "mongoose";
@@ -239,7 +239,7 @@ export class GpuResourcesService implements OnModuleInit {
     query: AdminGpuResourceQueryDto,
     onlineOnly: boolean,
   ): Promise<PaginatedResponse<GpuResourceView>> {
-    const match: FilterQuery<GpuResource> = {};
+    const match: QueryFilter<GpuResource> = {};
     if (onlineOnly) {
       match.listingStatus = GpuListingStatus.Online;
     } else if (query.listingStatus) {
