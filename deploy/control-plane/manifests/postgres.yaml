@@ -53,6 +53,7 @@ spec:
             exec:
               command:
                 - pg_isready
+                - --host=127.0.0.1
                 - --username=gpu_cloud
                 - --dbname=gpu_cloud
             periodSeconds: 2
@@ -62,6 +63,7 @@ spec:
             exec:
               command:
                 - pg_isready
+                - --host=127.0.0.1
                 - --username=gpu_cloud
                 - --dbname=gpu_cloud
             initialDelaySeconds: 10
