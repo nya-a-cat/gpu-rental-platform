@@ -365,7 +365,7 @@ write_security_validation() {
         .securityContext.runAsGroup == 65532 and
         ((.securityContext.capabilities.drop // []) | index("ALL")) != null
       ),
-      noServiceAccountTokenProjectedVolume:([.items[].spec.volumes[]? | .projected.sources[]? | select(has("serviceAccountToken"))] | length) == 0
+      noServiceAccountTokenProjectedVolume:(([.items[].spec.volumes[]? | .projected.sources[]? | select(has("serviceAccountToken"))] | length) == 0)
     }
   ')"
   migration_job_security="$(kubectl_ha -n "${HA_NAMESPACE}" get job "${MIGRATION_JOB_NAME}" -o json | jq -c '
