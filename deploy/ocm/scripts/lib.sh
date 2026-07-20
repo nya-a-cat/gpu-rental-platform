@@ -25,6 +25,17 @@ SPOKE_CLUSTER_NAME="cluster1"
 HUB_CONTEXT="kind-hub"
 SPOKE_CONTEXT="kind-cluster1"
 MANAGED_CLUSTER_NAME="cluster1"
+OCM_SECONDARY_CLUSTER_ENABLED="${OCM_SECONDARY_CLUSTER_ENABLED:-0}"
+SECONDARY_SPOKE_CLUSTER_NAME="cluster2"
+SECONDARY_SPOKE_CONTEXT="kind-cluster2"
+SECONDARY_MANAGED_CLUSTER_NAME="cluster2"
+case "${OCM_SECONDARY_CLUSTER_ENABLED}" in
+  0|1) ;;
+  *)
+    echo "OCM_SECONDARY_CLUSTER_ENABLED must be 0 or 1" >&2
+    exit 1
+    ;;
+esac
 
 ADDON_NAME="gpu-platform-addon"
 ADDON_IMAGE="${ADDON_IMAGE:-gpu-platform-addon:ci}"
@@ -74,21 +85,24 @@ cluster_exists() {
 }
 
 managed_cluster_lease_is_fresh() {
+  local cluster_name="${1:-${MANAGED_CLUSTER_NAME}}"
   local renew_time
-  renew_time="$(kubectl --context "${HUB_CONTEXT}" -n "${MANAGED_CLUSTER_NAME}" \
+  renew_time="$(kubectl --context "${HUB_CONTEXT}" -n "${cluster_name}" \
     get lease managed-cluster-lease -o jsonpath='{.spec.renewTime}' 2>/dev/null || true)"
   [[ -n "${renew_time}" ]]
 }
 
 addon_lease_is_fresh() {
+  local spoke_context="${1:-${SPOKE_CONTEXT}}"
   local renew_time
-  renew_time="$(kubectl --context "${SPOKE_CONTEXT}" -n "${ADDON_INSTALL_NAMESPACE}" \
+  renew_time="$(kubectl --context "${spoke_context}" -n "${ADDON_INSTALL_NAMESPACE}" \
     get lease "${ADDON_NAME}" -o jsonpath='{.spec.renewTime}' 2>/dev/null || true)"
   [[ -n "${renew_time}" ]]
 }
 
 addon_manifestwork_exists() {
-  kubectl --context "${HUB_CONTEXT}" -n "${MANAGED_CLUSTER_NAME}" \
+  local cluster_name="${1:-${MANAGED_CLUSTER_NAME}}"
+  kubectl --context "${HUB_CONTEXT}" -n "${cluster_name}" \
     get manifestwork "${ADDON_WORK_NAME}" >/dev/null 2>&1
 }
 
@@ -113,8 +127,9 @@ lease_renewed_since() {
 }
 
 cluster_csr_is_approved() {
+  local cluster_name="${1:-${MANAGED_CLUSTER_NAME}}"
   kubectl --context "${HUB_CONTEXT}" get certificatesigningrequests -o json | jq -e \
-    --arg cluster "${MANAGED_CLUSTER_NAME}" '
+    --arg cluster "${cluster_name}" '
       any(.items[];
         .metadata.labels["open-cluster-management.io/cluster-name"] == $cluster and
         .spec.signerName == "kubernetes.io/kube-apiserver-client" and
@@ -126,8 +141,9 @@ cluster_csr_is_approved() {
 }
 
 addon_csr_is_approved() {
+  local cluster_name="${1:-${MANAGED_CLUSTER_NAME}}"
   kubectl --context "${HUB_CONTEXT}" get certificatesigningrequests -o json | jq -e \
-    --arg cluster "${MANAGED_CLUSTER_NAME}" \
+    --arg cluster "${cluster_name}" \
     --arg addon "${ADDON_NAME}" '
       any(.items[];
         .metadata.labels["open-cluster-management.io/cluster-name"] == $cluster and
@@ -160,5 +176,14 @@ dump_diagnostics() {
   kubectl --context "${SPOKE_CONTEXT}" get events -A --sort-by=.lastTimestamp >&2
   kubectl --context "${SPOKE_CONTEXT}" -n "${ADDON_INSTALL_NAMESPACE}" \
     logs deployment/gpu-platform-addon-agent --all-containers --tail=250 >&2
+
+  if [[ "${OCM_SECONDARY_CLUSTER_ENABLED}" == "1" ]]; then
+    echo "===== secondary managed cluster diagnostics =====" >&2
+    kubectl --context "${SECONDARY_SPOKE_CONTEXT}" get nodes -o wide >&2
+    kubectl --context "${SECONDARY_SPOKE_CONTEXT}" get pods -A -o wide >&2
+    kubectl --context "${SECONDARY_SPOKE_CONTEXT}" get events -A --sort-by=.lastTimestamp >&2
+    kubectl --context "${SECONDARY_SPOKE_CONTEXT}" -n "${ADDON_INSTALL_NAMESPACE}" \
+      logs deployment/gpu-platform-addon-agent --all-containers --tail=250 >&2
+  fi
   set -e
 }

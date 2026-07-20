@@ -24,10 +24,11 @@ capture_kube_json() {
 
 capture_secret_metadata() {
   local file_name="$1"
-  local namespace="$2"
-  local secret_name="$3"
+  local context="$2"
+  local namespace="$3"
+  local secret_name="$4"
 
-  if ! kubectl --context "${SPOKE_CONTEXT}" -n "${namespace}" get secret "${secret_name}" -o json 2>/dev/null | jq '{apiVersion,kind,metadata:{name:.metadata.name,namespace:.metadata.namespace,uid:.metadata.uid,resourceVersion:.metadata.resourceVersion,creationTimestamp:.metadata.creationTimestamp,labels:.metadata.labels},type,dataKeys:((.data // {}) | keys)}' >"${ARTIFACT_DIR}/${file_name}"; then
+  if ! kubectl --context "${context}" -n "${namespace}" get secret "${secret_name}" -o json 2>/dev/null | jq '{apiVersion,kind,metadata:{name:.metadata.name,namespace:.metadata.namespace,uid:.metadata.uid,resourceVersion:.metadata.resourceVersion,creationTimestamp:.metadata.creationTimestamp,labels:.metadata.labels},type,dataKeys:((.data // {}) | keys)}' >"${ARTIFACT_DIR}/${file_name}"; then
     echo '{"captureStatus":"unavailable"}' >"${ARTIFACT_DIR}/${file_name}"
   fi
 }
@@ -88,8 +89,18 @@ capture_kube_json spoke-nodes.json "${SPOKE_CONTEXT}" "${NODE_FILTER}" get nodes
 capture_kube_json spoke-pods.json "${SPOKE_CONTEXT}" "${POD_FILTER}" get pods -A
 capture_kube_json addon-deployment.json "${SPOKE_CONTEXT}" "${DEPLOYMENT_FILTER}" -n "${ADDON_INSTALL_NAMESPACE}" get deployment gpu-platform-addon-agent
 capture_kube_json addon-lease.json "${SPOKE_CONTEXT}" '{apiVersion,kind,metadata:{name:.metadata.name,namespace:.metadata.namespace,uid:.metadata.uid,resourceVersion:.metadata.resourceVersion,creationTimestamp:.metadata.creationTimestamp},spec:{holderIdentity:.spec.holderIdentity,leaseDurationSeconds:.spec.leaseDurationSeconds,acquireTime:.spec.acquireTime,renewTime:.spec.renewTime,leaseTransitions:.spec.leaseTransitions}}' -n "${ADDON_INSTALL_NAMESPACE}" get lease "${ADDON_NAME}"
-capture_secret_metadata managed-cluster-hub-secret-metadata.json "${MANAGED_CLUSTER_AGENT_NAMESPACE}" "${MANAGED_CLUSTER_HUB_KUBECONFIG_SECRET}"
-capture_secret_metadata addon-hub-secret-metadata.json "${ADDON_INSTALL_NAMESPACE}" "${ADDON_HUB_KUBECONFIG_SECRET}"
+capture_secret_metadata managed-cluster-hub-secret-metadata.json "${SPOKE_CONTEXT}" "${MANAGED_CLUSTER_AGENT_NAMESPACE}" "${MANAGED_CLUSTER_HUB_KUBECONFIG_SECRET}"
+capture_secret_metadata addon-hub-secret-metadata.json "${SPOKE_CONTEXT}" "${ADDON_INSTALL_NAMESPACE}" "${ADDON_HUB_KUBECONFIG_SECRET}"
 capture_log addon-manager.log kubectl --context "${HUB_CONTEXT}" -n "${ADDON_MANAGER_NAMESPACE}" logs deployment/"${ADDON_HELM_RELEASE}" --all-containers --tail=500
 capture_log addon-agent.log kubectl --context "${SPOKE_CONTEXT}" -n "${ADDON_INSTALL_NAMESPACE}" logs deployment/gpu-platform-addon-agent --all-containers --tail=500
 capture_kube_json manifestwork-smoke-configmap.json "${SPOKE_CONTEXT}" '{apiVersion,kind,metadata:{name:.metadata.name,namespace:.metadata.namespace,uid:.metadata.uid,resourceVersion:.metadata.resourceVersion,creationTimestamp:.metadata.creationTimestamp},data}' -n default get configmap gpu-platform-ocm-smoke
+if [[ "${OCM_SECONDARY_CLUSTER_ENABLED}" == "1" ]]; then
+  capture_kube_json managed-cluster-secondary.json "${HUB_CONTEXT}" "${CONDITION_FILTER}" get managedcluster "${SECONDARY_MANAGED_CLUSTER_NAME}"
+  capture_kube_json managed-cluster-addon-secondary.json "${HUB_CONTEXT}" "${CONDITION_FILTER}" -n "${SECONDARY_MANAGED_CLUSTER_NAME}" get managedclusteraddon "${ADDON_NAME}"
+  capture_kube_json inventory-configmap-secondary.json "${HUB_CONTEXT}" "${INVENTORY_FILTER}" -n "${SECONDARY_MANAGED_CLUSTER_NAME}" get configmap gpu-platform-inventory
+  capture_kube_json spoke-nodes-secondary.json "${SECONDARY_SPOKE_CONTEXT}" "${NODE_FILTER}" get nodes
+  capture_kube_json addon-deployment-secondary.json "${SECONDARY_SPOKE_CONTEXT}" "${DEPLOYMENT_FILTER}" -n "${ADDON_INSTALL_NAMESPACE}" get deployment gpu-platform-addon-agent
+  capture_secret_metadata addon-hub-secondary-secret-metadata.json "${SECONDARY_SPOKE_CONTEXT}" "${ADDON_INSTALL_NAMESPACE}" "${ADDON_HUB_KUBECONFIG_SECRET}"
+  capture_log addon-agent-secondary.log kubectl --context "${SECONDARY_SPOKE_CONTEXT}" -n "${ADDON_INSTALL_NAMESPACE}" logs deployment/gpu-platform-addon-agent --all-containers --tail=500
+  capture_kube_json manifestwork-smoke-configmap-secondary.json "${SECONDARY_SPOKE_CONTEXT}" '{apiVersion,kind,metadata:{name:.metadata.name,namespace:.metadata.namespace,uid:.metadata.uid,resourceVersion:.metadata.resourceVersion,creationTimestamp:.metadata.creationTimestamp},data}' -n default get configmap gpu-platform-ocm-smoke
+fi

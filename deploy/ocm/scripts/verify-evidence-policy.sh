@@ -21,6 +21,11 @@ record_violation() {
   violations+=("$1")
 }
 
+secondary_evidence_enabled=0
+if [[ "${OCM_SECONDARY_CLUSTER_ENABLED}" == "1" || -e "${ARTIFACT_DIR}/addon-cross-cluster-authorization.json" || -e "${ARTIFACT_DIR}/managed-cluster-secondary.json" ]]; then
+  secondary_evidence_enabled=1
+fi
+
 required_files=(
   tool-versions.txt
   addon-images.json
@@ -30,6 +35,16 @@ required_files=(
   managed-cluster-hub-secret-metadata.json
   addon-hub-secret-metadata.json
 )
+if [[ "${secondary_evidence_enabled}" == "1" ]]; then
+  required_files+=(
+    addon-cross-cluster-authorization.json
+    addon-hub-secondary-secret-metadata.json
+    managed-cluster-secondary.json
+    managed-cluster-addon-secondary.json
+    inventory-configmap-secondary.json
+    spoke-nodes-secondary.json
+  )
+fi
 for file_name in "${required_files[@]}"; do
   if [[ ! -s "${ARTIFACT_DIR}/${file_name}" ]]; then
     record_violation "required evidence is missing: ${file_name}"
@@ -44,6 +59,16 @@ required_json_files=(
   managed-cluster-hub-secret-metadata.json
   addon-hub-secret-metadata.json
 )
+if [[ "${secondary_evidence_enabled}" == "1" ]]; then
+  required_json_files+=(
+    addon-cross-cluster-authorization.json
+    addon-hub-secondary-secret-metadata.json
+    managed-cluster-secondary.json
+    managed-cluster-addon-secondary.json
+    inventory-configmap-secondary.json
+    spoke-nodes-secondary.json
+  )
+fi
 for file_name in "${required_json_files[@]}"; do
   if [[ -s "${ARTIFACT_DIR}/${file_name}" ]] && ! jq -e 'if type == "object" then (has("captureStatus") | not) else true end' "${ARTIFACT_DIR}/${file_name}" >/dev/null 2>&1; then
     record_violation "required evidence capture is unavailable: ${file_name}"
@@ -52,6 +77,27 @@ done
 
 if [[ -s "${ARTIFACT_DIR}/addon-images.json" ]] && ! jq -e 'type == "array" and length > 0' "${ARTIFACT_DIR}/addon-images.json" >/dev/null; then
   record_violation "add-on image evidence is empty"
+fi
+
+if [[ "${secondary_evidence_enabled}" == "1" ]] && ! jq -e \
+  --arg primary "${MANAGED_CLUSTER_NAME}" \
+  --arg secondary "${SECONDARY_MANAGED_CLUSTER_NAME}" '
+    .schemaVersion == 1 and
+    .clusters == [$primary, $secondary] and
+    (.agents[$primary].ownNamespace | .getInventory and .updateInventory and .createConfigMaps) and
+    (.agents[$secondary].ownNamespace | .getInventory and .updateInventory and .createConfigMaps) and
+    (.agents[$primary].foreignNamespace |
+      .namespace == $secondary and
+      (.getInventory | not) and
+      (.updateInventory | not) and
+      (.createConfigMaps | not)) and
+    (.agents[$secondary].foreignNamespace |
+      .namespace == $primary and
+      (.getInventory | not) and
+      (.updateInventory | not) and
+      (.createConfigMaps | not))
+  ' "${ARTIFACT_DIR}/addon-cross-cluster-authorization.json" >/dev/null 2>&1; then
+  record_violation "cross-cluster Add-on authorization evidence is invalid"
 fi
 
 while IFS= read -r -d '' artifact_file; do

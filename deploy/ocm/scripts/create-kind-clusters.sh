@@ -63,3 +63,6 @@ render_hub_config "${rendered_hub_config}"
 create_cluster "${HUB_CLUSTER_NAME}" "${rendered_hub_config}" "${HUB_CONTEXT}"
 wait_until "Hub client certificate signing duration" hub_signing_duration_is_configured
 create_cluster "${SPOKE_CLUSTER_NAME}" "${DEPLOY_ROOT}/kind/cluster1.yaml" "${SPOKE_CONTEXT}"
+if [[ "${OCM_SECONDARY_CLUSTER_ENABLED}" == "1" ]]; then
+  create_cluster "${SECONDARY_SPOKE_CLUSTER_NAME}" "${DEPLOY_ROOT}/kind/cluster1.yaml" "${SECONDARY_SPOKE_CONTEXT}"
+fi
