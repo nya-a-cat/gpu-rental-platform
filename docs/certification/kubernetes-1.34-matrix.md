@@ -80,6 +80,16 @@ The lifecycle profile is verified by [Pipeline `29700482298`](https://github.com
 
 Lifecycle artifact `8446431580` (`ocm-addon-lifecycle-c9d9655057adac61ecf7083f610981e69e63ec27`) and conformance artifact `8446410025` (`ocm-conformance-c9d9655057adac61ecf7083f610981e69e63ec27`) were downloaded and reviewed. Both SHA-256 manifests matched every file, both evidence-policy reports were `passed`, lifecycle and policy exit codes were zero, and the current/N-1 source trees and two-image provenance were distinct. The review found no private-key or kubeconfig markers, runner or Docker storage paths, node identity fields, CSR request/certificate/free-text fields, or Secret data. GPU hardware certification remains unexecuted.
 
+## Dual-cluster Add-on authorization and agent session semantics
+
+[Pipeline `29737714428`](https://github.com/nya-a-cat/gpu-rental-platform/actions/runs/29737714428) verified commit `a8b659c6fa72e5868ed57497c484420e4d58667c`. Quality job `88336898498`, OCM conformance job `88336898506`, Add-on lifecycle job `88336898582`, control-plane HA job `88336898524`, GPUStack job `88336898622`, observability job `88336898459` and Pages job `88339880003` all completed successfully.
+
+OCM conformance artifact `8459299601` (`ocm-conformance-a8b659c6fa72e5868ed57497c484420e4d58667c`) passed its evidence policy. Two managed clusters used their issued Add-on client credentials to read, update and create inventory objects in their own Hub namespaces. The same get, update and create operations were denied in the other cluster namespace in both directions. The Hub RoleBinding contains the exact cluster-specific registration user, preserving per-cluster authorization boundaries.
+
+The inventory reports a random 128-bit Agent Epoch, a monotonic report sequence and the ManagedClusterAddOn UID as its fencing token. Lifecycle artifact `8459377791` (`ocm-addon-lifecycle-a8b659c6fa72e5868ed57497c484420e4d58667c`) passed current/N-1 manager-agent combinations, rollback, deletion, re-enablement and final reinstall. It verified the compatibility state where a current Agent managed by the N-1 manager reports fencing disabled, then restores the current UID token after the current manager resumes.
+
+The control plane now exposes configurable 15-second heartbeat, 45-second degraded/inventory-stale and 90-second offline thresholds. Its evaluator derives `Connected`, `Schedulable`, `InventoryFresh` and `ExecutionHealthy` independently. Command sequence and fencing-token enforcement will be certified with the first workload command channel. Persisted cluster Conditions remain part of the Phase 1 resource API work.
+
 ## GPU control plane Helm and high availability
 
 The Phase 0 control-plane profile deploys the Go API as three replicas with a `RollingUpdate` strategy, `maxUnavailable: 0`, `maxSurge: 1`, a `minAvailable: 2` PodDisruptionBudget, restricted security contexts and an external PostgreSQL credential Secret. Database migrations run through a Helm pre-install/pre-upgrade hook. Secret revision changes explicitly roll the Pods while retaining the externally managed Secret.
