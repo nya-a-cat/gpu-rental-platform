@@ -1,0 +1,708 @@
+name: Certification
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 18 * * *"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+env:
+  MONGO_DATABASE: gpu_rental_ci
+  MONGO_ROOT_USERNAME: gpu_ci
+  MONGO_ROOT_PASSWORD: ci_only_mongo_password
+  POSTGRES_DATABASE: gpu_cloud_ci
+  POSTGRES_USER: gpu_cloud_ci
+  POSTGRES_PASSWORD: ci_only_postgres_password
+  REDIS_PASSWORD: ci_only_redis_password
+  SESSION_TTL_SECONDS: "3600"
+  WEB_ORIGIN: http://localhost:8080
+  COOKIE_SECURE: "false"
+
+jobs:
+  quality:
+    name: Quality and container build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      mongo:
+        image: mongo:8.0
+        env:
+          MONGO_INITDB_DATABASE: gpu_rental_ci
+          MONGO_INITDB_ROOT_USERNAME: gpu_ci
+          MONGO_INITDB_ROOT_PASSWORD: ci_only_mongo_password
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --username gpu_ci --password ci_only_mongo_password --authenticationDatabase admin --eval 'quit(db.adminCommand({ ping: 1 }).ok ? 0 : 2)'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 20s
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+          --health-start-period 5s
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: gpu_cloud_ci
+          POSTGRES_USER: gpu_cloud_ci
+          POSTGRES_PASSWORD: ci_only_postgres_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gpu_cloud_ci -d gpu_cloud_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+          --health-start-period 10s
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # 固定 v7.0.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # 固定 v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # pinned v7.0.0
+        with:
+          go-version: "1.25.1"
+          cache-dependency-path: |
+            apps/control-plane/go.sum
+            apps/gpu-platform-addon/go.sum
+
+      - name: Prepare GPU Platform Add-on module metadata
+        working-directory: apps/gpu-platform-addon
+        run: go mod tidy
+
+      - name: Upload GPU Platform Add-on module metadata
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned v7.0.1
+        with:
+          name: gpu-platform-addon-module-${{ github.sha }}
+          path: |
+            apps/gpu-platform-addon/go.mod
+            apps/gpu-platform-addon/go.sum
+          retention-days: 3
+
+      - name: Enable pnpm
+        run: corepack enable && pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Run unit tests
+        run: pnpm test
+
+      - name: Run API end-to-end tests
+        env:
+          MONGO_URI: mongodb://gpu_ci:ci_only_mongo_password@127.0.0.1:27017/gpu_rental_ci?authSource=admin
+          REDIS_URL: redis://127.0.0.1:6379
+        run: pnpm test:e2e
+
+      - name: Check Go formatting
+        working-directory: apps/control-plane
+        run: test -z "$(gofmt -l cmd internal migrations)"
+
+      - name: Check Go module metadata
+        working-directory: apps/control-plane
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: Vet Go control plane
+        working-directory: apps/control-plane
+        run: go vet ./...
+
+      - name: Apply control plane migrations
+        working-directory: apps/control-plane
+        env:
+          DATABASE_URL: postgres://gpu_cloud_ci:ci_only_postgres_password@127.0.0.1:5432/gpu_cloud_ci?sslmode=disable
+        run: go run ./cmd/migrate up
+
+      - name: Run Go control plane tests
+        working-directory: apps/control-plane
+        env:
+          TEST_DATABASE_URL: postgres://gpu_cloud_ci:ci_only_postgres_password@127.0.0.1:5432/gpu_cloud_ci?sslmode=disable
+        run: go test ./...
+
+      - name: Build Go control plane commands
+        working-directory: apps/control-plane
+        run: go build ./cmd/control-plane ./cmd/migrate ./cmd/healthcheck ./cmd/audit-archive
+
+      - name: Check GPU Platform Add-on formatting
+        working-directory: apps/gpu-platform-addon
+        run: test -z "$(gofmt -l cmd internal)"
+
+      - name: Vet GPU Platform Add-on
+        working-directory: apps/gpu-platform-addon
+        run: go vet ./...
+
+      - name: Test GPU Platform Add-on
+        working-directory: apps/gpu-platform-addon
+        run: go test ./...
+
+      - name: Build GPU Platform Add-on
+        working-directory: apps/gpu-platform-addon
+        run: go build -o "${RUNNER_TEMP}/gpu-platform-addon" ./cmd/gpu-platform-addon
+
+      - name: Validate OCM certification versions
+        run: bash deploy/ocm/scripts/validate-versions.sh
+
+      - name: Install pinned OCM conformance tools
+        run: |
+          bash deploy/ocm/scripts/install-tools.sh
+          source deploy/ocm/scripts/lib.sh
+          echo "${BIN_DIR}" >> "${GITHUB_PATH}"
+
+      - name: Validate GPU Platform Add-on Helm chart
+        run: |
+          source deploy/ocm/versions.env
+          kube_version="${KUBERNETES_VERSION#v}"
+          helm lint charts/gpu-platform-addon --kube-version "${kube_version}"
+          helm template gpu-platform-addon charts/gpu-platform-addon \
+            --namespace gpu-platform-system \
+            --kube-version "${kube_version}" \
+            --set-string image.repository=gpu-platform-addon \
+            --set-string image.tag=ci > /tmp/gpu-platform-addon-rendered.yaml
+          test -s /tmp/gpu-platform-addon-rendered.yaml
+          grep -q -- '--agent-image=gpu-platform-addon:ci' /tmp/gpu-platform-addon-rendered.yaml
+          grep -q 'type: Recreate' /tmp/gpu-platform-addon-rendered.yaml
+          helm template gpu-platform-addon charts/gpu-platform-addon --namespace gpu-platform-system --kube-version "${kube_version}" --set-string image.repository=gpu-platform-addon --set-string image.tag=manager --set-string agent.image.repository=gpu-platform-addon-agent --set-string agent.image.tag=override > /tmp/gpu-platform-addon-agent-override.yaml
+          grep -q -- '--agent-image=gpu-platform-addon-agent:override' /tmp/gpu-platform-addon-agent-override.yaml
+          grep -q 'image: "gpu-platform-addon:manager"' /tmp/gpu-platform-addon-agent-override.yaml
+
+      - name: Validate GPU control plane Helm chart
+        run: |
+          source deploy/ocm/versions.env
+          kube_version="${KUBERNETES_VERSION#v}"
+          helm lint charts/gpu-control-plane --kube-version "${kube_version}"
+          helm template gpu-control-plane charts/gpu-control-plane \
+            --namespace gpu-control-plane-system \
+            --kube-version "${kube_version}" \
+            --set-string image.repository=gpu-control-plane \
+            --set-string image.tag=ci \
+            --set-string image.pullPolicy=Never \
+            --set-string database.existingSecret=gpu-control-plane-database \
+            --set-string database.secretKey=DATABASE_URL \
+            --set-string database.secretRevision=ci-revision \
+            --set-string auth.breakGlass.existingSecret=gpu-control-plane-break-glass \
+            --set-string auth.breakGlass.tokenKey=BREAK_GLASS_ADMIN_TOKEN \
+            --set-string auth.breakGlass.subject=ci-break-glass-admin \
+            --set-string auth.breakGlass.secretRevision=ci-auth-revision \
+            --set-string config.version=ci \
+            --set-string config.commit="${GITHUB_SHA}" > /tmp/gpu-control-plane-rendered.yaml
+          test -s /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'replicas: 3' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'maxUnavailable: 0' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'maxSurge: 1' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'minAvailable: 2' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'automountServiceAccountToken: false' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'helm.sh/hook: pre-install,pre-upgrade' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'secretKeyRef:' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'gpu.platform.nyaacat.dev/database-secret-revision: "ci-revision"' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'gpu.platform.nyaacat.dev/break-glass-secret-revision: "ci-auth-revision"' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'name: BREAK_GLASS_ADMIN_TOKEN' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'name: gpu-control-plane-break-glass' /tmp/gpu-control-plane-rendered.yaml
+          grep -q 'key: BREAK_GLASS_ADMIN_TOKEN' /tmp/gpu-control-plane-rendered.yaml
+          ! grep -q 'postgres://' /tmp/gpu-control-plane-rendered.yaml
+
+      - name: Validate GPU observability Helm chart
+        run: |
+          source deploy/ocm/versions.env
+          kube_version="${KUBERNETES_VERSION#v}"
+          helm lint charts/gpu-observability --kube-version "${kube_version}"
+          helm template gpu-observability charts/gpu-observability \
+            --namespace gpu-observability-system \
+            --kube-version "${kube_version}" > /tmp/gpu-observability-rendered.yaml
+          test "$(grep -c '^kind: Deployment$' /tmp/gpu-observability-rendered.yaml)" -eq 3
+          grep -q 'GPUControlPlaneMetricsUnavailable' /tmp/gpu-observability-rendered.yaml
+          grep -q 'GPUControlPlaneRecoveredPanic' /tmp/gpu-observability-rendered.yaml
+          grep -q 'GPUPlatformOTelCollectorUnavailable' /tmp/gpu-observability-rendered.yaml
+          grep -q 'prom/prometheus@sha256:3c42b892cf723fa54d2f262c37a0e1f80aa8c8ddb1da7b9b0df9455a35a7f893' /tmp/gpu-observability-rendered.yaml
+          grep -q 'prom/alertmanager@sha256:9e082985f56f4c8c9f724e18f2288c6708f472e56a5286b8863d080434ea065d' /tmp/gpu-observability-rendered.yaml
+          grep -q 'otel/opentelemetry-collector-k8s@sha256:4bb87d79b9f4f7971cf0c7c2fbf7decab3ddfda0a8f73794e98d9bc6fe77f609' /tmp/gpu-observability-rendered.yaml
+          ! grep -q '^kind: CronJob$' /tmp/gpu-observability-rendered.yaml
+          helm template gpu-observability charts/gpu-observability \
+            --namespace gpu-observability-system \
+            --kube-version "${kube_version}" \
+            --set auditArchive.enabled=true \
+            --set-string auditArchive.image.repository=gpu-control-plane \
+            --set-string auditArchive.image.tag=ci \
+            --set-string auditArchive.image.pullPolicy=Never \
+            --set-string auditArchive.s3.endpoint=https://objects.example.test \
+            --set-string auditArchive.s3.bucket=gpu-audit > /tmp/gpu-observability-audit-rendered.yaml
+          grep -q '^kind: CronJob$' /tmp/gpu-observability-audit-rendered.yaml
+          grep -q '/usr/local/bin/control-plane-audit-archive' /tmp/gpu-observability-audit-rendered.yaml
+          grep -q 'secretKeyRef:' /tmp/gpu-observability-audit-rendered.yaml
+          ! grep -q 'AUDIT_ARCHIVE_S3_ACCESS_KEY.*value:' /tmp/gpu-observability-audit-rendered.yaml
+
+      - name: Validate observability baseline inputs and scripts
+        run: |
+          bash -n deploy/observability/scripts/*.sh
+          python3 -c "import ast,pathlib; ast.parse(pathlib.Path('deploy/observability/scripts/s3-fixture.py').read_text(encoding='utf-8'))"
+          bash deploy/observability/scripts/validate-versions.sh
+
+      - name: Validate observability evidence policy modes
+        run: |
+          safe_dir="${RUNNER_TEMP}/observability-evidence-safe"
+          blocked_dir="${RUNNER_TEMP}/observability-evidence-blocked"
+          mkdir -p "${safe_dir}" "${blocked_dir}"
+          printf '%s\n' 'synthetic safe diagnostic' > "${safe_dir}/ci-observability.log"
+          bash deploy/observability/scripts/verify-evidence-policy.sh "${safe_dir}" partial
+          jq -e '.status == "passed" and .mode == "partial"' "${safe_dir}/evidence-policy-report.json" >/dev/null
+          printf '%s\n' '-----BEGIN PRIVATE KEY-----' 'synthetic blocked diagnostic' > "${blocked_dir}/ci-observability.log"
+          if bash deploy/observability/scripts/verify-evidence-policy.sh "${blocked_dir}" partial; then
+            echo "credential-like observability evidence unexpectedly passed" >&2
+            exit 1
+          fi
+          jq -e '.status == "failed" and .mode == "partial" and (.violations | length) > 0' "${blocked_dir}/evidence-policy-report.json" >/dev/null
+
+      - name: Validate OCM shell scripts
+        run: bash -n deploy/ocm/scripts/*.sh
+
+      - name: Validate control-plane deployment scripts
+        run: bash -n deploy/control-plane/scripts/*.sh
+
+      - name: Validate control-plane evidence policy modes
+        run: |
+          safe_dir="${RUNNER_TEMP}/gpu-control-plane-evidence-safe"
+          blocked_dir="${RUNNER_TEMP}/gpu-control-plane-evidence-blocked"
+          mkdir -p "${safe_dir}" "${blocked_dir}"
+          printf '%s\n' 'synthetic safe diagnostic' > "${safe_dir}/ci-ha.log"
+          bash deploy/control-plane/scripts/verify-evidence-policy.sh "${safe_dir}" partial
+          jq -e '.status == "passed" and .mode == "partial"' "${safe_dir}/evidence-policy-report.json" >/dev/null
+          printf '%s\n' '-----BEGIN PRIVATE KEY-----' 'synthetic blocked diagnostic' > "${blocked_dir}/ci-ha.log"
+          if bash deploy/control-plane/scripts/verify-evidence-policy.sh "${blocked_dir}" partial; then
+            echo "credential-like evidence unexpectedly passed" >&2
+            exit 1
+          fi
+          jq -e '.status == "failed" and .mode == "partial" and (.violations | length) > 0' "${blocked_dir}/evidence-policy-report.json" >/dev/null
+
+      - name: Validate GPUStack baseline inputs and scripts
+        run: |
+          bash -n deploy/gpustack/scripts/*.sh
+          bash deploy/gpustack/scripts/validate-versions.sh
+
+      - name: Validate GPUStack evidence policy modes
+        run: |
+          safe_dir="${RUNNER_TEMP}/gpustack-evidence-safe"
+          blocked_dir="${RUNNER_TEMP}/gpustack-evidence-blocked"
+          mkdir -p "${safe_dir}" "${blocked_dir}"
+          printf '%s\n' 'synthetic safe diagnostic' > "${safe_dir}/ci-baseline.log"
+          bash deploy/gpustack/scripts/verify-evidence-policy.sh "${safe_dir}" partial
+          jq -e '.status == "passed" and .mode == "partial"' "${safe_dir}/evidence-policy-report.json" >/dev/null
+          printf '%s\n' '-----BEGIN PRIVATE KEY-----' 'synthetic blocked diagnostic' > "${blocked_dir}/ci-baseline.log"
+          if bash deploy/gpustack/scripts/verify-evidence-policy.sh "${blocked_dir}" partial; then
+            echo "credential-like GPUStack evidence unexpectedly passed" >&2
+            exit 1
+          fi
+          jq -e '.status == "failed" and .mode == "partial" and (.violations | length) > 0' "${blocked_dir}/evidence-policy-report.json" >/dev/null
+
+      - name: Check GPU Platform Add-on module metadata
+        working-directory: apps/gpu-platform-addon
+        run: git diff --exit-code -- go.mod go.sum
+
+      - name: Build workspace
+        run: pnpm build
+
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+
+      - name: Validate v2 Compose configuration
+        run: docker compose -f docker-compose.v2.yml config --quiet
+
+      - name: Build container images
+        run: docker compose build
+
+      - name: Build v2 control plane image
+        run: docker compose -f docker-compose.v2.yml build
+
+      - name: Run v2 Compose runtime smoke
+        id: v2_smoke
+        env:
+          BREAK_GLASS_ADMIN_TOKEN: 0123456789abcdef0123456789abcdef
+          BREAK_GLASS_ADMIN_SUBJECT: ci-break-glass-admin
+          CI_BREAK_GLASS_TOKEN: 0123456789abcdef0123456789abcdef
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.v2.yml up --wait --wait-timeout 120 postgres control-plane
+          curl --fail-with-body --silent --show-error http://127.0.0.1:8081/health/live > /dev/null
+          curl --fail-with-body --silent --show-error http://127.0.0.1:8081/health/ready > /dev/null
+          curl --fail-with-body --silent --show-error http://127.0.0.1:8081/metrics > /dev/null
+          curl --fail-with-body --silent --show-error http://127.0.0.1:8081/api/v1/system/info > /dev/null
+
+          tenant_response="$(curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CI_BREAK_GLASS_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -H 'Idempotency-Key: ci-tenant-create' \
+            --data '{"name":"CI Tenant","slug":"ci-tenant"}' \
+            http://127.0.0.1:8081/api/v1/tenants)"
+          tenant_id="$(jq -r '.resourceId' <<<"${tenant_response}")"
+          tenant_operation_id="$(jq -r '.operationId' <<<"${tenant_response}")"
+          test "${tenant_id}" != "null"
+          test "${tenant_operation_id}" != "null"
+
+          tenant_replay="$(curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CI_BREAK_GLASS_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -H 'Idempotency-Key: ci-tenant-create' \
+            --data '{"name":"CI Tenant","slug":"ci-tenant"}' \
+            http://127.0.0.1:8081/api/v1/tenants)"
+          test "$(jq -r '.resourceId' <<<"${tenant_replay}")" = "${tenant_id}"
+          test "$(jq -r '.operationId' <<<"${tenant_replay}")" = "${tenant_operation_id}"
+
+          conflict_status="$(curl --silent --show-error --output /tmp/tenant-idempotency-conflict.json --write-out '%{http_code}' \
+            -H "Authorization: Bearer ${CI_BREAK_GLASS_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -H 'Idempotency-Key: ci-tenant-create' \
+            --data '{"name":"Changed Tenant","slug":"changed-tenant"}' \
+            http://127.0.0.1:8081/api/v1/tenants)"
+          test "${conflict_status}" = "409"
+          test "$(jq -r '.code' /tmp/tenant-idempotency-conflict.json)" = "idempotency_conflict"
+
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CI_BREAK_GLASS_TOKEN}" \
+            "http://127.0.0.1:8081/api/v1/tenants/${tenant_id}" > /dev/null
+
+          project_response="$(curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CI_BREAK_GLASS_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -H 'Idempotency-Key: ci-project-create' \
+            --data "{\"tenantId\":\"${tenant_id}\",\"name\":\"CI Project\",\"slug\":\"ci-project\",\"isolationClass\":\"shared\"}" \
+            http://127.0.0.1:8081/api/v1/projects)"
+          project_id="$(jq -r '.resourceId' <<<"${project_response}")"
+          test "${project_id}" != "null"
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CI_BREAK_GLASS_TOKEN}" \
+            "http://127.0.0.1:8081/api/v1/projects/${project_id}" | jq -e '.provisioningState == "pending" and .isolationClass == "shared"' > /dev/null
+
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CI_BREAK_GLASS_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -H 'Idempotency-Key: ci-role-binding-create' \
+            --data "{\"scopeType\":\"tenant\",\"scopeId\":\"${tenant_id}\",\"subjectType\":\"user\",\"subjectId\":\"owner@example.test\",\"role\":\"tenant_owner\"}" \
+            http://127.0.0.1:8081/api/v1/role-bindings > /dev/null
+
+          curl --fail-with-body --silent --show-error \
+            -X PUT \
+            -H "Authorization: Bearer ${CI_BREAK_GLASS_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -H 'Idempotency-Key: ci-quota-set' \
+            --data '{"hardLimit":2}' \
+            "http://127.0.0.1:8081/api/v1/projects/${project_id}/quotas/gpu.nvidia.full" > /dev/null
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CI_BREAK_GLASS_TOKEN}" \
+            "http://127.0.0.1:8081/api/v1/projects/${project_id}/quotas/gpu.nvidia.full" | jq -e '.hardLimit == 2 and .reserved == 0 and .allocated == 0' > /dev/null
+
+      - name: Show v2 Compose logs after smoke failure
+        if: failure() && steps.v2_smoke.outcome == 'failure'
+        run: docker compose -f docker-compose.v2.yml logs --no-color
+
+      - name: Clean up v2 Compose runtime
+        if: always()
+        run: docker compose -f docker-compose.v2.yml down --volumes --remove-orphans
+
+  ocm-conformance:
+    name: OCM fleet and GPU add-on conformance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # 固定 v7.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # pinned v7.0.0
+        with:
+          go-version: "1.25.1"
+          cache-dependency-path: apps/gpu-platform-addon/go.sum
+
+      - name: Prepare GPU Platform Add-on module metadata
+        working-directory: apps/gpu-platform-addon
+        run: go mod tidy
+
+      - name: Build GPU Platform Add-on image
+        run: docker build --file infra/gpu-platform-addon.Dockerfile --tag gpu-platform-addon:ci .
+
+      - name: Run OCM conformance smoke
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          bash deploy/ocm/scripts/ci-smoke.sh 2>&1 | tee "${RUNNER_TEMP}/ocm-smoke.log"
+
+      - name: Verify OCM conformance evidence upload policy
+        id: ocm_evidence_policy
+        if: always()
+        run: bash deploy/ocm/scripts/verify-evidence-policy.sh
+
+      - name: Upload OCM conformance evidence
+        if: always() && steps.ocm_evidence_policy.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned v7.0.1
+        with:
+          name: ocm-conformance-${{ github.sha }}
+          path: artifacts/ocm/
+          if-no-files-found: error
+          retention-days: 7
+
+  ocm-addon-lifecycle:
+    name: OCM GPU add-on lifecycle compatibility
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      ARTIFACT_DIR: ${{ github.workspace }}/artifacts/ocm-addon-lifecycle
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # pinned v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Build current and N-1 GPU Platform Add-on images
+        run: |
+          mkdir -p "${ARTIFACT_DIR}"
+          bash deploy/ocm/scripts/build-addon-images.sh
+
+      - name: Run GPU Platform Add-on lifecycle compatibility
+        run: |
+          set -o pipefail
+          bash deploy/ocm/scripts/ci-addon-lifecycle.sh 2>&1 | tee "${RUNNER_TEMP}/ocm-addon-lifecycle.log"
+
+      - name: Verify GPU Platform Add-on lifecycle evidence upload policy
+        id: lifecycle_evidence_policy
+        if: always()
+        run: bash deploy/ocm/scripts/verify-evidence-policy.sh
+
+      - name: Upload GPU Platform Add-on lifecycle evidence
+        if: always() && steps.lifecycle_evidence_policy.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned v7.0.1
+        with:
+          name: ocm-addon-lifecycle-${{ github.sha }}
+          path: ${{ env.ARTIFACT_DIR }}/
+          if-no-files-found: error
+          retention-days: 7
+
+  control-plane-ha:
+    name: GPU control plane HA
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      ARTIFACT_DIR: ${{ github.workspace }}/artifacts/gpu-control-plane-ha
+      CONTROL_PLANE_BASELINE_IMAGE: gpu-control-plane:ci-baseline
+      CONTROL_PLANE_CANDIDATE_IMAGE: gpu-control-plane:ci-candidate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # 固定 v7.0.0
+
+      - name: Build GPU control plane images
+        run: |
+          docker build \
+            --file infra/control-plane.Dockerfile \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}-baseline" \
+            --tag "${CONTROL_PLANE_BASELINE_IMAGE}" .
+          docker build \
+            --file infra/control-plane.Dockerfile \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}-candidate" \
+            --tag "${CONTROL_PLANE_CANDIDATE_IMAGE}" .
+          baseline_id="$(docker image inspect --format '{{.Id}}' "${CONTROL_PLANE_BASELINE_IMAGE}")"
+          candidate_id="$(docker image inspect --format '{{.Id}}' "${CONTROL_PLANE_CANDIDATE_IMAGE}")"
+          test "${baseline_id}" != "${candidate_id}"
+
+      - name: Run GPU control plane HA verification
+        id: control_plane_ha_run
+        run: |
+          mkdir -p "${ARTIFACT_DIR}"
+          set -o pipefail
+          bash deploy/control-plane/scripts/ci-ha.sh 2>&1 | tee "${RUNNER_TEMP}/gpu-control-plane-ha.log"
+
+      - name: Stage GPU control plane HA log
+        if: always() && steps.control_plane_ha_run.outcome != 'skipped'
+        run: |
+          sed 's#/home/runner#[runner-home]#g' \
+            "${RUNNER_TEMP}/gpu-control-plane-ha.log" > "${ARTIFACT_DIR}/ci-ha.log"
+
+      - name: Verify GPU control plane HA evidence upload policy
+        id: control_plane_ha_evidence_policy
+        if: always() && steps.control_plane_ha_run.outcome != 'skipped'
+        run: |
+          mode=partial
+          if [[ "${{ steps.control_plane_ha_run.outcome }}" == "success" ]]; then
+            mode=full
+          fi
+          bash deploy/control-plane/scripts/verify-evidence-policy.sh "${ARTIFACT_DIR}" "${mode}"
+
+      - name: Upload GPU control plane HA evidence
+        if: always() && steps.control_plane_ha_evidence_policy.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned v7.0.1
+        with:
+          name: gpu-control-plane-ha-${{ github.sha }}
+          path: ${{ env.ARTIFACT_DIR }}/
+          if-no-files-found: error
+          retention-days: 7
+
+  gpustack-baseline:
+    name: GPUStack v2.2.1 runtime baseline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      ARTIFACT_DIR: ${{ github.workspace }}/artifacts/gpustack-baseline
+      GPUSTACK_CI_DATABASE_USER: gpustack_ci
+      GPUSTACK_CI_DATABASE_PASSWORD: ci_only_gpustack_database_password
+      GPUSTACK_CI_DATABASE_NAME: gpustack_ci
+      GPUSTACK_DATABASE_URL: postgresql://gpustack_ci:ci_only_gpustack_database_password@127.0.0.1:5432/gpustack_ci
+      GPUSTACK_BOOTSTRAP_PASSWORD: ci_only_gpustack_admin_password
+      GPUSTACK_API_PORT: "30080"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # 固定 v7.0.0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # 固定 v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # 固定 v8.3.2
+        with:
+          version: "0.9.6"
+          enable-cache: false
+
+      - name: Run GPUStack runtime baseline
+        id: gpustack_baseline_run
+        run: bash deploy/gpustack/scripts/ci-baseline.sh
+
+      - name: Stage GPUStack baseline log
+        if: always() && steps.gpustack_baseline_run.outcome != 'skipped'
+        run: |
+          mkdir -p "${ARTIFACT_DIR}"
+          if [[ -f "${RUNNER_TEMP}/gpustack-baseline.log" ]]; then
+            sed \
+              -e "s#${GPUSTACK_BOOTSTRAP_PASSWORD}#[redacted]#g" \
+              -e "s#${GPUSTACK_CI_DATABASE_PASSWORD}#[redacted]#g" \
+              -e "s#${GPUSTACK_DATABASE_URL}#[database-url]#g" \
+              -e 's#/home/runner#[runner-home]#g' \
+              "${RUNNER_TEMP}/gpustack-baseline.log" > "${ARTIFACT_DIR}/ci-baseline.log"
+          else
+            printf '%s\n' 'GPUStack baseline did not create a runtime log.' > "${ARTIFACT_DIR}/ci-baseline.log"
+          fi
+
+      - name: Verify GPUStack baseline evidence upload policy
+        id: gpustack_evidence_policy
+        if: always() && steps.gpustack_baseline_run.outcome != 'skipped'
+        run: |
+          mode=partial
+          if [[ "${{ steps.gpustack_baseline_run.outcome }}" == "success" ]]; then
+            mode=full
+          fi
+          bash deploy/gpustack/scripts/verify-evidence-policy.sh "${ARTIFACT_DIR}" "${mode}"
+
+      - name: Upload GPUStack baseline evidence
+        if: always() && steps.gpustack_evidence_policy.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned v7.0.1
+        with:
+          name: gpustack-baseline-${{ github.sha }}
+          path: ${{ env.ARTIFACT_DIR }}/
+          if-no-files-found: error
+          retention-days: 7
+
+  observability-baseline:
+    name: Prometheus, OTel, alerts, and audit archive baseline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      ARTIFACT_DIR: ${{ github.workspace }}/artifacts/observability-baseline
+      DATABASE_URL: postgres://gpu_cloud_ci:ci_only_postgres_password@127.0.0.1:5432/gpu_cloud_ci?sslmode=disable
+      AUDIT_ARCHIVE_S3_ACCESS_KEY: ci_only_observability_access
+      AUDIT_ARCHIVE_S3_SECRET_KEY: ci_only_observability_secret
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: gpu_cloud_ci
+          POSTGRES_USER: gpu_cloud_ci
+          POSTGRES_PASSWORD: ci_only_postgres_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gpu_cloud_ci -d gpu_cloud_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+          --health-start-period 10s
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # pinned v7.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # pinned v7.0.0
+        with:
+          go-version: "1.25.1"
+          cache-dependency-path: apps/control-plane/go.sum
+
+      - name: Install pinned Kubernetes tools
+        run: |
+          bash deploy/ocm/scripts/install-tools.sh
+          source deploy/ocm/scripts/lib.sh
+          echo "${BIN_DIR}" >> "${GITHUB_PATH}"
+
+      - name: Run observability and audit archive baseline
+        id: observability_baseline_run
+        run: |
+          set -o pipefail
+          bash deploy/observability/scripts/ci-baseline.sh 2>&1 | tee "${RUNNER_TEMP}/observability-baseline.log"
+
+      - name: Stage observability baseline log
+        if: always() && steps.observability_baseline_run.outcome != 'skipped'
+        run: |
+          mkdir -p "${ARTIFACT_DIR}"
+          if [[ -f "${RUNNER_TEMP}/observability-baseline.log" ]]; then
+            sed \
+              -e "s#${DATABASE_URL}#[database-url]#g" \
+              -e "s#${POSTGRES_PASSWORD}#[redacted]#g" \
+              -e "s#${AUDIT_ARCHIVE_S3_ACCESS_KEY}#[redacted]#g" \
+              -e "s#${AUDIT_ARCHIVE_S3_SECRET_KEY}#[redacted]#g" \
+              -e 's#/home/runner#[runner-home]#g' \
+              "${RUNNER_TEMP}/observability-baseline.log" > "${ARTIFACT_DIR}/ci-observability.log"
+          else
+            printf '%s\n' 'Observability baseline did not create a runtime log.' > "${ARTIFACT_DIR}/ci-observability.log"
+          fi
+
+      - name: Verify observability evidence upload policy
+        id: observability_evidence_policy
+        if: always() && steps.observability_baseline_run.outcome != 'skipped'
+        run: |
+          mode=partial
+          if [[ "${{ steps.observability_baseline_run.outcome }}" == "success" ]]; then
+            mode=full
+          fi
+          bash deploy/observability/scripts/verify-evidence-policy.sh "${ARTIFACT_DIR}" "${mode}"
+
+      - name: Upload observability baseline evidence
+        if: always() && steps.observability_evidence_policy.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned v7.0.1
+        with:
+          name: observability-baseline-${{ github.sha }}
+          path: ${{ env.ARTIFACT_DIR }}/
+          if-no-files-found: error
+          retention-days: 7

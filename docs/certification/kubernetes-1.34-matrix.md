@@ -90,6 +90,16 @@ The inventory reports a random 128-bit Agent Epoch, a monotonic report sequence 
 
 The control plane now exposes configurable 15-second heartbeat, 45-second degraded/inventory-stale and 90-second offline thresholds. Its evaluator derives `Connected`, `Schedulable`, `InventoryFresh` and `ExecutionHealthy` independently. Command sequence and fencing-token enforcement will be certified with the first workload command channel. Persisted cluster Conditions remain part of the Phase 1 resource API work.
 
+## Phase 1 tenancy control-plane foundation
+
+[Pipeline `29742707311`](https://github.com/nya-a-cat/gpu-rental-platform/actions/runs/29742707311) verified commit `8d64edbb7aa0068922806a4fc048c927db619566`. Quality job `88353000363`, control-plane HA job `88353000431`, OCM conformance job `88353000396`, Add-on lifecycle job `88353000390`, GPUStack job `88353000361`, observability job `88353000486` and Pages job `88356438489` all completed successfully.
+
+The Quality runtime applied migration `000002_phase1_tenancy`, ran PostgreSQL integration tests and exercised authenticated tenant, shared-project, RoleBinding and quota APIs through the v2 Compose service. The smoke path verified identical idempotent replay, conflicting payload rejection and persisted quota state. Break-glass credentials were supplied through runtime environment and external-Secret Chart references.
+
+HA artifact `8461090964` (`gpu-control-plane-ha-8d64edbb7aa0068922806a4fc048c927db619566`) was downloaded and reviewed. Its SHA-256 manifest matched every file, the full evidence policy checked 61 files with zero violations, and all HA assertions passed. The migration record contains `000001_phase0_foundation` and `000002_phase1_tenancy`; the required table set includes tenants, projects, role bindings, project quotas and quota reservations alongside Operation, Outbox, idempotency and audit tables. Shared PostgreSQL Operation reads remained available across all three replicas before and after Secret rotation and image upgrade.
+
+This result certifies the Phase 1 commercial tenancy persistence and API foundation on the GitHub-hosted profile. OCM ManifestWork execution for Namespace, RBAC, ResourceQuota, NetworkPolicy and Restricted Pod Security remains the next shared-isolation delivery unit.
+
 ## GPU control plane Helm and high availability
 
 The Phase 0 control-plane profile deploys the Go API as three replicas with a `RollingUpdate` strategy, `maxUnavailable: 0`, `maxSurge: 1`, a `minAvailable: 2` PodDisruptionBudget, restricted security contexts and an external PostgreSQL credential Secret. Database migrations run through a Helm pre-install/pre-upgrade hook. Secret revision changes explicitly roll the Pods while retaining the externally managed Secret.

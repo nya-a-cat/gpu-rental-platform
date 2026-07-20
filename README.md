@@ -1,6 +1,6 @@
 # GPU Container Cloud
 
-[![Pipeline](https://github.com/nya-a-cat/gpu-rental-platform/actions/workflows/pipeline.yml/badge.svg)](https://github.com/nya-a-cat/gpu-rental-platform/actions/workflows/pipeline.yml)
+[![Fast Gate](https://github.com/nya-a-cat/gpu-rental-platform/actions/workflows/pipeline.yml/badge.svg)](https://github.com/nya-a-cat/gpu-rental-platform/actions/workflows/pipeline.yml) [![Certification](https://github.com/nya-a-cat/gpu-rental-platform/actions/workflows/certification.yml/badge.svg)](https://github.com/nya-a-cat/gpu-rental-platform/actions/workflows/certification.yml)
 
 GPU Container Cloud 是面向云服务器厂商、渠道商和企业租户建设的 GPU 容器云控制面。仓库采用双轨演进：`apps/control-plane` 是 Go、PostgreSQL 与 OCM 方向的生产轨，`apps/api` 与现有 React 控制台保留为可运行的模拟业务基准。
 
@@ -33,7 +33,7 @@ This track remains the UI and workflow regression baseline while production doma
 
 ## Reference local operation
 
-GitHub Actions is the authoritative verification gate. The commands below document operator startup and manual inspection; repository changes are tested and built after push.
+GitHub Actions is the authoritative verification gate. Pull requests and `main` pushes receive a parallel fast gate; database, container, HA, OCM, GPUStack and observability certification runs daily, on demand and for release tags. The commands below document operator startup and manual inspection.
 
 Requirements:
 

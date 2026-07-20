@@ -166,44 +166,49 @@ docker compose down
 
 ## Verification policy
 
-GitHub Actions is the authoritative delivery gate. Local work in this delivery workflow is limited to code and configuration edits; formatting, lint, tests, builds, database integration, Compose validation and runtime smoke checks execute in `.github/workflows/pipeline.yml` after code is pushed. The startup commands above remain operator references.
+GitHub Actions is the authoritative delivery gate. Local work in this delivery workflow is limited to code and configuration edits. The repository uses two verification levels:
 
-The v2 gate validates `docker-compose.v2.yml`, builds its images, starts the isolated project with `up --wait`, checks live, ready, metrics and system-information endpoints, emits container logs on failure, and always removes its containers and test volume. The independent `control-plane-ha` job installs the Helm Chart into a fixed Kubernetes 1.34 kind cluster and exercises migration ordering, external Secret rotation, three-replica availability, shared PostgreSQL Operation reads, a rejected migration upgrade, baseline-to-candidate image replacement, zero-grace single-Pod failure recovery and release cleanup. Successful runs upload full assertion evidence. Failed HA runs upload the available logs and object snapshots after the same credential and path scan passes.
+- `.github/workflows/pipeline.yml` is the fast gate for pull requests and pushes to `main`. Three jobs run in parallel: frontend/API formatting, lint, type checks, unit tests and build; Go module, formatting, vet, unit tests and command builds; Helm, shell, version and Compose static validation.
+- `.github/workflows/certification.yml` is the full runtime certification gate. It runs at 18:17 UTC each day, through manual dispatch and for `v*` release tags. It starts MongoDB, Redis and PostgreSQL; runs service-backed tests and migrations; builds container images; executes v2 Compose smoke, three-replica HA, two-cluster OCM, Add-on N/N-1, GPUStack and observability evidence workflows.
 
-The independent `gpustack-baseline` job installs the checksum-pinned GPUStack
-v2.2.1 wheel and lock-derived dependencies, starts its real API process twice
-against the same PostgreSQL database and uploads only evidence that passes the
-credential, path, file-type and package-size policy.
+A green fast gate certifies source-level feedback for the commit. Release readiness requires a current green Certification run. The interval before the scheduled full run carries database, container and multi-cluster integration risk, so release tags also invoke the complete suite.
 
-The first successful baseline is Pipeline `29713314184`, job `88261048162`,
-commit `aed41cb339af1965d5787db10d5a227df331ab8d` and Artifact `8449510409`.
-Its full evidence policy checked 12 files with zero violations. The run used
-GPUStack v2.2.1 commit `9e9f841`, Python 3.12.13, uv 0.9.6 and PostgreSQL
-16.14; it installed 135 packages and measured a largest cached file of
-63,816,496 bytes under the 100 MiB boundary.
+The v2 certification validates `docker-compose.v2.yml`, builds its images, starts the isolated project with `up --wait`, checks live, ready, metrics and system-information endpoints, exercises tenant, project, RoleBinding, idempotency and quota APIs, emits container logs on failure, and removes its containers and test volume. The independent `control-plane-ha` job installs the Helm Chart into a fixed Kubernetes 1.34 kind cluster and exercises migration ordering, external Secret rotation, three-replica availability, shared PostgreSQL Operation reads, a rejected migration upgrade, baseline-to-candidate image replacement, zero-grace single-Pod failure recovery and release cleanup. Successful runs upload full assertion evidence. Failed HA runs upload the available logs and object snapshots after the same credential and path scan passes.
+
+The independent `gpustack-baseline` job installs the checksum-pinned GPUStack v2.2.1 wheel and lock-derived dependencies, starts its real API process twice against the same PostgreSQL database and uploads evidence that passes the credential, path, file-type and package-size policy.
+
+The first successful baseline is Pipeline `29713314184`, job `88261048162`, commit `aed41cb339af1965d5787db10d5a227df331ab8d` and Artifact `8449510409`. Its full evidence policy checked 12 files with zero violations. The run used GPUStack v2.2.1 commit `9e9f841`, Python 3.12.13, uv 0.9.6 and PostgreSQL 16.14; it installed 135 packages and measured a largest cached file of 63,816,496 bytes under the 100 MiB boundary.
 
 ## GitHub Actions
 
-Pull requests and pushes to `main` run the repository quality gate. It covers:
+The fast gate covers:
 
 - frozen pnpm installation, formatting, lint, type checks, unit tests and production build;
+- Go formatting, module consistency, vet, unit tests and command builds for the control plane and GPU Platform Add-on;
+- certification-version consistency, pinned kubectl/Helm installation and Chart lint for the delivery assets;
+- shell and Python syntax checks plus default and v2 Compose configuration validation.
+
+The full Certification workflow adds:
+
 - NestJS end-to-end tests against authenticated MongoDB and Redis;
-- Go formatting, unit tests and builds for the control plane and GPU Platform Add-on, plus PostgreSQL-backed migration/integration checks;
-- certification-version consistency, pinned kubectl/Helm installation, Helm rendering and shell syntax checks for the OCM delivery assets;
-- GPU control-plane Chart lint/render checks, including three replicas, rolling strategy, PDB, Secret references and migration hook boundaries;
-- default Compose validation plus dedicated v2 Compose validation, image build and runtime smoke checks;
-- a separate control-plane HA job covering Secret-triggered Pod rotation, failed-migration protection, distinct baseline/candidate image replacement, zero-failure rolling-upgrade traffic, shared Operation reads, zero-grace single-Pod replacement and Helm uninstall boundaries;
-- a separate two-cluster OCM conformance job covering registration, CSR certificates, Lease renewal, ManifestWork, Add-on deployment and inventory reporting, with object-snapshot evidence artifacts;
-- a separate Add-on lifecycle job covering immutable current/N-1 images, bidirectional version skew, idempotent install, stale inventory cleanup, per-cluster re-enablement, Helm uninstall and final reinstall;
-- a separate GPUStack v2.2.1 server baseline covering release provenance, dependency-size policy, login, selected GS API surfaces and restart persistence;
-- simulated API/web, Go control-plane and GPU Platform Add-on container builds.
+- PostgreSQL-backed migrations and integration tests;
+- exhaustive Helm rendering and evidence-policy tests;
+- simulated API/web, Go control-plane and GPU Platform Add-on container builds;
+- v2 Compose runtime smoke;
+- control-plane HA, two-cluster OCM conformance, Add-on lifecycle, GPUStack and observability runtime evidence.
 
-The simulated reservation suite includes concurrent attempts to reserve one GPU and verifies a single active order. The v2 checks verify migrations and the current Operation/Outbox foundation. Hardware-backed GPU acceptance remains assigned to a self-hosted runner.
+The simulated reservation suite includes concurrent attempts to reserve one GPU and verifies a single active order. Hardware-backed GPU acceptance remains assigned to a self-hosted runner.
 
-Pages deployment depends on the successful `quality`, `control-plane-ha`, `ocm-conformance`, `ocm-addon-lifecycle` and `gpustack-baseline` jobs and runs from `main` on a push or manual workflow dispatch:
+Pages deployment depends on the three successful fast-gate jobs and runs from `main` on a push or manual fast-gate dispatch:
 
 ```bash
 gh workflow run pipeline.yml --ref main
+```
+
+Run the complete certification suite on demand with:
+
+```bash
+gh workflow run certification.yml --ref main
 ```
 
 The default Pages release is published at `/gpu-rental-platform/`; the frozen `ui-v1.0.0` build remains under `/gpu-rental-platform/classic/`. Pages serves static assets and does not run Go, NestJS, PostgreSQL, MongoDB or Redis.
