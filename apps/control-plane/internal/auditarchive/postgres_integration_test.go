@@ -34,8 +34,8 @@ func TestPostgresSourceWritesOrderedJSONL(t *testing.T) {
 INSERT INTO audit_events (
   id, occurred_at, actor_type, actor_id, scope_type, scope_id, action,
   resource_type, resource_id, request_id, source_ip, user_agent, outcome, details
-) VALUES ($1, $2, 'service-account', 'archive-test', 'system', NULL, 'test.export',
-  'audit-event', $1, $3, '192.0.2.10', 'integration-test', 'succeeded', $4::jsonb)
+) VALUES ($1::uuid, $2, 'service-account', 'archive-test', 'system', NULL, 'test.export',
+  'audit-event', $1::uuid::text, $3, '192.0.2.10', 'integration-test', 'succeeded', $4::jsonb)
 `, id, monthStart.Add(time.Duration(index)*time.Second), "audit-archive-"+id, fmt.Sprintf(`{"index":%d}`, index))
 		if err != nil {
 			t.Fatalf("insert audit event: %v", err)

@@ -108,6 +108,7 @@ def handler_factory(state: State):
                     return
                 self.send_response(200)
                 self.send_header("Content-Length", str(len(state.body)))
+                self.send_header("Last-Modified", "Mon, 20 Jul 2026 04:00:00 GMT")
                 self.send_header("ETag", '"fixture-etag"')
                 for key, value in state.metadata.items():
                     self.send_header(key, value)

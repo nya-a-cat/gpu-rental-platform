@@ -202,10 +202,11 @@ capture_pod_identity() {
   local output_file="$1"
   kubectl_ha -n "${HA_NAMESPACE}" get pods -l "${CONTROL_PLANE_SELECTOR}" -o json | jq \
     --arg capturedAt "$(utc_now)" '
+      [.items[] | select(.metadata.deletionTimestamp == null)] as $active |
       {
-        status:(if (.items | length) == 3 and all(.items[]; any(.status.conditions[]?; .type == "Ready" and .status == "True")) then "passed" else "failed" end),
+        status:(if ($active | length) == 3 and all($active[]; any(.status.conditions[]?; .type == "Ready" and .status == "True")) then "passed" else "failed" end),
         capturedAt:$capturedAt,
-        pods:[.items[] | {name:.metadata.name,uid:.metadata.uid} | .] | sort_by(.name)
+        pods:[$active[] | {name:.metadata.name,uid:.metadata.uid} | .] | sort_by(.name)
       }
     ' >"${output_file}"
   jq -e '.status == "passed"' "${output_file}" >/dev/null
@@ -227,7 +228,7 @@ capture_control_plane_state() {
   replica_sets_json="$(kubectl_ha -n "${HA_NAMESPACE}" get replicasets -l "${CONTROL_PLANE_SELECTOR}" -o json | jq -c \
     --arg deploymentUid "${deployment_uid}" '[.items[] | select(any(.metadata.ownerReferences[]?; .uid == $deploymentUid)) | {name:.metadata.name,uid:.metadata.uid,revision:(.metadata.annotations["deployment.kubernetes.io/revision"] // ""),desiredReplicas:(.spec.replicas // 0),readyReplicas:(.status.readyReplicas // 0),availableReplicas:(.status.availableReplicas // 0)}] | sort_by(.name)')"
   pods_json="$(kubectl_ha -n "${HA_NAMESPACE}" get pods -l "${CONTROL_PLANE_SELECTOR}" -o json | jq -c \
-    '[.items[] | {
+    '[.items[] | select(.metadata.deletionTimestamp == null) | {
       name:.metadata.name,
       uid:.metadata.uid,
       image:([.spec.containers[] | select(.name == "control-plane") | .image] | first),

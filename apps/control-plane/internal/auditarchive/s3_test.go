@@ -43,6 +43,7 @@ func TestS3StoreUsesObjectLockAndMetadata(t *testing.T) {
 				return
 			}
 			response.Header().Set("Content-Length", strconv.Itoa(len(body)))
+			response.Header().Set("Last-Modified", "Mon, 20 Jul 2026 04:00:00 GMT")
 			for key, values := range metadata {
 				for _, value := range values {
 					response.Header().Add(key, value)
