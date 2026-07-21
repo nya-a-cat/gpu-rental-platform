@@ -2,7 +2,10 @@ package postgres
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -169,6 +172,90 @@ func (repository *Repository) SetWorkspaceDesiredState(ctx context.Context, para
 			return mapWorkspaceWriteError(err)
 		},
 	})
+}
+
+func (repository *Repository) CreateAccessToken(ctx context.Context, params workspace.CreateAccessTokenParams) (workspace.AccessToken, error) {
+	if !identity.IsUUID(params.WorkspaceID) {
+		return workspace.AccessToken{}, workspace.ErrNotFound
+	}
+	if params.AccessType != workspace.AccessSSH && params.AccessType != workspace.AccessWebTerminal && params.AccessType != workspace.AccessJupyter {
+		return workspace.AccessToken{}, workspace.ErrInvalid
+	}
+	if params.TTL <= 0 {
+		params.TTL = 10 * time.Minute
+	}
+	if params.TTL > time.Hour {
+		return workspace.AccessToken{}, workspace.ErrInvalid
+	}
+	if err := validateMutationContext(params.Mutation); err != nil {
+		return workspace.AccessToken{}, err
+	}
+	transaction, err := repository.database.BeginTx(ctx, &sql.TxOptions{})
+	if err != nil {
+		return workspace.AccessToken{}, fmt.Errorf("begin access token transaction: %w", err)
+	}
+	defer transaction.Rollback()
+	scope := "workspace.access-token:" + params.Mutation.PrincipalID
+	if _, err := transaction.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, scope+":"+params.Mutation.IdempotencyKey); err != nil {
+		return workspace.AccessToken{}, fmt.Errorf("lock access token idempotency key: %w", err)
+	}
+	var recordedHash string
+	var responseBody []byte
+	err = transaction.QueryRowContext(ctx, `SELECT request_hash, response_body FROM idempotency_records WHERE scope = $1 AND idempotency_key = $2`, scope, params.Mutation.IdempotencyKey).Scan(&recordedHash, &responseBody)
+	if err == nil {
+		if recordedHash != params.Mutation.RequestHash {
+			return workspace.AccessToken{}, tenancy.ErrIdempotencyConflict
+		}
+		var replay workspace.AccessToken
+		if err := json.Unmarshal(responseBody, &replay); err != nil {
+			return workspace.AccessToken{}, fmt.Errorf("decode access token replay: %w", err)
+		}
+		if err := transaction.Commit(); err != nil {
+			return workspace.AccessToken{}, fmt.Errorf("commit access token replay: %w", err)
+		}
+		return replay, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return workspace.AccessToken{}, fmt.Errorf("load access token idempotency: %w", err)
+	}
+	var projectID string
+	if err := transaction.QueryRowContext(ctx, `SELECT project_id::text FROM workspaces WHERE id = $1`, params.WorkspaceID).Scan(&projectID); errors.Is(err, sql.ErrNoRows) {
+		return workspace.AccessToken{}, workspace.ErrNotFound
+	} else if err != nil {
+		return workspace.AccessToken{}, fmt.Errorf("load workspace for access token: %w", err)
+	}
+	var raw [32]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return workspace.AccessToken{}, fmt.Errorf("generate access token: %w", err)
+	}
+	token := base64.RawURLEncoding.EncodeToString(raw[:])
+	hash := sha256.Sum256([]byte(token))
+	tokenID, err := identity.NewUUID()
+	if err != nil {
+		return workspace.AccessToken{}, fmt.Errorf("generate access token ID: %w", err)
+	}
+	now := repository.now().UTC()
+	issued := workspace.AccessToken{ID: tokenID, WorkspaceID: params.WorkspaceID, AccessType: params.AccessType, Token: token, ExpiresAt: now.Add(params.TTL)}
+	if _, err := transaction.ExecContext(ctx, `INSERT INTO workspace_access_tokens (id, workspace_id, access_type, token_hash, expires_at, created_by, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, tokenID, params.WorkspaceID, params.AccessType, fmt.Sprintf("%x", hash[:]), issued.ExpiresAt, params.Mutation.PrincipalID, now); err != nil {
+		return workspace.AccessToken{}, mapWorkspaceWriteError(err)
+	}
+	if err := repository.insertDomainEventInTx(ctx, transaction, "workspace", params.WorkspaceID, "workspace.access-token.issued", map[string]any{"resourceId": tokenID, "workspaceId": params.WorkspaceID, "accessType": params.AccessType, "expiresAt": issued.ExpiresAt}, now); err != nil {
+		return workspace.AccessToken{}, err
+	}
+	if err := repository.insertAuditEventInTx(ctx, transaction, params.Mutation, "workspace.access-token.issue", "workspace-access-token", tokenID, string(tenancy.ScopeProject), projectID, now); err != nil {
+		return workspace.AccessToken{}, err
+	}
+	responseBody, err = json.Marshal(issued)
+	if err != nil {
+		return workspace.AccessToken{}, fmt.Errorf("encode access token response: %w", err)
+	}
+	if _, err := transaction.ExecContext(ctx, `INSERT INTO idempotency_records (scope, idempotency_key, request_hash, response_status, response_headers, response_body, resource_type, resource_id, expires_at, created_at) VALUES ($1,$2,$3,201,'{}'::jsonb,$4,'workspace-access-token',$5,$6,$7)`, scope, params.Mutation.IdempotencyKey, params.Mutation.RequestHash, responseBody, tokenID, now.Add(24*time.Hour), now); err != nil {
+		return workspace.AccessToken{}, fmt.Errorf("record access token idempotency: %w", err)
+	}
+	if err := transaction.Commit(); err != nil {
+		return workspace.AccessToken{}, fmt.Errorf("commit access token: %w", err)
+	}
+	return issued, nil
 }
 
 func workspaceQuotaDelta(current, desired workspace.DesiredState, gpuCount int) int {

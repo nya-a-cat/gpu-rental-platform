@@ -23,6 +23,14 @@ const (
 	DesiredTerminated DesiredState = "terminated"
 )
 
+type AccessType string
+
+const (
+	AccessSSH         AccessType = "ssh"
+	AccessWebTerminal AccessType = "web-terminal"
+	AccessJupyter     AccessType = "jupyter"
+)
+
 type Workspace struct {
 	ID                   string              `json:"id"`
 	ProjectID            string              `json:"projectId"`
@@ -58,8 +66,24 @@ type SetDesiredStateParams struct {
 	DesiredState DesiredState
 }
 
+type AccessToken struct {
+	ID          string     `json:"id"`
+	WorkspaceID string     `json:"workspaceId"`
+	AccessType  AccessType `json:"accessType"`
+	Token       string     `json:"token"`
+	ExpiresAt   time.Time  `json:"expiresAt"`
+}
+
+type CreateAccessTokenParams struct {
+	Mutation    tenancy.MutationContext
+	WorkspaceID string
+	AccessType  AccessType
+	TTL         time.Duration
+}
+
 type Repository interface {
 	CreateWorkspace(context.Context, CreateParams) (tenancy.Acceptance, error)
 	GetWorkspace(context.Context, string) (Workspace, error)
 	SetWorkspaceDesiredState(context.Context, SetDesiredStateParams) (tenancy.Acceptance, error)
+	CreateAccessToken(context.Context, CreateAccessTokenParams) (AccessToken, error)
 }

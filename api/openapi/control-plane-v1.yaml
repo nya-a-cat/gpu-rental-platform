@@ -689,6 +689,38 @@ paths:
         "403": { $ref: "#/components/responses/ProblemResponse" }
         "404": { $ref: "#/components/responses/ProblemResponse" }
         "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/instances/{instanceId}/access-tokens:
+    post:
+      tags: [Instances]
+      operationId: issueInstanceAccessToken
+      summary: Issue a short-lived Workspace access token.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: instanceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            {
+              schema: { $ref: "#/components/schemas/CreateAccessTokenRequest" },
+            }
+      responses:
+        "201":
+          description: The token was issued. The token value is returned once in the response body.
+          content:
+            application/json:
+              { schema: { $ref: "#/components/schemas/AccessToken" } }
+        "400": { $ref: "#/components/responses/ProblemResponse" }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "404": { $ref: "#/components/responses/ProblemResponse" }
+        "409": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
 components:
   securitySchemes:
     bearerAuth:
@@ -1685,6 +1717,22 @@ components:
       required: [desiredState]
       properties:
         desiredState: { type: string, enum: [running, stopped, terminated] }
+    CreateAccessTokenRequest:
+      type: object
+      additionalProperties: false
+      required: [accessType]
+      properties:
+        accessType: { type: string, enum: [ssh, web-terminal, jupyter] }
+    AccessToken:
+      type: object
+      additionalProperties: false
+      required: [id, workspaceId, accessType, token, expiresAt]
+      properties:
+        id: { type: string, format: uuid }
+        workspaceId: { type: string, format: uuid }
+        accessType: { type: string, enum: [ssh, web-terminal, jupyter] }
+        token: { type: string }
+        expiresAt: { type: string, format: date-time }
     Instance:
       type: object
       additionalProperties: false

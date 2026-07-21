@@ -48,6 +48,7 @@
 - [ ] 完成实例创建、停止、启动、终止，以及 desired/observed/provisioning 状态协调。
   - [x] 将 workspace outbox 事件接入 OCM 执行协调器，回写 observed/provisioning 状态。
 - [ ] 完成 PVC、快照、安全组、SSH/Jupyter/Web Terminal 访问网关。
+  - [x] 为 SSH、Web Terminal、Jupyter 建立十分钟默认短期令牌发行、哈希存储、幂等重放和审计基础。
 - [ ] 接入 DCGM 库存、健康指标和节点维护状态。
 - [ ] 验证真实容器 `nvidia-smi`、100 次重复请求幂等、Agent 重连、Pod 驱逐和节点故障恢复。
 

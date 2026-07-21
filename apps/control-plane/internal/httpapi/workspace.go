@@ -23,9 +23,48 @@ type setWorkspaceDesiredStateRequest struct {
 	DesiredState workspace.DesiredState `json:"desiredState"`
 }
 
+type createAccessTokenRequest struct {
+	AccessType string `json:"accessType"`
+}
+
 func registerWorkspaceRoutes(mux *http.ServeMux, dependencies Dependencies) {
 	registerMethods(mux, "/api/v1/instances", map[string]http.Handler{http.MethodPost: createWorkspaceHandler(dependencies)})
 	registerMethods(mux, "/api/v1/instances/{instanceID}", map[string]http.Handler{http.MethodGet: getWorkspaceHandler(dependencies), http.MethodPatch: setWorkspaceDesiredStateHandler(dependencies)})
+	registerMethods(mux, "/api/v1/instances/{instanceID}/access-tokens", map[string]http.Handler{http.MethodPost: createAccessTokenHandler(dependencies)})
+}
+
+func createAccessTokenHandler(dependencies Dependencies) http.HandlerFunc {
+	return func(response http.ResponseWriter, request *http.Request) {
+		if dependencies.Workspace == nil {
+			writeProblem(response, request, Problem{Title: "Service Unavailable", Status: http.StatusServiceUnavailable, Detail: "GPU Workspace storage is unavailable.", Code: "workspace_storage_unavailable"})
+			return
+		}
+		var input createAccessTokenRequest
+		if !decodeRequestJSON(response, request, &input) {
+			return
+		}
+		workspaceID := request.PathValue("instanceID")
+		current, err := dependencies.Workspace.GetWorkspace(request.Context(), workspaceID)
+		if err != nil {
+			writeWorkspaceError(response, request, err)
+			return
+		}
+		principal, ok := workspacePrincipal(response, request, dependencies, "instance.access", current.ProjectID, workspaceID)
+		if !ok {
+			return
+		}
+		mutation, ok := mutationContext(response, request, principal, input)
+		if !ok {
+			return
+		}
+		issued, err := dependencies.Workspace.CreateAccessToken(request.Context(), workspace.CreateAccessTokenParams{Mutation: mutation, WorkspaceID: workspaceID, AccessType: workspace.AccessType(input.AccessType)})
+		if err != nil {
+			writeWorkspaceError(response, request, err)
+			return
+		}
+		response.Header().Set("Location", "/api/v1/instances/"+workspaceID+"/access-tokens/"+issued.ID)
+		writeJSON(response, http.StatusCreated, issued)
+	}
 }
 
 func workspacePrincipal(response http.ResponseWriter, request *http.Request, dependencies Dependencies, action, scopeID, resourceID string) (authn.Principal, bool) {
@@ -131,6 +170,8 @@ func writeWorkspaceError(response http.ResponseWriter, request *http.Request, er
 		writeProblem(response, request, Problem{Title: "Resource conflict", Status: http.StatusConflict, Detail: "A GPU Workspace with the supplied identity already exists.", Code: "workspace_conflict"})
 	case errors.Is(err, workspace.ErrQuotaExceeded):
 		writeProblem(response, request, Problem{Title: "Quota exceeded", Status: http.StatusConflict, Detail: "The requested GPU capacity exceeds the project quota.", Code: "quota_exceeded"})
+	case errors.Is(err, tenancy.ErrInvalid):
+		writeProblem(response, request, Problem{Title: "Invalid request", Status: http.StatusBadRequest, Detail: "The access token request is invalid.", Code: "invalid_workspace_request"})
 	case errors.Is(err, tenancy.ErrIdempotencyConflict):
 		writeProblem(response, request, Problem{Title: "Idempotency conflict", Status: http.StatusConflict, Detail: "The Idempotency-Key was already used with a different request.", Code: "idempotency_conflict"})
 	default:

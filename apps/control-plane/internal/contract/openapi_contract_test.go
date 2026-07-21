@@ -62,6 +62,7 @@ func TestOperationDTOsMatchOpenAPI(t *testing.T) {
 	assertSchemaMatchesDTO(t, document, "AcceleratorProfile", reflect.TypeOf(catalog.AcceleratorProfile{}))
 	assertSchemaMatchesDTO(t, document, "CapacityPool", reflect.TypeOf(catalog.CapacityPool{}))
 	assertSchemaMatchesDTO(t, document, "Instance", reflect.TypeOf(workspace.Workspace{}))
+	assertSchemaMatchesDTO(t, document, "AccessToken", reflect.TypeOf(workspace.AccessToken{}))
 
 	stepStatus, ok := reflect.TypeOf(operation.Step{}).FieldByName("Status")
 	if !ok {
