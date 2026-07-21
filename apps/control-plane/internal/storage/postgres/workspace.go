@@ -53,6 +53,9 @@ func (repository *Repository) CreateWorkspace(ctx context.Context, params worksp
 			if storageGiB < 1 || storageGiB > 16384 {
 				return fmt.Errorf("workspace storage capacity must be between 1 and 16384 GiB: %w", workspace.ErrInvalid)
 			}
+			if err := adjustWorkspaceQuota(ctx, tx, params.ProjectID, gpuCount); err != nil {
+				return err
+			}
 			_, err := tx.ExecContext(ctx, `INSERT INTO workspaces (id, project_id, cluster_id, accelerator_profile_id, name, gpu_count, storage_gib, namespace_name, desired_state, observed_state, provisioning_state, generation, manifest_work_name, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'running','pending','pending',1,$9,$10,$10)`, id, params.ProjectID, params.ClusterID, params.AcceleratorProfileID, name, gpuCount, storageGiB, namespace, workspace.WorkName(id), now)
 			return mapWorkspaceWriteError(err)
 		},
@@ -148,10 +151,64 @@ func (repository *Repository) SetWorkspaceDesiredState(ctx context.Context, para
 		scopeType: string(tenancy.ScopeProject), scopeID: projectID,
 		eventFields: map[string]any{"desiredState": params.DesiredState},
 		apply: func(ctx context.Context, tx *sql.Tx, now time.Time) error {
+			var projectID string
+			var gpuCount int
+			var currentState workspace.DesiredState
+			if err := tx.QueryRowContext(ctx, `SELECT project_id::text, gpu_count, desired_state FROM workspaces WHERE id = $1 FOR UPDATE`, params.WorkspaceID).Scan(&projectID, &gpuCount, &currentState); errors.Is(err, sql.ErrNoRows) {
+				return workspace.ErrNotFound
+			} else if err != nil {
+				return fmt.Errorf("lock workspace desired state: %w", err)
+			}
+			delta := workspaceQuotaDelta(currentState, params.DesiredState, gpuCount)
+			if delta != 0 {
+				if err := adjustWorkspaceQuota(ctx, tx, projectID, delta); err != nil {
+					return err
+				}
+			}
 			_, err := tx.ExecContext(ctx, `UPDATE workspaces SET desired_state = $2, generation = generation + 1, updated_at = $3 WHERE id = $1`, params.WorkspaceID, params.DesiredState, now)
 			return mapWorkspaceWriteError(err)
 		},
 	})
+}
+
+func workspaceQuotaDelta(current, desired workspace.DesiredState, gpuCount int) int {
+	if current == desired || gpuCount <= 0 {
+		return 0
+	}
+	wasAllocated := current == workspace.DesiredRunning
+	willAllocate := desired == workspace.DesiredRunning
+	if willAllocate && !wasAllocated {
+		return gpuCount
+	}
+	if wasAllocated && !willAllocate {
+		return -gpuCount
+	}
+	return 0
+}
+
+func adjustWorkspaceQuota(ctx context.Context, tx *sql.Tx, projectID string, delta int) error {
+	if delta == 0 {
+		return nil
+	}
+	if delta > 0 {
+		result, err := tx.ExecContext(ctx, `UPDATE project_quotas SET allocated = allocated + $2, generation = generation + 1, updated_at = $3 WHERE project_id = $1 AND resource_class = 'gpu.nvidia.full' AND allocated + reserved + $2 <= hard_limit`, projectID, delta, time.Now().UTC())
+		if err != nil {
+			return fmt.Errorf("reserve workspace GPU quota: %w", err)
+		}
+		count, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("inspect workspace GPU quota: %w", err)
+		}
+		if count == 0 {
+			return workspace.ErrQuotaExceeded
+		}
+		return nil
+	}
+	_, err := tx.ExecContext(ctx, `UPDATE project_quotas SET allocated = GREATEST(allocated + $2, 0), generation = generation + 1, updated_at = $3 WHERE project_id = $1 AND resource_class = 'gpu.nvidia.full'`, projectID, delta, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("release workspace GPU quota: %w", err)
+	}
+	return nil
 }
 
 const workspaceSelect = `SELECT w.id::text, w.project_id::text, w.cluster_id::text, w.accelerator_profile_id::text, w.name, w.gpu_count, w.storage_gib, w.namespace_name, w.desired_state, w.observed_state, w.provisioning_state, w.conditions, w.generation, w.observed_generation, w.manifest_work_name, w.created_at, w.updated_at FROM workspaces w`

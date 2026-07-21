@@ -129,6 +129,8 @@ func writeWorkspaceError(response http.ResponseWriter, request *http.Request, er
 		writeProblem(response, request, Problem{Title: "Resource not found", Status: http.StatusNotFound, Detail: "The requested GPU Workspace does not exist.", Code: "workspace_not_found"})
 	case errors.Is(err, workspace.ErrConflict):
 		writeProblem(response, request, Problem{Title: "Resource conflict", Status: http.StatusConflict, Detail: "A GPU Workspace with the supplied identity already exists.", Code: "workspace_conflict"})
+	case errors.Is(err, workspace.ErrQuotaExceeded):
+		writeProblem(response, request, Problem{Title: "Quota exceeded", Status: http.StatusConflict, Detail: "The requested GPU capacity exceeds the project quota.", Code: "quota_exceeded"})
 	case errors.Is(err, tenancy.ErrIdempotencyConflict):
 		writeProblem(response, request, Problem{Title: "Idempotency conflict", Status: http.StatusConflict, Detail: "The Idempotency-Key was already used with a different request.", Code: "idempotency_conflict"})
 	default:

@@ -9,9 +9,10 @@ import (
 )
 
 var (
-	ErrInvalid  = errors.New("invalid workspace request")
-	ErrNotFound = errors.New("workspace not found")
-	ErrConflict = errors.New("workspace conflict")
+	ErrInvalid       = errors.New("invalid workspace request")
+	ErrNotFound      = errors.New("workspace not found")
+	ErrConflict      = errors.New("workspace conflict")
+	ErrQuotaExceeded = errors.New("workspace GPU quota exceeded")
 )
 
 type DesiredState string
