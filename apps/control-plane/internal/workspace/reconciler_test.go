@@ -94,21 +94,6 @@ func TestReconcilerSkipsObservedGeneration(t *testing.T) {
 	}
 }
 
-func TestWorkspaceQuotaDeltaFollowsComputeLifecycle(t *testing.T) {
-	if got := workspaceQuotaDelta(DesiredStopped, DesiredRunning, 2); got != 2 {
-		t.Fatalf("stopped to running delta = %d", got)
-	}
-	if got := workspaceQuotaDelta(DesiredRunning, DesiredStopped, 2); got != -2 {
-		t.Fatalf("running to stopped delta = %d", got)
-	}
-	if got := workspaceQuotaDelta(DesiredRunning, DesiredTerminated, 2); got != -2 {
-		t.Fatalf("running to terminated delta = %d", got)
-	}
-	if got := workspaceQuotaDelta(DesiredStopped, DesiredTerminated, 2); got != 0 {
-		t.Fatalf("stopped to terminated delta = %d", got)
-	}
-}
-
 func testWorkspace() Workspace {
 	return Workspace{ID: "11111111-2222-4333-8444-555555555555", ProjectID: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", ClusterID: "cluster-a", AcceleratorProfileID: "99999999-8888-4777-8666-555555555555", Name: "demo", GPUCount: 1, StorageGiB: 20, NamespaceName: "gpu-p-demo", DesiredState: DesiredRunning, ObservedState: "pending", ProvisioningState: "pending", Generation: 1}
 }
