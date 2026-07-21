@@ -2049,7 +2049,6 @@ components:
           id,
           tenantId,
           projectId,
-          usageFactId,
           entryType,
           amountMinor,
           currency,
