@@ -43,12 +43,19 @@ type createCreditAdjustmentRequest struct {
 	Description string `json:"description"`
 }
 
+type setBudgetRequest struct {
+	TenantID   string `json:"tenantId"`
+	Currency   string `json:"currency"`
+	LimitMinor int64  `json:"limitMinor"`
+}
+
 func registerMeteringRoutes(mux *http.ServeMux, dependencies Dependencies) {
 	registerMethods(mux, "/api/v1/usage-facts", map[string]http.Handler{http.MethodPost: createUsageFactHandler(dependencies)})
 	registerMethods(mux, "/api/v1/usage-facts/{usageFactID}", map[string]http.Handler{http.MethodGet: getUsageFactHandler(dependencies)})
 	registerMethods(mux, "/api/v1/invoices", map[string]http.Handler{http.MethodPost: createInvoiceHandler(dependencies)})
 	registerMethods(mux, "/api/v1/invoices/{invoiceID}", map[string]http.Handler{http.MethodGet: getInvoiceHandler(dependencies)})
 	registerMethods(mux, "/api/v1/ledger-adjustments", map[string]http.Handler{http.MethodPost: createCreditAdjustmentHandler(dependencies)})
+	registerMethods(mux, "/api/v1/projects/{projectID}/budget", map[string]http.Handler{http.MethodPut: setBudgetHandler(dependencies), http.MethodGet: getBudgetHandler(dependencies)})
 }
 
 func meteringPrincipal(response http.ResponseWriter, request *http.Request, dependencies Dependencies) (authn.Principal, bool) {
@@ -164,6 +171,43 @@ func createCreditAdjustmentHandler(dependencies Dependencies) http.HandlerFunc {
 	}
 }
 
+func setBudgetHandler(dependencies Dependencies) http.HandlerFunc {
+	return func(response http.ResponseWriter, request *http.Request) {
+		principal, ok := meteringPrincipal(response, request, dependencies)
+		if !ok {
+			return
+		}
+		var input setBudgetRequest
+		if !decodeRequestJSON(response, request, &input) {
+			return
+		}
+		mutation, ok := mutationContext(response, request, principal, input)
+		if !ok {
+			return
+		}
+		accepted, err := dependencies.Metering.SetBudget(request.Context(), metering.SetBudgetParams{Mutation: mutation, TenantID: input.TenantID, ProjectID: request.PathValue("projectID"), Currency: input.Currency, LimitMinor: input.LimitMinor})
+		if err != nil {
+			writeMeteringError(response, request, err)
+			return
+		}
+		writeAcceptance(response, http.StatusAccepted, "/api/v1/projects/"+request.PathValue("projectID")+"/budget", accepted)
+	}
+}
+
+func getBudgetHandler(dependencies Dependencies) http.HandlerFunc {
+	return func(response http.ResponseWriter, request *http.Request) {
+		if _, ok := meteringPrincipal(response, request, dependencies); !ok {
+			return
+		}
+		result, err := dependencies.Metering.GetBudget(request.Context(), request.PathValue("projectID"))
+		if err != nil {
+			writeMeteringError(response, request, err)
+			return
+		}
+		writeJSON(response, http.StatusOK, result)
+	}
+}
+
 func writeMeteringError(response http.ResponseWriter, request *http.Request, err error) {
 	switch {
 	case errors.Is(err, metering.ErrInvalid):
@@ -172,6 +216,8 @@ func writeMeteringError(response http.ResponseWriter, request *http.Request, err
 		writeProblem(response, request, Problem{Title: "Resource not found", Status: http.StatusNotFound, Detail: "The usage fact does not exist.", Code: "usage_fact_not_found"})
 	case errors.Is(err, metering.ErrConflict):
 		writeProblem(response, request, Problem{Title: "Resource conflict", Status: http.StatusConflict, Detail: "The billing period already has an invoice or contains conflicting billing data.", Code: "billing_conflict"})
+	case errors.Is(err, metering.ErrBudgetExceeded):
+		writeProblem(response, request, Problem{Title: "Budget exceeded", Status: http.StatusConflict, Detail: "The project budget does not have enough available credit for this allocation.", Code: "budget_exceeded"})
 	case errors.Is(err, tenancy.ErrIdempotencyConflict):
 		writeProblem(response, request, Problem{Title: "Resource conflict", Status: http.StatusConflict, Detail: "The Idempotency-Key was already used with a different request.", Code: "idempotency_conflict"})
 	default:

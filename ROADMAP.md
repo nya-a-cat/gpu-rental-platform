@@ -66,6 +66,7 @@
   - [x] 接入不可变 UsageFact、固定单价 RatedUsage、价格版本和可重放查询 API。
   - [x] RatedUsage 原子写入不可变 LedgerEntry，并提供项目账期 Invoice 生成与查询。
   - [x] 提供追加式 credit LedgerEntry 冲正/额度调整 API，保留引用号和说明。
+  - [x] 提供 Project Budget 上限、余额查询和超预算 UsageFact 拒绝。
 - [ ] 让 OpenMeter 完成两个完整账期的影子双算。
 - [ ] 提供经过验证的 Keycloak OIDC Profile。
 - [ ] 交付 Prometheus HA、Thanos、对象存储和白标厂商控制台。

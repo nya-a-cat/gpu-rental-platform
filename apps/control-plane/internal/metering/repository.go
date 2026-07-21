@@ -11,9 +11,10 @@ import (
 )
 
 var (
-	ErrInvalid  = errors.New("invalid usage fact")
-	ErrNotFound = errors.New("usage fact not found")
-	ErrConflict = errors.New("billing resource conflict")
+	ErrInvalid        = errors.New("invalid usage fact")
+	ErrNotFound       = errors.New("usage fact not found")
+	ErrConflict       = errors.New("billing resource conflict")
+	ErrBudgetExceeded = errors.New("project budget exceeded")
 )
 
 type UsageFact struct {
@@ -73,6 +74,17 @@ type Invoice struct {
 	UpdatedAt     time.Time     `json:"updatedAt"`
 }
 
+type Budget struct {
+	TenantID       string    `json:"tenantId"`
+	ProjectID      string    `json:"projectId"`
+	Currency       string    `json:"currency"`
+	LimitMinor     int64     `json:"limitMinor"`
+	UsedMinor      int64     `json:"usedMinor"`
+	AvailableMinor int64     `json:"availableMinor"`
+	Generation     int64     `json:"generation"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+}
+
 type CreateUsageFactParams struct {
 	Mutation       tenancy.MutationContext
 	TenantID       string
@@ -102,12 +114,22 @@ type CreateCreditAdjustmentParams struct {
 	Description string
 }
 
+type SetBudgetParams struct {
+	Mutation   tenancy.MutationContext
+	TenantID   string
+	ProjectID  string
+	Currency   string
+	LimitMinor int64
+}
+
 type Repository interface {
 	CreateUsageFact(context.Context, CreateUsageFactParams) (tenancy.Acceptance, error)
 	GetUsageFact(context.Context, string) (UsageFact, error)
 	CreateInvoice(context.Context, CreateInvoiceParams) (tenancy.Acceptance, error)
 	GetInvoice(context.Context, string) (Invoice, error)
 	CreateCreditAdjustment(context.Context, CreateCreditAdjustmentParams) (tenancy.Acceptance, error)
+	SetBudget(context.Context, SetBudgetParams) (tenancy.Acceptance, error)
+	GetBudget(context.Context, string) (Budget, error)
 }
 
 func toPortUsageFact(fact UsageFact) ports.UsageFact {

@@ -65,6 +65,9 @@ func (repository *Repository) CreateUsageFact(ctx context.Context, params meteri
 			if projectTenant != params.TenantID {
 				return metering.ErrNotFound
 			}
+			if err := enforceProjectBudget(ctx, transaction, fact.ProjectID, fact.TenantID, rated.Currency, rated.AmountMinor); err != nil {
+				return err
+			}
 			if _, err := transaction.ExecContext(ctx, `INSERT INTO usage_facts (id, tenant_id, project_id, resource_class, quantity, allocation_from, allocation_to, attributes, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, fact.ID, fact.TenantID, fact.ProjectID, fact.ResourceClass, fact.Quantity, fact.AllocationFrom, fact.AllocationTo, fact.Attributes, now); err != nil {
 				return mapWorkspaceWriteError(err)
 			}
@@ -76,6 +79,29 @@ func (repository *Repository) CreateUsageFact(ctx context.Context, params meteri
 			return mapWorkspaceWriteError(err)
 		},
 	})
+}
+
+func enforceProjectBudget(ctx context.Context, transaction *sql.Tx, projectID, tenantID, currency string, amountMinor int64) error {
+	var limitMinor int64
+	var budgetCurrency string
+	err := transaction.QueryRowContext(ctx, `SELECT limit_minor, currency FROM project_budgets WHERE project_id = $1 AND tenant_id = $2 FOR UPDATE`, projectID, tenantID).Scan(&limitMinor, &budgetCurrency)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("load project budget: %w", err)
+	}
+	if budgetCurrency != currency {
+		return fmt.Errorf("usage currency %s does not match budget currency %s: %w", currency, budgetCurrency, metering.ErrInvalid)
+	}
+	var usedMinor int64
+	if err := transaction.QueryRowContext(ctx, `SELECT COALESCE(SUM(CASE WHEN entry_type = 'debit' THEN amount_minor ELSE -amount_minor END), 0) FROM ledger_entries WHERE project_id = $1 AND currency = $2`, projectID, currency).Scan(&usedMinor); err != nil {
+		return fmt.Errorf("calculate project budget usage: %w", err)
+	}
+	if amountMinor > 0 && usedMinor > limitMinor-amountMinor {
+		return metering.ErrBudgetExceeded
+	}
+	return nil
 }
 
 func (repository *Repository) GetUsageFact(ctx context.Context, id string) (metering.UsageFact, error) {
