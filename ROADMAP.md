@@ -51,6 +51,7 @@
   - [x] 为 SSH、Web Terminal、Jupyter 建立十分钟默认短期令牌发行、哈希存储、幂等重放和审计基础。
   - [x] 支持访问令牌撤销，并通过 Operation、审计和幂等事件传播撤销状态。
   - [x] 提供受认证保护的令牌 introspection 接口，供网关在建立会话前校验状态。
+  - [x] OCM Workspace 清单暴露 SSH、Web Terminal、Jupyter Service 端口并生成 HTTPRoute/ReferenceGrant。
 - [ ] 接入 DCGM 库存、健康指标和节点维护状态。
 - [ ] 验证真实容器 `nvidia-smi`、100 次重复请求幂等、Agent 重连、Pod 驱逐和节点故障恢复。
 

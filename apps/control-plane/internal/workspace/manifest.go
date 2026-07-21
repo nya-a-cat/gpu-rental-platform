@@ -54,6 +54,14 @@ func BuildWork(input ManifestInput) (ports.WorkRequest, error) {
 		})
 		manifests = append(manifests,
 			map[string]any{
+				"apiVersion": "gateway.networking.k8s.io/v1beta1", "kind": "ReferenceGrant",
+				"metadata": map[string]any{"name": name + "-gateway", "namespace": "gateway-system", "labels": labels},
+				"spec": map[string]any{
+					"from": []any{map[string]any{"group": "gateway.networking.k8s.io", "kind": "HTTPRoute", "namespace": input.Workspace.NamespaceName}},
+					"to":   []any{map[string]any{"group": "gateway.networking.k8s.io", "kind": "Gateway"}},
+				},
+			},
+			map[string]any{
 				"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
 				"metadata": map[string]any{"name": name + "-default-deny", "namespace": input.Workspace.NamespaceName, "labels": labels},
 				"spec":     map[string]any{"podSelector": map[string]any{"matchLabels": labels}, "policyTypes": []any{"Ingress", "Egress"}},
@@ -103,8 +111,33 @@ func BuildWork(input ManifestInput) (ports.WorkRequest, error) {
 		manifests = append(manifests, map[string]any{
 			"apiVersion": "v1", "kind": "Service",
 			"metadata": map[string]any{"name": name, "namespace": input.Workspace.NamespaceName, "labels": labels},
-			"spec":     map[string]any{"clusterIP": "None", "selector": labels},
+			"spec": map[string]any{
+				"clusterIP": "None", "selector": labels,
+				"ports": []any{
+					map[string]any{"name": "ssh", "port": 22, "protocol": "TCP", "targetPort": 22},
+					map[string]any{"name": "web-terminal", "port": 7681, "protocol": "TCP", "targetPort": 7681},
+					map[string]any{"name": "jupyter", "port": 8888, "protocol": "TCP", "targetPort": 8888},
+				},
+			},
 		})
+		manifests = append(manifests,
+			map[string]any{
+				"apiVersion": "gateway.networking.k8s.io/v1", "kind": "HTTPRoute",
+				"metadata": map[string]any{"name": name + "-jupyter", "namespace": input.Workspace.NamespaceName, "labels": labels},
+				"spec": map[string]any{
+					"parentRefs": []any{map[string]any{"name": "gpu-platform-gateway", "namespace": "gateway-system"}},
+					"rules":      []any{map[string]any{"matches": []any{map[string]any{"path": map[string]any{"type": "PathPrefix", "value": "/jupyter"}}}, "backendRefs": []any{map[string]any{"name": name, "port": 8888}}}},
+				},
+			},
+			map[string]any{
+				"apiVersion": "gateway.networking.k8s.io/v1", "kind": "HTTPRoute",
+				"metadata": map[string]any{"name": name + "-terminal", "namespace": input.Workspace.NamespaceName, "labels": labels},
+				"spec": map[string]any{
+					"parentRefs": []any{map[string]any{"name": "gpu-platform-gateway", "namespace": "gateway-system"}},
+					"rules":      []any{map[string]any{"matches": []any{map[string]any{"path": map[string]any{"type": "PathPrefix", "value": "/terminal"}}}, "backendRefs": []any{map[string]any{"name": name, "port": 7681}}}},
+				},
+			},
+		)
 	}
 	work := map[string]any{
 		"apiVersion": "work.open-cluster-management.io/v1", "kind": "ManifestWork",
