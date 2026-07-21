@@ -72,7 +72,7 @@ Provider
                         └── GPU Device / MIG Partition
 ```
 
-资源模型使用 `ResourceClass`、`Trait`、`Inventory`、`Reservation`、`Allocation`、`AcceleratorProfile` 和 `DeviceClaim`。库存以 `Generation` 乐观并发控制；租户只看到产品能力和稳定资源引用，不接收物理 GPU 标识。
+资源模型使用 `ResourceClass`、`Trait`、`Inventory`、`Reservation`、`Allocation`、`AcceleratorProfile` 和 `DeviceClaim`。当前控制面已提供基于 AcceleratorProfile 的 CapacityPool 选择、行锁 Reservation 和 PlacementDecision API。库存以 `Generation` 乐观并发控制；租户只看到产品能力和稳定资源引用，不接收物理 GPU 标识。
 
 商业主体层级为 `System → Domain / Reseller → Tenant / Account → Project`。角色可作用于 System、Domain、Tenant、Project 或 Cluster。
 

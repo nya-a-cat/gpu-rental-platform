@@ -142,6 +142,7 @@ func main() {
 		Tenancy:          repository,
 		Catalog:          repository,
 		Metering:         repository,
+		Placement:        repository,
 		Workspace:        repository,
 		Authenticator:    authenticator,
 		Authorization:    authorizationEngine,

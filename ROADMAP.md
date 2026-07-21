@@ -59,6 +59,7 @@
 ## Phase 2 — Private Beta：多集群与商业闭环
 
 - [ ] 建立 Region、Zone、Cluster 与 NodePool Placement。
+  - [x] 提供基于 AcceleratorProfile 的 CapacityPool 选择、行锁 Reservation 和 PlacementDecision API。
 - [ ] 建立 Domain/Reseller、Tenant/Account 和 Project 商业层级。
 - [ ] 交付 `shared`、`dedicated-node-pool` 和 `dedicated-cluster` 三档隔离。
 - [ ] 交付 MIG 固定规格资源池和维护流程。

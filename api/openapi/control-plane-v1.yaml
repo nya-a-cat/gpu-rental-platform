@@ -970,6 +970,48 @@ paths:
         "403": { $ref: "#/components/responses/ProblemResponse" }
         "404": { $ref: "#/components/responses/ProblemResponse" }
         "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/placements:
+    post:
+      tags: [Placement]
+      operationId: createPlacement
+      summary: Reserve capacity from an enabled capacity pool.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            { schema: { $ref: "#/components/schemas/CreatePlacementRequest" } }
+      responses:
+        "202": { $ref: "#/components/responses/MutationAccepted" }
+        "400": { $ref: "#/components/responses/ProblemResponse" }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "409": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/placements/{placementId}:
+    get:
+      tags: [Placement]
+      operationId: getPlacement
+      summary: Retrieve a placement decision and reservation.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: placementId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The placement decision was found.
+          content:
+            application/json:
+              { schema: { $ref: "#/components/schemas/PlacementDecision" } }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "404": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
 components:
   securitySchemes:
     bearerAuth:
@@ -2150,6 +2192,44 @@ components:
         usedMinor: { type: integer, format: int64 }
         availableMinor: { type: integer, format: int64 }
         generation: { type: integer, format: int64, minimum: 1 }
+        updatedAt: { type: string, format: date-time }
+    CreatePlacementRequest:
+      type: object
+      additionalProperties: false
+      required: [projectId, acceleratorProfileId, quantity]
+      properties:
+        projectId: { type: string, format: uuid }
+        acceleratorProfileId: { type: string, format: uuid }
+        quantity: { type: integer, minimum: 1, maximum: 1024 }
+        traits: { type: object, additionalProperties: { type: string } }
+    PlacementDecision:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          projectId,
+          capacityPoolId,
+          clusterId,
+          nodePoolId,
+          acceleratorProfileId,
+          quantity,
+          traits,
+          status,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        capacityPoolId: { type: string, format: uuid }
+        clusterId: { type: string, format: uuid }
+        nodePoolId: { type: string, format: uuid }
+        acceleratorProfileId: { type: string, format: uuid }
+        quantity: { type: integer, minimum: 1 }
+        traits: { type: object, additionalProperties: true }
+        status: { type: string, enum: [reserved, released, committed] }
+        createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     Invoice:
       type: object

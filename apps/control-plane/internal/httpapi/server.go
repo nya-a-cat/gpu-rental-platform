@@ -11,6 +11,7 @@ import (
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/identity"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/metering"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/operation"
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/placement"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/ports"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/workspace"
 )
@@ -44,6 +45,7 @@ type Dependencies struct {
 	Tenancy          TenancyStore
 	Catalog          CatalogStore
 	Metering         metering.Repository
+	Placement        placement.Repository
 	Workspace        workspace.Repository
 	Authenticator    authn.Authenticator
 	Authorization    ports.AuthorizationEngine
@@ -73,6 +75,7 @@ func NewHandler(dependencies Dependencies) http.Handler {
 	registerTenancyRoutes(mux, dependencies)
 	registerCatalogRoutes(mux, dependencies)
 	registerMeteringRoutes(mux, dependencies)
+	registerPlacementRoutes(mux, dependencies)
 	registerWorkspaceRoutes(mux, dependencies)
 	mux.HandleFunc("/", routeNotFoundHandler)
 

@@ -13,6 +13,7 @@ import (
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/httpapi"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/metering"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/operation"
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/placement"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/tenancy"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/workspace"
 	"gopkg.in/yaml.v3"
@@ -72,6 +73,7 @@ func TestOperationDTOsMatchOpenAPI(t *testing.T) {
 	assertSchemaMatchesDTO(t, document, "InvoiceLine", reflect.TypeOf(metering.InvoiceLine{}))
 	assertSchemaMatchesDTO(t, document, "Invoice", reflect.TypeOf(metering.Invoice{}))
 	assertSchemaMatchesDTO(t, document, "Budget", reflect.TypeOf(metering.Budget{}))
+	assertSchemaMatchesDTO(t, document, "PlacementDecision", reflect.TypeOf(placement.Decision{}))
 
 	stepStatus, ok := reflect.TypeOf(operation.Step{}).FieldByName("Status")
 	if !ok {
