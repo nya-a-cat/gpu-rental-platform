@@ -31,6 +31,7 @@ func registerWorkspaceRoutes(mux *http.ServeMux, dependencies Dependencies) {
 	registerMethods(mux, "/api/v1/instances", map[string]http.Handler{http.MethodPost: createWorkspaceHandler(dependencies)})
 	registerMethods(mux, "/api/v1/instances/{instanceID}", map[string]http.Handler{http.MethodGet: getWorkspaceHandler(dependencies), http.MethodPatch: setWorkspaceDesiredStateHandler(dependencies)})
 	registerMethods(mux, "/api/v1/instances/{instanceID}/access-tokens", map[string]http.Handler{http.MethodPost: createAccessTokenHandler(dependencies)})
+	registerMethods(mux, "/api/v1/instances/{instanceID}/access-tokens/{tokenID}", map[string]http.Handler{http.MethodDelete: revokeAccessTokenHandler(dependencies)})
 }
 
 func createAccessTokenHandler(dependencies Dependencies) http.HandlerFunc {
@@ -64,6 +65,36 @@ func createAccessTokenHandler(dependencies Dependencies) http.HandlerFunc {
 		}
 		response.Header().Set("Location", "/api/v1/instances/"+workspaceID+"/access-tokens/"+issued.ID)
 		writeJSON(response, http.StatusCreated, issued)
+	}
+}
+
+func revokeAccessTokenHandler(dependencies Dependencies) http.HandlerFunc {
+	return func(response http.ResponseWriter, request *http.Request) {
+		if dependencies.Workspace == nil {
+			writeProblem(response, request, Problem{Title: "Service Unavailable", Status: http.StatusServiceUnavailable, Detail: "GPU Workspace storage is unavailable.", Code: "workspace_storage_unavailable"})
+			return
+		}
+		workspaceID := request.PathValue("instanceID")
+		current, err := dependencies.Workspace.GetWorkspace(request.Context(), workspaceID)
+		if err != nil {
+			writeWorkspaceError(response, request, err)
+			return
+		}
+		principal, ok := workspacePrincipal(response, request, dependencies, "instance.access", current.ProjectID, workspaceID)
+		if !ok {
+			return
+		}
+		input := map[string]string{"workspaceId": workspaceID, "tokenId": request.PathValue("tokenID")}
+		mutation, ok := mutationContext(response, request, principal, input)
+		if !ok {
+			return
+		}
+		accepted, err := dependencies.Workspace.RevokeAccessToken(request.Context(), workspace.RevokeAccessTokenParams{Mutation: mutation, WorkspaceID: workspaceID, TokenID: request.PathValue("tokenID")})
+		if err != nil {
+			writeWorkspaceError(response, request, err)
+			return
+		}
+		writeAcceptance(response, http.StatusAccepted, "/api/v1/instances/"+workspaceID+"/access-tokens/"+request.PathValue("tokenID"), accepted)
 	}
 }
 

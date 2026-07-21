@@ -258,6 +258,37 @@ func (repository *Repository) CreateAccessToken(ctx context.Context, params work
 	return issued, nil
 }
 
+func (repository *Repository) RevokeAccessToken(ctx context.Context, params workspace.RevokeAccessTokenParams) (tenancy.Acceptance, error) {
+	if !identity.IsUUID(params.WorkspaceID) || !identity.IsUUID(params.TokenID) {
+		return tenancy.Acceptance{}, workspace.ErrNotFound
+	}
+	var projectID string
+	if err := repository.database.QueryRowContext(ctx, `SELECT project_id::text FROM workspaces WHERE id = $1`, params.WorkspaceID).Scan(&projectID); errors.Is(err, sql.ErrNoRows) {
+		return tenancy.Acceptance{}, workspace.ErrNotFound
+	} else if err != nil {
+		return tenancy.Acceptance{}, fmt.Errorf("load workspace for token revocation: %w", err)
+	}
+	return repository.acceptMutation(ctx, params.Mutation, acceptedMutationSpec{
+		kind: "workspace.access-token.revoke", resourceType: "workspace-access-token", resourceID: params.TokenID,
+		eventType: "workspace.access-token.revoked", scopeType: string(tenancy.ScopeProject), scopeID: projectID,
+		eventFields: map[string]any{"workspaceId": params.WorkspaceID},
+		apply: func(ctx context.Context, tx *sql.Tx, now time.Time) error {
+			result, err := tx.ExecContext(ctx, `UPDATE workspace_access_tokens SET revoked_at = $3 WHERE id = $1 AND workspace_id = $2 AND revoked_at IS NULL`, params.TokenID, params.WorkspaceID, now)
+			if err != nil {
+				return mapWorkspaceWriteError(err)
+			}
+			count, err := result.RowsAffected()
+			if err != nil {
+				return fmt.Errorf("inspect access token revocation: %w", err)
+			}
+			if count == 0 {
+				return workspace.ErrNotFound
+			}
+			return nil
+		},
+	})
+}
+
 func workspaceQuotaDelta(current, desired workspace.DesiredState, gpuCount int) int {
 	if current == desired || gpuCount <= 0 {
 		return 0

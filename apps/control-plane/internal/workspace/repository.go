@@ -81,9 +81,16 @@ type CreateAccessTokenParams struct {
 	TTL         time.Duration
 }
 
+type RevokeAccessTokenParams struct {
+	Mutation    tenancy.MutationContext
+	WorkspaceID string
+	TokenID     string
+}
+
 type Repository interface {
 	CreateWorkspace(context.Context, CreateParams) (tenancy.Acceptance, error)
 	GetWorkspace(context.Context, string) (Workspace, error)
 	SetWorkspaceDesiredState(context.Context, SetDesiredStateParams) (tenancy.Acceptance, error)
 	CreateAccessToken(context.Context, CreateAccessTokenParams) (AccessToken, error)
+	RevokeAccessToken(context.Context, RevokeAccessTokenParams) (tenancy.Acceptance, error)
 }

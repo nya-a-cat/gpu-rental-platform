@@ -721,6 +721,31 @@ paths:
         "404": { $ref: "#/components/responses/ProblemResponse" }
         "409": { $ref: "#/components/responses/ProblemResponse" }
         "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/instances/{instanceId}/access-tokens/{tokenId}:
+    delete:
+      tags: [Instances]
+      operationId: revokeInstanceAccessToken
+      summary: Revoke a Workspace access token.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: instanceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: tokenId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "202": { $ref: "#/components/responses/MutationAccepted" }
+        "400": { $ref: "#/components/responses/ProblemResponse" }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "404": { $ref: "#/components/responses/ProblemResponse" }
+        "409": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
 components:
   securitySchemes:
     bearerAuth:
