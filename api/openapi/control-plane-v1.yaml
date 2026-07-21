@@ -863,6 +863,48 @@ paths:
         "403": { $ref: "#/components/responses/ProblemResponse" }
         "404": { $ref: "#/components/responses/ProblemResponse" }
         "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/invoices:
+    post:
+      tags: [Billing]
+      operationId: createInvoice
+      summary: Issue an invoice for a project billing period.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            { schema: { $ref: "#/components/schemas/CreateInvoiceRequest" } }
+      responses:
+        "202": { $ref: "#/components/responses/MutationAccepted" }
+        "400": { $ref: "#/components/responses/ProblemResponse" }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "409": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/invoices/{invoiceId}:
+    get:
+      tags: [Billing]
+      operationId: getInvoice
+      summary: Retrieve an issued invoice and its lines.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The invoice was found.
+          content:
+            application/json:
+              { schema: { $ref: "#/components/schemas/Invoice" } }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "404": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
 components:
   securitySchemes:
     bearerAuth:
@@ -1957,6 +1999,79 @@ components:
         attributes: { type: object, additionalProperties: true }
         createdAt: { type: string, format: date-time }
         ratedUsage: { $ref: "#/components/schemas/RatedUsage" }
+    CreateInvoiceRequest:
+      type: object
+      additionalProperties: false
+      required: [tenantId, projectId, periodFrom, periodTo]
+      properties:
+        tenantId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        periodFrom: { type: string, format: date-time }
+        periodTo: { type: string, format: date-time }
+    InvoiceLine:
+      type: object
+      additionalProperties: false
+      required: [id, usageFactId, amountMinor, currency]
+      properties:
+        id: { type: string, format: uuid }
+        usageFactId: { type: string, format: uuid }
+        amountMinor: { type: integer, format: int64, minimum: 0 }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+    LedgerEntry:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          tenantId,
+          projectId,
+          usageFactId,
+          entryType,
+          amountMinor,
+          currency,
+          referenceId,
+          createdAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        usageFactId: { type: string, format: uuid }
+        entryType: { type: string, enum: [debit, credit] }
+        amountMinor: { type: integer, format: int64, minimum: 0 }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        referenceId: { type: string }
+        createdAt: { type: string, format: date-time }
+    Invoice:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          tenantId,
+          projectId,
+          periodFrom,
+          periodTo,
+          currency,
+          subtotalMinor,
+          status,
+          lines,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        periodFrom: { type: string, format: date-time }
+        periodTo: { type: string, format: date-time }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        subtotalMinor: { type: integer, format: int64, minimum: 0 }
+        status: { type: string, enum: [issued, void] }
+        lines:
+          { type: array, items: { $ref: "#/components/schemas/InvoiceLine" } }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     AccessToken:
       type: object
       additionalProperties: false

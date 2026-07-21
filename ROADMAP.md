@@ -64,6 +64,7 @@
 - [ ] 交付 MIG 固定规格资源池和维护流程。
 - [ ] 建立 UsageFact、RatedUsage、LedgerEntry、Invoice、预算和冲正。
   - [x] 接入不可变 UsageFact、固定单价 RatedUsage、价格版本和可重放查询 API。
+  - [x] RatedUsage 原子写入不可变 LedgerEntry，并提供项目账期 Invoice 生成与查询。
 - [ ] 让 OpenMeter 完成两个完整账期的影子双算。
 - [ ] 提供经过验证的 Keycloak OIDC Profile。
 - [ ] 交付 Prometheus HA、Thanos、对象存储和白标厂商控制台。

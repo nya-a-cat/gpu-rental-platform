@@ -41,6 +41,10 @@ func (repository *Repository) CreateUsageFact(ctx context.Context, params meteri
 	if err != nil {
 		return tenancy.Acceptance{}, fmt.Errorf("generate usage fact ID: %w", err)
 	}
+	ledgerID, err := identity.NewUUID()
+	if err != nil {
+		return tenancy.Acceptance{}, fmt.Errorf("generate ledger entry ID: %w", err)
+	}
 	fact := metering.UsageFact{ID: factID, TenantID: params.TenantID, ProjectID: params.ProjectID, ResourceClass: resourceClass, Quantity: quantity, AllocationFrom: params.AllocationFrom.UTC(), AllocationTo: params.AllocationTo.UTC(), Attributes: attributes}
 	rated, err := repository.billing.RateUsage(ctx, meteringToPortUsageFact(fact))
 	if err != nil {
@@ -65,6 +69,10 @@ func (repository *Repository) CreateUsageFact(ctx context.Context, params meteri
 				return mapWorkspaceWriteError(err)
 			}
 			_, err := transaction.ExecContext(ctx, `INSERT INTO rated_usage (usage_fact_id, price_book_id, price_version, amount_minor, currency, calculation, calculated_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, rated.UsageFactID, rated.PriceBookID, rated.PriceVersion, rated.AmountMinor, rated.Currency, rated.Calculation, rated.CalculatedAt)
+			if err != nil {
+				return mapWorkspaceWriteError(err)
+			}
+			_, err = transaction.ExecContext(ctx, `INSERT INTO ledger_entries (id, tenant_id, project_id, usage_fact_id, entry_type, amount_minor, currency, reference_id, created_at) VALUES ($1,$2,$3,$4,'debit',$5,$6,$4,$7)`, ledgerID, fact.TenantID, fact.ProjectID, fact.ID, rated.AmountMinor, rated.Currency, now)
 			return mapWorkspaceWriteError(err)
 		},
 	})

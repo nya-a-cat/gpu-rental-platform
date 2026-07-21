@@ -68,6 +68,9 @@ func TestOperationDTOsMatchOpenAPI(t *testing.T) {
 	assertSchemaMatchesDTO(t, document, "AccessTokenInfo", reflect.TypeOf(workspace.AccessTokenInfo{}))
 	assertSchemaMatchesDTO(t, document, "UsageFact", reflect.TypeOf(metering.UsageFact{}))
 	assertSchemaMatchesDTO(t, document, "RatedUsage", reflect.TypeOf(metering.RatedUsage{}))
+	assertSchemaMatchesDTO(t, document, "LedgerEntry", reflect.TypeOf(metering.LedgerEntry{}))
+	assertSchemaMatchesDTO(t, document, "InvoiceLine", reflect.TypeOf(metering.InvoiceLine{}))
+	assertSchemaMatchesDTO(t, document, "Invoice", reflect.TypeOf(metering.Invoice{}))
 
 	stepStatus, ok := reflect.TypeOf(operation.Step{}).FieldByName("Status")
 	if !ok {
