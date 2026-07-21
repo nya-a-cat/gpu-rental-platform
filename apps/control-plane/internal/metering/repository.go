@@ -43,11 +43,12 @@ type LedgerEntry struct {
 	ID          string    `json:"id"`
 	TenantID    string    `json:"tenantId"`
 	ProjectID   string    `json:"projectId"`
-	UsageFactID string    `json:"usageFactId"`
+	UsageFactID *string   `json:"usageFactId,omitempty"`
 	EntryType   string    `json:"entryType"`
 	AmountMinor int64     `json:"amountMinor"`
 	Currency    string    `json:"currency"`
 	ReferenceID string    `json:"referenceId"`
+	Description string    `json:"description"`
 	CreatedAt   time.Time `json:"createdAt"`
 }
 
@@ -91,11 +92,22 @@ type CreateInvoiceParams struct {
 	PeriodTo   time.Time
 }
 
+type CreateCreditAdjustmentParams struct {
+	Mutation    tenancy.MutationContext
+	TenantID    string
+	ProjectID   string
+	AmountMinor int64
+	Currency    string
+	ReferenceID string
+	Description string
+}
+
 type Repository interface {
 	CreateUsageFact(context.Context, CreateUsageFactParams) (tenancy.Acceptance, error)
 	GetUsageFact(context.Context, string) (UsageFact, error)
 	CreateInvoice(context.Context, CreateInvoiceParams) (tenancy.Acceptance, error)
 	GetInvoice(context.Context, string) (Invoice, error)
+	CreateCreditAdjustment(context.Context, CreateCreditAdjustmentParams) (tenancy.Acceptance, error)
 }
 
 func toPortUsageFact(fact UsageFact) ports.UsageFact {

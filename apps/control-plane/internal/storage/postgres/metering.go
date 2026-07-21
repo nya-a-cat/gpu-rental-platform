@@ -72,7 +72,7 @@ func (repository *Repository) CreateUsageFact(ctx context.Context, params meteri
 			if err != nil {
 				return mapWorkspaceWriteError(err)
 			}
-			_, err = transaction.ExecContext(ctx, `INSERT INTO ledger_entries (id, tenant_id, project_id, usage_fact_id, entry_type, amount_minor, currency, reference_id, created_at) VALUES ($1,$2,$3,$4,'debit',$5,$6,$4,$7)`, ledgerID, fact.TenantID, fact.ProjectID, fact.ID, rated.AmountMinor, rated.Currency, now)
+			_, err = transaction.ExecContext(ctx, `INSERT INTO ledger_entries (id, tenant_id, project_id, usage_fact_id, entry_type, amount_minor, currency, reference_id, description, created_at) VALUES ($1,$2,$3,$4,'debit',$5,$6,$4,'',$7)`, ledgerID, fact.TenantID, fact.ProjectID, fact.ID, rated.AmountMinor, rated.Currency, now)
 			return mapWorkspaceWriteError(err)
 		},
 	})

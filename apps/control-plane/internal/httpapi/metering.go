@@ -34,11 +34,21 @@ type createInvoiceRequest struct {
 	PeriodTo   time.Time `json:"periodTo"`
 }
 
+type createCreditAdjustmentRequest struct {
+	TenantID    string `json:"tenantId"`
+	ProjectID   string `json:"projectId"`
+	AmountMinor int64  `json:"amountMinor"`
+	Currency    string `json:"currency"`
+	ReferenceID string `json:"referenceId"`
+	Description string `json:"description"`
+}
+
 func registerMeteringRoutes(mux *http.ServeMux, dependencies Dependencies) {
 	registerMethods(mux, "/api/v1/usage-facts", map[string]http.Handler{http.MethodPost: createUsageFactHandler(dependencies)})
 	registerMethods(mux, "/api/v1/usage-facts/{usageFactID}", map[string]http.Handler{http.MethodGet: getUsageFactHandler(dependencies)})
 	registerMethods(mux, "/api/v1/invoices", map[string]http.Handler{http.MethodPost: createInvoiceHandler(dependencies)})
 	registerMethods(mux, "/api/v1/invoices/{invoiceID}", map[string]http.Handler{http.MethodGet: getInvoiceHandler(dependencies)})
+	registerMethods(mux, "/api/v1/ledger-adjustments", map[string]http.Handler{http.MethodPost: createCreditAdjustmentHandler(dependencies)})
 }
 
 func meteringPrincipal(response http.ResponseWriter, request *http.Request, dependencies Dependencies) (authn.Principal, bool) {
@@ -128,6 +138,29 @@ func getInvoiceHandler(dependencies Dependencies) http.HandlerFunc {
 			return
 		}
 		writeJSON(response, http.StatusOK, result)
+	}
+}
+
+func createCreditAdjustmentHandler(dependencies Dependencies) http.HandlerFunc {
+	return func(response http.ResponseWriter, request *http.Request) {
+		principal, ok := meteringPrincipal(response, request, dependencies)
+		if !ok {
+			return
+		}
+		var input createCreditAdjustmentRequest
+		if !decodeRequestJSON(response, request, &input) {
+			return
+		}
+		mutation, ok := mutationContext(response, request, principal, input)
+		if !ok {
+			return
+		}
+		accepted, err := dependencies.Metering.CreateCreditAdjustment(request.Context(), metering.CreateCreditAdjustmentParams{Mutation: mutation, TenantID: input.TenantID, ProjectID: input.ProjectID, AmountMinor: input.AmountMinor, Currency: input.Currency, ReferenceID: input.ReferenceID, Description: input.Description})
+		if err != nil {
+			writeMeteringError(response, request, err)
+			return
+		}
+		writeAcceptance(response, http.StatusAccepted, "/api/v1/ledger-adjustments/"+accepted.ResourceID, accepted)
 	}
 }
 

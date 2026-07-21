@@ -905,6 +905,30 @@ paths:
         "403": { $ref: "#/components/responses/ProblemResponse" }
         "404": { $ref: "#/components/responses/ProblemResponse" }
         "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/ledger-adjustments:
+    post:
+      tags: [Billing]
+      operationId: createLedgerCreditAdjustment
+      summary: Append a credit adjustment to the immutable ledger.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            {
+              schema:
+                { $ref: "#/components/schemas/CreateCreditAdjustmentRequest" },
+            }
+      responses:
+        "202": { $ref: "#/components/responses/MutationAccepted" }
+        "400": { $ref: "#/components/responses/ProblemResponse" }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "409": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
 components:
   securitySchemes:
     bearerAuth:
@@ -2030,18 +2054,32 @@ components:
           amountMinor,
           currency,
           referenceId,
+          description,
           createdAt,
         ]
       properties:
         id: { type: string, format: uuid }
         tenantId: { type: string, format: uuid }
         projectId: { type: string, format: uuid }
-        usageFactId: { type: string, format: uuid }
+        usageFactId: { type: string, format: uuid, nullable: true }
         entryType: { type: string, enum: [debit, credit] }
         amountMinor: { type: integer, format: int64, minimum: 0 }
         currency: { type: string, pattern: "^[A-Z]{3}$" }
         referenceId: { type: string }
+        description: { type: string }
         createdAt: { type: string, format: date-time }
+    CreateCreditAdjustmentRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [tenantId, projectId, amountMinor, currency, referenceId, description]
+      properties:
+        tenantId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        amountMinor: { type: integer, format: int64, minimum: 1 }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        referenceId: { type: string, minLength: 1, maxLength: 255 }
+        description: { type: string, maxLength: 1024 }
     Invoice:
       type: object
       additionalProperties: false
