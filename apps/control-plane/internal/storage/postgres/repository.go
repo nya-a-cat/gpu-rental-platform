@@ -12,6 +12,7 @@ import (
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/identity"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/operation"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/outbox"
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/ports"
 )
 
 const maxOutboxErrorRunes = 4096
@@ -19,10 +20,15 @@ const maxOutboxErrorRunes = 4096
 type Repository struct {
 	database *sql.DB
 	now      func() time.Time
+	billing  ports.BillingEngine
 }
 
-func NewRepository(database *sql.DB) *Repository {
-	return &Repository{database: database, now: time.Now}
+func NewRepository(database *sql.DB, billingEngines ...ports.BillingEngine) *Repository {
+	var billing ports.BillingEngine
+	if len(billingEngines) > 0 {
+		billing = billingEngines[0]
+	}
+	return &Repository{database: database, now: time.Now, billing: billing}
 }
 
 // Create is a convenience transaction wrapper for callers that only create an

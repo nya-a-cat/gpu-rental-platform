@@ -821,6 +821,48 @@ paths:
               { schema: { $ref: "#/components/schemas/AccessTokenInfo" } }
         "401": { $ref: "#/components/responses/ProblemResponse" }
         "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/usage-facts:
+    post:
+      tags: [Billing]
+      operationId: createUsageFact
+      summary: Ingest an immutable allocation usage fact.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            { schema: { $ref: "#/components/schemas/CreateUsageFactRequest" } }
+      responses:
+        "202": { $ref: "#/components/responses/MutationAccepted" }
+        "400": { $ref: "#/components/responses/ProblemResponse" }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "409": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/usage-facts/{usageFactId}:
+    get:
+      tags: [Billing]
+      operationId: getUsageFact
+      summary: Retrieve a usage fact and its rated usage.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: usageFactId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The usage fact was found.
+          content:
+            application/json:
+              { schema: { $ref: "#/components/schemas/UsageFact" } }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "404": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
 components:
   securitySchemes:
     bearerAuth:
@@ -1847,6 +1889,74 @@ components:
         state: { type: string, enum: [pending, succeeded, failed] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    CreateUsageFactRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          tenantId,
+          projectId,
+          resourceClass,
+          quantity,
+          allocationFrom,
+          allocationTo,
+        ]
+      properties:
+        tenantId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        resourceClass: { type: string, pattern: "^[a-z0-9][a-z0-9._-]{0,63}$" }
+        quantity: { type: string, pattern: "^[0-9]+(\\.[0-9]+)?$" }
+        allocationFrom: { type: string, format: date-time }
+        allocationTo: { type: string, format: date-time }
+        attributes: { type: object, additionalProperties: true }
+    RatedUsage:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          usageFactId,
+          priceBookId,
+          priceVersion,
+          amountMinor,
+          currency,
+          calculation,
+          calculatedAt,
+        ]
+      properties:
+        usageFactId: { type: string, format: uuid }
+        priceBookId: { type: string }
+        priceVersion: { type: integer, minimum: 1 }
+        amountMinor: { type: integer, format: int64, minimum: 0 }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        calculation: { type: object, additionalProperties: true }
+        calculatedAt: { type: string, format: date-time }
+    UsageFact:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          tenantId,
+          projectId,
+          resourceClass,
+          quantity,
+          allocationFrom,
+          allocationTo,
+          attributes,
+          createdAt,
+          ratedUsage,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        resourceClass: { type: string }
+        quantity: { type: string }
+        allocationFrom: { type: string, format: date-time }
+        allocationTo: { type: string, format: date-time }
+        attributes: { type: object, additionalProperties: true }
+        createdAt: { type: string, format: date-time }
+        ratedUsage: { $ref: "#/components/schemas/RatedUsage" }
     AccessToken:
       type: object
       additionalProperties: false

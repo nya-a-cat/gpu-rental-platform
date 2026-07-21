@@ -42,16 +42,15 @@ func main() {
 	}
 	defer database.Close()
 
-	repository := storagepostgres.NewRepository(database)
-	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
 	billingEngine, err := billing.NewFixedEngine([]billing.FixedRate{{ResourceClass: "gpu.nvidia.full", PriceBookID: "gpu-standard", PriceVersion: 1, MinorPerUnit: 1, Currency: "CNY"}})
 	if err != nil {
 		logger.Error("initialize billing engine", "error", err)
 		os.Exit(1)
 	}
-	_ = billingEngine
+	repository := storagepostgres.NewRepository(database, billingEngine)
+	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	capabilities := []string{"operations", "transactional-outbox", "audit-foundation", "engine-ports", "billing-engine-fixed", "agent-health-policy", "tenancy", "postgres-rbac", "quota-reservations", "resource-catalog", "placement-inventory", "gpu-workspace-api"}
 	var isolationRunner *sharedisolation.Runner
 	var inventoryRunner *inventorysync.Runner
@@ -142,6 +141,7 @@ func main() {
 		Operations:       repository,
 		Tenancy:          repository,
 		Catalog:          repository,
+		Metering:         repository,
 		Workspace:        repository,
 		Authenticator:    authenticator,
 		Authorization:    authorizationEngine,
