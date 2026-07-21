@@ -30,6 +30,9 @@ func BuildWork(input ManifestInput) (ports.WorkRequest, error) {
 	if input.Workspace.GPUCount <= 0 {
 		return ports.WorkRequest{}, errors.New("workspace GPU count must be positive")
 	}
+	if input.Workspace.StorageGiB <= 0 {
+		return ports.WorkRequest{}, errors.New("workspace storage capacity must be positive")
+	}
 	name := WorkName(input.Workspace.ID)
 	labels := map[string]any{
 		"app.kubernetes.io/managed-by":          "gpu-cloud-control-plane",
@@ -40,18 +43,34 @@ func BuildWork(input ManifestInput) (ports.WorkRequest, error) {
 		"limits":   map[string]any{"nvidia.com/gpu": strconv.Itoa(input.Workspace.GPUCount)},
 	}
 	manifests := []any{}
+	if input.Workspace.DesiredState != DesiredTerminated {
+		manifests = append(manifests, map[string]any{
+			"apiVersion": "v1", "kind": "PersistentVolumeClaim",
+			"metadata": map[string]any{"name": name + "-data", "namespace": input.Workspace.NamespaceName, "labels": labels},
+			"spec": map[string]any{
+				"accessModes": []any{"ReadWriteOnce"},
+				"resources":   map[string]any{"requests": map[string]any{"storage": fmt.Sprintf("%dGi", input.Workspace.StorageGiB)}},
+			},
+		})
+	}
 	if input.Workspace.DesiredState == DesiredRunning {
 		manifests = append(manifests, map[string]any{
-			"apiVersion": "apps/v1", "kind": "StatefulSet",
-			"metadata": map[string]any{"name": name, "namespace": input.Workspace.NamespaceName, "labels": labels},
+			"apiVersion": "apps/v1",
+			"kind":       "StatefulSet",
+			"metadata":   map[string]any{"name": name, "namespace": input.Workspace.NamespaceName, "labels": labels},
 			"spec": map[string]any{
-				"serviceName": name, "replicas": 1,
-				"selector": map[string]any{"matchLabels": labels},
+				"serviceName": name,
+				"replicas":    1,
+				"selector":    map[string]any{"matchLabels": labels},
 				"template": map[string]any{
 					"metadata": map[string]any{"labels": labels},
-					"spec": map[string]any{"containers": []any{map[string]any{
-						"name": "workspace", "image": "nvidia/cuda:12.6.3-base-ubuntu24.04", "command": []any{"sleep", "infinity"}, "resources": resources,
-					}}},
+					"spec": map[string]any{
+						"containers": []any{map[string]any{
+							"name": "workspace", "image": "nvidia/cuda:12.6.3-base-ubuntu24.04", "command": []any{"sleep", "infinity"}, "resources": resources,
+							"volumeMounts": []any{map[string]any{"name": "workspace-data", "mountPath": "/workspace"}},
+						}},
+						"volumes": []any{map[string]any{"name": "workspace-data", "persistentVolumeClaim": map[string]any{"claimName": name + "-data"}}},
+					},
 				},
 			},
 		})

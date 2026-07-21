@@ -95,7 +95,7 @@ func TestReconcilerSkipsObservedGeneration(t *testing.T) {
 }
 
 func testWorkspace() Workspace {
-	return Workspace{ID: "11111111-2222-4333-8444-555555555555", ProjectID: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", ClusterID: "cluster-a", AcceleratorProfileID: "99999999-8888-4777-8666-555555555555", Name: "demo", GPUCount: 1, NamespaceName: "gpu-p-demo", DesiredState: DesiredRunning, ObservedState: "pending", ProvisioningState: "pending", Generation: 1}
+	return Workspace{ID: "11111111-2222-4333-8444-555555555555", ProjectID: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", ClusterID: "cluster-a", AcceleratorProfileID: "99999999-8888-4777-8666-555555555555", Name: "demo", GPUCount: 1, StorageGiB: 20, NamespaceName: "gpu-p-demo", DesiredState: DesiredRunning, ObservedState: "pending", ProvisioningState: "pending", Generation: 1}
 }
 
 func testWorkspaceEvent(t *testing.T) outbox.Event {

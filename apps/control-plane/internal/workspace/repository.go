@@ -29,6 +29,7 @@ type Workspace struct {
 	AcceleratorProfileID string              `json:"acceleratorProfileId"`
 	Name                 string              `json:"name"`
 	GPUCount             int                 `json:"gpuCount"`
+	StorageGiB           int                 `json:"storageGiB"`
 	NamespaceName        string              `json:"namespaceName"`
 	DesiredState         DesiredState        `json:"desiredState"`
 	ObservedState        string              `json:"observedState"`
@@ -47,6 +48,7 @@ type CreateParams struct {
 	ClusterID            string
 	AcceleratorProfileID string
 	Name                 string
+	StorageGiB           int
 }
 
 type SetDesiredStateParams struct {

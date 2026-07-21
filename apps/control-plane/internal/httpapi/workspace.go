@@ -16,6 +16,7 @@ type createWorkspaceRequest struct {
 	ClusterID            string `json:"clusterId"`
 	AcceleratorProfileID string `json:"acceleratorProfileId"`
 	Name                 string `json:"name"`
+	StorageGiB           int    `json:"storageGiB,omitempty"`
 }
 
 type setWorkspaceDesiredStateRequest struct {
@@ -56,7 +57,7 @@ func createWorkspaceHandler(dependencies Dependencies) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		accepted, err := dependencies.Workspace.CreateWorkspace(request.Context(), workspace.CreateParams{Mutation: mutation, ProjectID: input.ProjectID, ClusterID: input.ClusterID, AcceleratorProfileID: input.AcceleratorProfileID, Name: input.Name})
+		accepted, err := dependencies.Workspace.CreateWorkspace(request.Context(), workspace.CreateParams{Mutation: mutation, ProjectID: input.ProjectID, ClusterID: input.ClusterID, AcceleratorProfileID: input.AcceleratorProfileID, Name: input.Name, StorageGiB: input.StorageGiB})
 		if err != nil {
 			writeWorkspaceError(response, request, err)
 			return

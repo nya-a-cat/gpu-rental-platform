@@ -6,7 +6,7 @@ import (
 )
 
 func TestBuildWorkIsDeterministicAndRequestsWholeGPU(t *testing.T) {
-	input := ManifestInput{OperationID: "op-1", Workspace: Workspace{ID: "11111111-1111-1111-1111-111111111111", ProjectID: "p", ClusterID: "cluster-a", NamespaceName: "gpu-p-demo", GPUCount: 2, DesiredState: DesiredRunning}}
+	input := ManifestInput{OperationID: "op-1", Workspace: Workspace{ID: "11111111-1111-1111-1111-111111111111", ProjectID: "p", ClusterID: "cluster-a", NamespaceName: "gpu-p-demo", GPUCount: 2, StorageGiB: 20, DesiredState: DesiredRunning}}
 	first, err := BuildWork(input)
 	if err != nil {
 		t.Fatal(err)
@@ -29,7 +29,7 @@ func TestBuildWorkIsDeterministicAndRequestsWholeGPU(t *testing.T) {
 }
 
 func TestBuildWorkStopsByRemovingComputeManifests(t *testing.T) {
-	work, err := BuildWork(ManifestInput{Workspace: Workspace{ID: "11111111-1111-1111-1111-111111111111", ClusterID: "cluster-a", NamespaceName: "gpu-p-demo", GPUCount: 1, DesiredState: DesiredStopped}})
+	work, err := BuildWork(ManifestInput{Workspace: Workspace{ID: "11111111-1111-1111-1111-111111111111", ClusterID: "cluster-a", NamespaceName: "gpu-p-demo", GPUCount: 1, StorageGiB: 20, DesiredState: DesiredStopped}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestBuildWorkStopsByRemovingComputeManifests(t *testing.T) {
 	}
 	spec := document["spec"].(map[string]any)
 	workload := spec["workload"].(map[string]any)
-	if manifests := workload["manifests"].([]any); len(manifests) != 0 {
-		t.Fatalf("stopped workspace produced %d compute manifests", len(manifests))
+	if manifests := workload["manifests"].([]any); len(manifests) != 1 {
+		t.Fatalf("stopped workspace produced %d persistent manifests", len(manifests))
 	}
 }

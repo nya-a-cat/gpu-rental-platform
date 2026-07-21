@@ -42,6 +42,7 @@
 - [x] 通过 NVIDIA GPU Operator 与 Device Plugin 交付整卡 GPU Workspace 的首个控制面切片。
   - [x] `/api/v1/instances` 提供异步创建、查询和 desiredState 更新，持久化 generation 与条件字段。
   - [x] OCM ManifestWork 构建 StatefulSet + headless Service，并使用 `nvidia.com/gpu` 资源请求。
+  - [x] Workspace 创建支持 `storageGiB`，运行与停止状态保留 PVC，终止状态清理计算与卷资源。
 - [ ] 完成实例创建、停止、启动、终止，以及 desired/observed/provisioning 状态协调。
   - [x] 将 workspace outbox 事件接入 OCM 执行协调器，回写 observed/provisioning 状态。
 - [ ] 完成 PVC、快照、安全组、SSH/Jupyter/Web Terminal 访问网关。

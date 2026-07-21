@@ -46,7 +46,14 @@ func (repository *Repository) CreateWorkspace(ctx context.Context, params worksp
 			} else if err != nil {
 				return fmt.Errorf("load workspace accelerator profile: %w", err)
 			}
-			_, err := tx.ExecContext(ctx, `INSERT INTO workspaces (id, project_id, cluster_id, accelerator_profile_id, name, gpu_count, namespace_name, desired_state, observed_state, provisioning_state, generation, manifest_work_name, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,'running','pending','pending',1,$8,$9,$9)`, id, params.ProjectID, params.ClusterID, params.AcceleratorProfileID, name, gpuCount, namespace, workspace.WorkName(id), now)
+			storageGiB := params.StorageGiB
+			if storageGiB == 0 {
+				storageGiB = 20
+			}
+			if storageGiB < 1 || storageGiB > 16384 {
+				return fmt.Errorf("workspace storage capacity must be between 1 and 16384 GiB: %w", workspace.ErrInvalid)
+			}
+			_, err := tx.ExecContext(ctx, `INSERT INTO workspaces (id, project_id, cluster_id, accelerator_profile_id, name, gpu_count, storage_gib, namespace_name, desired_state, observed_state, provisioning_state, generation, manifest_work_name, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'running','pending','pending',1,$9,$10,$10)`, id, params.ProjectID, params.ClusterID, params.AcceleratorProfileID, name, gpuCount, storageGiB, namespace, workspace.WorkName(id), now)
 			return mapWorkspaceWriteError(err)
 		},
 	})
@@ -147,14 +154,14 @@ func (repository *Repository) SetWorkspaceDesiredState(ctx context.Context, para
 	})
 }
 
-const workspaceSelect = `SELECT w.id::text, w.project_id::text, w.cluster_id::text, w.accelerator_profile_id::text, w.name, w.gpu_count, w.namespace_name, w.desired_state, w.observed_state, w.provisioning_state, w.conditions, w.generation, w.observed_generation, w.manifest_work_name, w.created_at, w.updated_at FROM workspaces w`
+const workspaceSelect = `SELECT w.id::text, w.project_id::text, w.cluster_id::text, w.accelerator_profile_id::text, w.name, w.gpu_count, w.storage_gib, w.namespace_name, w.desired_state, w.observed_state, w.provisioning_state, w.conditions, w.generation, w.observed_generation, w.manifest_work_name, w.created_at, w.updated_at FROM workspaces w`
 
 type workspaceScanner interface{ Scan(...any) error }
 
 func scanWorkspace(row workspaceScanner) (workspace.Workspace, error) {
 	var result workspace.Workspace
 	var conditions []byte
-	if err := row.Scan(&result.ID, &result.ProjectID, &result.ClusterID, &result.AcceleratorProfileID, &result.Name, &result.GPUCount, &result.NamespaceName, &result.DesiredState, &result.ObservedState, &result.ProvisioningState, &conditions, &result.Generation, &result.ObservedGeneration, &result.ManifestWorkName, &result.CreatedAt, &result.UpdatedAt); errors.Is(err, sql.ErrNoRows) {
+	if err := row.Scan(&result.ID, &result.ProjectID, &result.ClusterID, &result.AcceleratorProfileID, &result.Name, &result.GPUCount, &result.StorageGiB, &result.NamespaceName, &result.DesiredState, &result.ObservedState, &result.ProvisioningState, &conditions, &result.Generation, &result.ObservedGeneration, &result.ManifestWorkName, &result.CreatedAt, &result.UpdatedAt); errors.Is(err, sql.ErrNoRows) {
 		return workspace.Workspace{}, workspace.ErrNotFound
 	} else if err != nil {
 		return workspace.Workspace{}, fmt.Errorf("scan workspace: %w", err)
