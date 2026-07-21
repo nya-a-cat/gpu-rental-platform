@@ -12,6 +12,7 @@ import (
 
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/authn"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/authorization"
+	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/billing"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/config"
 	fleetocm "github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/fleet/ocm"
 	"github.com/nya-a-cat/gpu-rental-platform/apps/control-plane/internal/httpapi"
@@ -45,7 +46,13 @@ func main() {
 	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	capabilities := []string{"operations", "transactional-outbox", "audit-foundation", "engine-ports", "agent-health-policy", "tenancy", "postgres-rbac", "quota-reservations", "resource-catalog", "placement-inventory", "gpu-workspace-api"}
+	billingEngine, err := billing.NewFixedEngine([]billing.FixedRate{{ResourceClass: "gpu.nvidia.full", PriceBookID: "gpu-standard", PriceVersion: 1, MinorPerUnit: 1, Currency: "CNY"}})
+	if err != nil {
+		logger.Error("initialize billing engine", "error", err)
+		os.Exit(1)
+	}
+	_ = billingEngine
+	capabilities := []string{"operations", "transactional-outbox", "audit-foundation", "engine-ports", "billing-engine-fixed", "agent-health-policy", "tenancy", "postgres-rbac", "quota-reservations", "resource-catalog", "placement-inventory", "gpu-workspace-api"}
 	var isolationRunner *sharedisolation.Runner
 	var inventoryRunner *inventorysync.Runner
 	var workspaceRunner *workspace.Runner
