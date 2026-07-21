@@ -27,11 +27,16 @@ type createAccessTokenRequest struct {
 	AccessType string `json:"accessType"`
 }
 
+type inspectAccessTokenRequest struct {
+	Token string `json:"token"`
+}
+
 func registerWorkspaceRoutes(mux *http.ServeMux, dependencies Dependencies) {
 	registerMethods(mux, "/api/v1/instances", map[string]http.Handler{http.MethodPost: createWorkspaceHandler(dependencies)})
 	registerMethods(mux, "/api/v1/instances/{instanceID}", map[string]http.Handler{http.MethodGet: getWorkspaceHandler(dependencies), http.MethodPatch: setWorkspaceDesiredStateHandler(dependencies)})
 	registerMethods(mux, "/api/v1/instances/{instanceID}/access-tokens", map[string]http.Handler{http.MethodPost: createAccessTokenHandler(dependencies)})
 	registerMethods(mux, "/api/v1/instances/{instanceID}/access-tokens/{tokenID}", map[string]http.Handler{http.MethodDelete: revokeAccessTokenHandler(dependencies)})
+	registerMethods(mux, "/api/v1/access-tokens/introspect", map[string]http.Handler{http.MethodPost: inspectAccessTokenHandler(dependencies)})
 }
 
 func createAccessTokenHandler(dependencies Dependencies) http.HandlerFunc {
@@ -95,6 +100,32 @@ func revokeAccessTokenHandler(dependencies Dependencies) http.HandlerFunc {
 			return
 		}
 		writeAcceptance(response, http.StatusAccepted, "/api/v1/instances/"+workspaceID+"/access-tokens/"+request.PathValue("tokenID"), accepted)
+	}
+}
+
+func inspectAccessTokenHandler(dependencies Dependencies) http.HandlerFunc {
+	return func(response http.ResponseWriter, request *http.Request) {
+		if dependencies.Workspace == nil {
+			writeProblem(response, request, Problem{Title: "Service Unavailable", Status: http.StatusServiceUnavailable, Detail: "GPU Workspace storage is unavailable.", Code: "workspace_storage_unavailable"})
+			return
+		}
+		if _, ok := authenticateRequest(response, request, dependencies.Authenticator); !ok {
+			return
+		}
+		var input inspectAccessTokenRequest
+		if !decodeRequestJSON(response, request, &input) {
+			return
+		}
+		result, err := dependencies.Workspace.InspectAccessToken(request.Context(), input.Token)
+		if errors.Is(err, workspace.ErrNotFound) {
+			writeProblem(response, request, Problem{Title: "Unauthorized", Status: http.StatusUnauthorized, Detail: "The access token is invalid, expired or revoked.", Code: "access_token_invalid"})
+			return
+		}
+		if err != nil {
+			writeWorkspaceError(response, request, err)
+			return
+		}
+		writeJSON(response, http.StatusOK, result)
 	}
 }
 

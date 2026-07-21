@@ -74,6 +74,13 @@ type AccessToken struct {
 	ExpiresAt   time.Time  `json:"expiresAt"`
 }
 
+type AccessTokenInfo struct {
+	ID          string     `json:"id"`
+	WorkspaceID string     `json:"workspaceId"`
+	AccessType  AccessType `json:"accessType"`
+	ExpiresAt   time.Time  `json:"expiresAt"`
+}
+
 type CreateAccessTokenParams struct {
 	Mutation    tenancy.MutationContext
 	WorkspaceID string
@@ -93,4 +100,5 @@ type Repository interface {
 	SetWorkspaceDesiredState(context.Context, SetDesiredStateParams) (tenancy.Acceptance, error)
 	CreateAccessToken(context.Context, CreateAccessTokenParams) (AccessToken, error)
 	RevokeAccessToken(context.Context, RevokeAccessTokenParams) (tenancy.Acceptance, error)
+	InspectAccessToken(context.Context, string) (AccessTokenInfo, error)
 }

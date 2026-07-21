@@ -746,6 +746,30 @@ paths:
         "404": { $ref: "#/components/responses/ProblemResponse" }
         "409": { $ref: "#/components/responses/ProblemResponse" }
         "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/access-tokens/introspect:
+    post:
+      tags: [Instances]
+      operationId: introspectAccessToken
+      summary: Validate a short-lived Workspace access token for the gateway.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            {
+              schema:
+                { $ref: "#/components/schemas/InspectAccessTokenRequest" },
+            }
+      responses:
+        "200":
+          description: The token is active.
+          content:
+            application/json:
+              { schema: { $ref: "#/components/schemas/AccessTokenInfo" } }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
 components:
   securitySchemes:
     bearerAuth:
@@ -1757,6 +1781,21 @@ components:
         workspaceId: { type: string, format: uuid }
         accessType: { type: string, enum: [ssh, web-terminal, jupyter] }
         token: { type: string }
+        expiresAt: { type: string, format: date-time }
+    InspectAccessTokenRequest:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: { type: string, minLength: 1 }
+    AccessTokenInfo:
+      type: object
+      additionalProperties: false
+      required: [id, workspaceId, accessType, expiresAt]
+      properties:
+        id: { type: string, format: uuid }
+        workspaceId: { type: string, format: uuid }
+        accessType: { type: string, enum: [ssh, web-terminal, jupyter] }
         expiresAt: { type: string, format: date-time }
     Instance:
       type: object

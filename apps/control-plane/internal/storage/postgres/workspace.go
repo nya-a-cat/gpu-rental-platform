@@ -289,6 +289,23 @@ func (repository *Repository) RevokeAccessToken(ctx context.Context, params work
 	})
 }
 
+func (repository *Repository) InspectAccessToken(ctx context.Context, token string) (workspace.AccessTokenInfo, error) {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return workspace.AccessTokenInfo{}, workspace.ErrNotFound
+	}
+	hash := sha256.Sum256([]byte(token))
+	var result workspace.AccessTokenInfo
+	err := repository.database.QueryRowContext(ctx, `SELECT id::text, workspace_id::text, access_type, expires_at FROM workspace_access_tokens WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > $2`, fmt.Sprintf("%x", hash[:]), repository.now().UTC()).Scan(&result.ID, &result.WorkspaceID, &result.AccessType, &result.ExpiresAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return workspace.AccessTokenInfo{}, workspace.ErrNotFound
+	}
+	if err != nil {
+		return workspace.AccessTokenInfo{}, fmt.Errorf("inspect access token: %w", err)
+	}
+	return result, nil
+}
+
 func workspaceQuotaDelta(current, desired workspace.DesiredState, gpuCount int) int {
 	if current == desired || gpuCount <= 0 {
 		return 0
