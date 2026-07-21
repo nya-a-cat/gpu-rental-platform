@@ -52,6 +52,32 @@ func BuildWork(input ManifestInput) (ports.WorkRequest, error) {
 				"resources":   map[string]any{"requests": map[string]any{"storage": fmt.Sprintf("%dGi", input.Workspace.StorageGiB)}},
 			},
 		})
+		manifests = append(manifests,
+			map[string]any{
+				"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
+				"metadata": map[string]any{"name": name + "-default-deny", "namespace": input.Workspace.NamespaceName, "labels": labels},
+				"spec":     map[string]any{"podSelector": map[string]any{"matchLabels": labels}, "policyTypes": []any{"Ingress", "Egress"}},
+			},
+			map[string]any{
+				"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
+				"metadata": map[string]any{"name": name + "-allow-internal", "namespace": input.Workspace.NamespaceName, "labels": labels},
+				"spec": map[string]any{
+					"podSelector": map[string]any{"matchLabels": labels}, "policyTypes": []any{"Ingress"},
+					"ingress": []any{map[string]any{"from": []any{map[string]any{"podSelector": map[string]any{"matchLabels": labels}}}}},
+				},
+			},
+			map[string]any{
+				"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
+				"metadata": map[string]any{"name": name + "-allow-dns", "namespace": input.Workspace.NamespaceName, "labels": labels},
+				"spec": map[string]any{
+					"podSelector": map[string]any{"matchLabels": labels}, "policyTypes": []any{"Egress"},
+					"egress": []any{map[string]any{
+						"to":    []any{map[string]any{"namespaceSelector": map[string]any{"matchLabels": map[string]any{"kubernetes.io/metadata.name": "kube-system"}}, "podSelector": map[string]any{"matchLabels": map[string]any{"k8s-app": "kube-dns"}}}},
+						"ports": []any{map[string]any{"port": 53, "protocol": "UDP"}, map[string]any{"port": 53, "protocol": "TCP"}},
+					}},
+				},
+			},
+		)
 	}
 	if input.Workspace.DesiredState == DesiredRunning {
 		manifests = append(manifests, map[string]any{

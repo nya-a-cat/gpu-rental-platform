@@ -39,7 +39,7 @@ func TestBuildWorkStopsByRemovingComputeManifests(t *testing.T) {
 	}
 	spec := document["spec"].(map[string]any)
 	workload := spec["workload"].(map[string]any)
-	if manifests := workload["manifests"].([]any); len(manifests) != 1 {
-		t.Fatalf("stopped workspace produced %d persistent manifests", len(manifests))
+	if manifests := workload["manifests"].([]any); len(manifests) != 4 {
+		t.Fatalf("stopped workspace produced %d persistent/isolation manifests", len(manifests))
 	}
 }

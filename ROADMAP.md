@@ -44,6 +44,7 @@
   - [x] OCM ManifestWork 构建 StatefulSet + headless Service，并使用 `nvidia.com/gpu` 资源请求。
   - [x] Workspace 创建支持 `storageGiB`，运行与停止状态保留 PVC，终止状态清理计算与卷资源。
   - [x] Workspace 运行态变更按 `gpu.nvidia.full` 项目配额原子增加或释放 allocated 容量。
+  - [x] Workspace ManifestWork 自带默认拒绝、内部通信和 DNS 例外 NetworkPolicy。
 - [ ] 完成实例创建、停止、启动、终止，以及 desired/observed/provisioning 状态协调。
   - [x] 将 workspace outbox 事件接入 OCM 执行协调器，回写 observed/provisioning 状态。
 - [ ] 完成 PVC、快照、安全组、SSH/Jupyter/Web Terminal 访问网关。
