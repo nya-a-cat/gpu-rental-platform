@@ -49,6 +49,17 @@ type Workspace struct {
 	ManifestWorkName     string              `json:"manifestWorkName"`
 	CreatedAt            time.Time           `json:"createdAt"`
 	UpdatedAt            time.Time           `json:"updatedAt"`
+	Snapshots            []Snapshot          `json:"snapshots"`
+}
+
+type Snapshot struct {
+	ID            string    `json:"id"`
+	WorkspaceID   string    `json:"workspaceId"`
+	Name          string    `json:"name"`
+	SourcePVCName string    `json:"sourcePvcName"`
+	State         string    `json:"state"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
 type CreateParams struct {
@@ -94,6 +105,12 @@ type RevokeAccessTokenParams struct {
 	TokenID     string
 }
 
+type CreateSnapshotParams struct {
+	Mutation    tenancy.MutationContext
+	WorkspaceID string
+	Name        string
+}
+
 type Repository interface {
 	CreateWorkspace(context.Context, CreateParams) (tenancy.Acceptance, error)
 	GetWorkspace(context.Context, string) (Workspace, error)
@@ -101,4 +118,6 @@ type Repository interface {
 	CreateAccessToken(context.Context, CreateAccessTokenParams) (AccessToken, error)
 	RevokeAccessToken(context.Context, RevokeAccessTokenParams) (tenancy.Acceptance, error)
 	InspectAccessToken(context.Context, string) (AccessTokenInfo, error)
+	CreateSnapshot(context.Context, CreateSnapshotParams) (tenancy.Acceptance, error)
+	GetSnapshot(context.Context, string, string) (Snapshot, error)
 }

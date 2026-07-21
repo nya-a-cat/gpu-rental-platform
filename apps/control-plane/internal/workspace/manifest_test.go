@@ -28,6 +28,30 @@ func TestBuildWorkIsDeterministicAndRequestsWholeGPU(t *testing.T) {
 	}
 }
 
+func TestBuildWorkPublishesWorkspaceSnapshots(t *testing.T) {
+	work, err := BuildWork(ManifestInput{Workspace: Workspace{ID: "11111111-1111-1111-1111-111111111111", ClusterID: "cluster-a", NamespaceName: "gpu-p-demo", GPUCount: 1, StorageGiB: 20, DesiredState: DesiredStopped, Snapshots: []Snapshot{{Name: "checkpoint", SourcePVCName: "gpu-workspace-11111111-data", State: "pending"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(work.Manifest, &document); err != nil {
+		t.Fatal(err)
+	}
+	manifests := document["spec"].(map[string]any)["workload"].(map[string]any)["manifests"].([]any)
+	for _, raw := range manifests {
+		manifest := raw.(map[string]any)
+		if manifest["kind"] != "VolumeSnapshot" {
+			continue
+		}
+		spec := manifest["spec"].(map[string]any)
+		if spec["source"].(map[string]any)["persistentVolumeClaimName"] != "gpu-workspace-11111111-data" {
+			t.Fatalf("snapshot source PVC = %v", spec["source"])
+		}
+		return
+	}
+	t.Fatal("workspace snapshot manifest was not published")
+}
+
 func TestBuildWorkStopsByRemovingComputeManifests(t *testing.T) {
 	work, err := BuildWork(ManifestInput{Workspace: Workspace{ID: "11111111-1111-1111-1111-111111111111", ClusterID: "cluster-a", NamespaceName: "gpu-p-demo", GPUCount: 1, StorageGiB: 20, DesiredState: DesiredStopped}})
 	if err != nil {

@@ -69,11 +69,94 @@ func (repository *Repository) GetWorkspace(ctx context.Context, id string) (work
 	if !identity.IsUUID(id) {
 		return workspace.Workspace{}, workspace.ErrNotFound
 	}
-	return scanWorkspace(repository.database.QueryRowContext(ctx, workspaceSelect+" WHERE w.id = $1", id))
+	result, err := scanWorkspace(repository.database.QueryRowContext(ctx, workspaceSelect+" WHERE w.id = $1", id))
+	if err != nil {
+		return workspace.Workspace{}, err
+	}
+	result.Snapshots, err = repository.listWorkspaceSnapshots(ctx, id)
+	if err != nil {
+		return workspace.Workspace{}, err
+	}
+	return result, nil
 }
 
 func (repository *Repository) LoadWorkspace(ctx context.Context, id string) (workspace.Workspace, error) {
 	return repository.GetWorkspace(ctx, id)
+}
+
+func (repository *Repository) CreateSnapshot(ctx context.Context, params workspace.CreateSnapshotParams) (tenancy.Acceptance, error) {
+	if !identity.IsUUID(params.WorkspaceID) {
+		return tenancy.Acceptance{}, workspace.ErrNotFound
+	}
+	name := strings.TrimSpace(params.Name)
+	if name == "" || len(name) > 63 || !workspaceNamePattern.MatchString(name) {
+		return tenancy.Acceptance{}, fmt.Errorf("snapshot name is invalid: %w", workspace.ErrInvalid)
+	}
+	id, err := identity.NewUUID()
+	if err != nil {
+		return tenancy.Acceptance{}, fmt.Errorf("generate snapshot ID: %w", err)
+	}
+	var projectID string
+	if err := repository.database.QueryRowContext(ctx, `SELECT project_id::text FROM workspaces WHERE id = $1`, params.WorkspaceID).Scan(&projectID); errors.Is(err, sql.ErrNoRows) {
+		return tenancy.Acceptance{}, workspace.ErrNotFound
+	} else if err != nil {
+		return tenancy.Acceptance{}, fmt.Errorf("load snapshot project: %w", err)
+	}
+	return repository.acceptMutation(ctx, params.Mutation, acceptedMutationSpec{
+		kind: "workspace.snapshot.create", resourceType: "workspace-snapshot", resourceID: id, eventType: "workspace.snapshot.created",
+		scopeType: string(tenancy.ScopeProject), scopeID: projectID, eventFields: map[string]any{"workspaceId": params.WorkspaceID, "name": name},
+		apply: func(ctx context.Context, tx *sql.Tx, now time.Time) error {
+			var desiredState workspace.DesiredState
+			if err := tx.QueryRowContext(ctx, `SELECT desired_state FROM workspaces WHERE id = $1`, params.WorkspaceID).Scan(&desiredState); errors.Is(err, sql.ErrNoRows) {
+				return workspace.ErrNotFound
+			} else if err != nil {
+				return fmt.Errorf("load workspace for snapshot: %w", err)
+			}
+			if desiredState == workspace.DesiredTerminated {
+				return workspace.ErrNotFound
+			}
+			returnErr := error(nil)
+			_, returnErr = tx.ExecContext(ctx, `INSERT INTO workspace_snapshots (id, workspace_id, name, source_pvc_name, state, created_at, updated_at) VALUES ($1,$2,$3,$4,'pending',$5,$5)`, id, params.WorkspaceID, name, workspace.WorkName(params.WorkspaceID)+"-data", now)
+			return mapWorkspaceWriteError(returnErr)
+		},
+	})
+}
+
+func (repository *Repository) GetSnapshot(ctx context.Context, workspaceID, snapshotID string) (workspace.Snapshot, error) {
+	if !identity.IsUUID(workspaceID) || !identity.IsUUID(snapshotID) {
+		return workspace.Snapshot{}, workspace.ErrNotFound
+	}
+	return scanSnapshot(repository.database.QueryRowContext(ctx, `SELECT id::text, workspace_id::text, name, source_pvc_name, state, created_at, updated_at FROM workspace_snapshots WHERE workspace_id = $1 AND id = $2`, workspaceID, snapshotID))
+}
+
+func (repository *Repository) listWorkspaceSnapshots(ctx context.Context, workspaceID string) ([]workspace.Snapshot, error) {
+	rows, err := repository.database.QueryContext(ctx, `SELECT id::text, workspace_id::text, name, source_pvc_name, state, created_at, updated_at FROM workspace_snapshots WHERE workspace_id = $1 ORDER BY created_at, id`, workspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("list workspace snapshots: %w", err)
+	}
+	defer rows.Close()
+	result := []workspace.Snapshot{}
+	for rows.Next() {
+		snapshot, err := scanSnapshot(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, snapshot)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate workspace snapshots: %w", err)
+	}
+	return result, nil
+}
+
+func scanSnapshot(row workspaceScanner) (workspace.Snapshot, error) {
+	var result workspace.Snapshot
+	if err := row.Scan(&result.ID, &result.WorkspaceID, &result.Name, &result.SourcePVCName, &result.State, &result.CreatedAt, &result.UpdatedAt); errors.Is(err, sql.ErrNoRows) {
+		return workspace.Snapshot{}, workspace.ErrNotFound
+	} else if err != nil {
+		return workspace.Snapshot{}, fmt.Errorf("scan workspace snapshot: %w", err)
+	}
+	return result, nil
 }
 
 func (repository *Repository) StartWorkspace(ctx context.Context, state workspace.ReconcileState) error {
@@ -106,6 +189,10 @@ SET observed_state = CASE desired_state WHEN 'running' THEN 'running' WHEN 'stop
 WHERE id = $1 AND generation = $3`, state.WorkspaceID, now, state.Generation)
 	if err != nil {
 		return fmt.Errorf("complete workspace: %w", err)
+	}
+	_, err = repository.database.ExecContext(ctx, `UPDATE workspace_snapshots SET state = 'succeeded', updated_at = $2 WHERE workspace_id = $1 AND state = 'pending'`, state.WorkspaceID, now)
+	if err != nil {
+		return fmt.Errorf("complete workspace snapshots: %w", err)
 	}
 	return nil
 }

@@ -31,12 +31,75 @@ type inspectAccessTokenRequest struct {
 	Token string `json:"token"`
 }
 
+type createSnapshotRequest struct {
+	Name string `json:"name"`
+}
+
 func registerWorkspaceRoutes(mux *http.ServeMux, dependencies Dependencies) {
 	registerMethods(mux, "/api/v1/instances", map[string]http.Handler{http.MethodPost: createWorkspaceHandler(dependencies)})
 	registerMethods(mux, "/api/v1/instances/{instanceID}", map[string]http.Handler{http.MethodGet: getWorkspaceHandler(dependencies), http.MethodPatch: setWorkspaceDesiredStateHandler(dependencies)})
 	registerMethods(mux, "/api/v1/instances/{instanceID}/access-tokens", map[string]http.Handler{http.MethodPost: createAccessTokenHandler(dependencies)})
 	registerMethods(mux, "/api/v1/instances/{instanceID}/access-tokens/{tokenID}", map[string]http.Handler{http.MethodDelete: revokeAccessTokenHandler(dependencies)})
+	registerMethods(mux, "/api/v1/instances/{instanceID}/snapshots", map[string]http.Handler{http.MethodPost: createSnapshotHandler(dependencies)})
+	registerMethods(mux, "/api/v1/instances/{instanceID}/snapshots/{snapshotID}", map[string]http.Handler{http.MethodGet: getSnapshotHandler(dependencies)})
 	registerMethods(mux, "/api/v1/access-tokens/introspect", map[string]http.Handler{http.MethodPost: inspectAccessTokenHandler(dependencies)})
+}
+
+func createSnapshotHandler(dependencies Dependencies) http.HandlerFunc {
+	return func(response http.ResponseWriter, request *http.Request) {
+		if dependencies.Workspace == nil {
+			writeProblem(response, request, Problem{Title: "Service Unavailable", Status: http.StatusServiceUnavailable, Detail: "GPU Workspace storage is unavailable.", Code: "workspace_storage_unavailable"})
+			return
+		}
+		var input createSnapshotRequest
+		if !decodeRequestJSON(response, request, &input) {
+			return
+		}
+		workspaceID := request.PathValue("instanceID")
+		current, err := dependencies.Workspace.GetWorkspace(request.Context(), workspaceID)
+		if err != nil {
+			writeWorkspaceError(response, request, err)
+			return
+		}
+		principal, ok := workspacePrincipal(response, request, dependencies, "instance.update", current.ProjectID, workspaceID)
+		if !ok {
+			return
+		}
+		mutation, ok := mutationContext(response, request, principal, input)
+		if !ok {
+			return
+		}
+		accepted, err := dependencies.Workspace.CreateSnapshot(request.Context(), workspace.CreateSnapshotParams{Mutation: mutation, WorkspaceID: workspaceID, Name: input.Name})
+		if err != nil {
+			writeWorkspaceError(response, request, err)
+			return
+		}
+		writeAcceptance(response, http.StatusAccepted, "/api/v1/instances/"+workspaceID+"/snapshots/"+accepted.ResourceID, accepted)
+	}
+}
+
+func getSnapshotHandler(dependencies Dependencies) http.HandlerFunc {
+	return func(response http.ResponseWriter, request *http.Request) {
+		if dependencies.Workspace == nil {
+			writeProblem(response, request, Problem{Title: "Service Unavailable", Status: http.StatusServiceUnavailable, Detail: "GPU Workspace storage is unavailable.", Code: "workspace_storage_unavailable"})
+			return
+		}
+		workspaceID := request.PathValue("instanceID")
+		current, err := dependencies.Workspace.GetWorkspace(request.Context(), workspaceID)
+		if err != nil {
+			writeWorkspaceError(response, request, err)
+			return
+		}
+		if _, ok := workspacePrincipal(response, request, dependencies, "instance.read", current.ProjectID, workspaceID); !ok {
+			return
+		}
+		result, err := dependencies.Workspace.GetSnapshot(request.Context(), workspaceID, request.PathValue("snapshotID"))
+		if err != nil {
+			writeWorkspaceError(response, request, err)
+			return
+		}
+		writeJSON(response, http.StatusOK, result)
+	}
 }
 
 func createAccessTokenHandler(dependencies Dependencies) http.HandlerFunc {

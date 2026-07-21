@@ -52,7 +52,8 @@ func (reconciler *Reconciler) Reconcile(ctx context.Context, event outbox.Event,
 		return err
 	}
 	state := ReconcileState{WorkspaceID: workspaceID, OperationID: operationID, ClusterID: snapshot.ClusterID, WorkName: work.WorkID, Generation: snapshot.Generation}
-	if snapshot.ObservedGeneration == snapshot.Generation && snapshot.ProvisioningState == "succeeded" && observedMatchesDesired(snapshot) {
+	isSnapshotEvent := event.EventType == "workspace.snapshot.created"
+	if !isSnapshotEvent && snapshot.ObservedGeneration == snapshot.Generation && snapshot.ProvisioningState == "succeeded" && observedMatchesDesired(snapshot) {
 		return reconciler.repository.CompleteWorkspace(ctx, state)
 	}
 	if err := reconciler.repository.StartWorkspace(ctx, state); err != nil {
@@ -91,13 +92,18 @@ func observedMatchesDesired(snapshot Workspace) bool {
 func eventIdentity(event outbox.Event) (string, string, error) {
 	var payload struct {
 		ResourceID  string `json:"resourceId"`
+		WorkspaceID string `json:"workspaceId"`
 		OperationID string `json:"operationId"`
 	}
 	if err := json.Unmarshal(event.Payload, &payload); err != nil {
 		return "", "", fmt.Errorf("decode %s event: %w", event.EventType, err)
 	}
-	if strings.TrimSpace(payload.ResourceID) == "" || strings.TrimSpace(payload.OperationID) == "" {
+	resourceID := payload.ResourceID
+	if event.EventType == "workspace.snapshot.created" {
+		resourceID = payload.WorkspaceID
+	}
+	if strings.TrimSpace(resourceID) == "" || strings.TrimSpace(payload.OperationID) == "" {
 		return "", "", fmt.Errorf("%s event is missing workspace or operation identity", event.EventType)
 	}
-	return payload.ResourceID, payload.OperationID, nil
+	return resourceID, payload.OperationID, nil
 }

@@ -746,6 +746,57 @@ paths:
         "404": { $ref: "#/components/responses/ProblemResponse" }
         "409": { $ref: "#/components/responses/ProblemResponse" }
         "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/instances/{instanceId}/snapshots:
+    post:
+      tags: [Instances]
+      operationId: createInstanceSnapshot
+      summary: Create a persistent volume snapshot for an instance.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: instanceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            { schema: { $ref: "#/components/schemas/CreateSnapshotRequest" } }
+      responses:
+        "202": { $ref: "#/components/responses/MutationAccepted" }
+        "400": { $ref: "#/components/responses/ProblemResponse" }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "404": { $ref: "#/components/responses/ProblemResponse" }
+        "409": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
+  /api/v1/instances/{instanceId}/snapshots/{snapshotId}:
+    get:
+      tags: [Instances]
+      operationId: getInstanceSnapshot
+      summary: Retrieve an instance volume snapshot.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: instanceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: snapshotId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The snapshot was found.
+          content:
+            application/json:
+              { schema: { $ref: "#/components/schemas/Snapshot" } }
+        "401": { $ref: "#/components/responses/ProblemResponse" }
+        "403": { $ref: "#/components/responses/ProblemResponse" }
+        "404": { $ref: "#/components/responses/ProblemResponse" }
+        "500": { $ref: "#/components/responses/InternalError" }
   /api/v1/access-tokens/introspect:
     post:
       tags: [Instances]
@@ -1772,6 +1823,30 @@ components:
       required: [accessType]
       properties:
         accessType: { type: string, enum: [ssh, web-terminal, jupyter] }
+    CreateSnapshotRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          {
+            type: string,
+            pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+            maxLength: 63,
+          }
+    Snapshot:
+      type: object
+      additionalProperties: false
+      required:
+        [id, workspaceId, name, sourcePvcName, state, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        workspaceId: { type: string, format: uuid }
+        name: { type: string }
+        sourcePvcName: { type: string }
+        state: { type: string, enum: [pending, succeeded, failed] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     AccessToken:
       type: object
       additionalProperties: false
@@ -1819,6 +1894,7 @@ components:
           manifestWorkName,
           createdAt,
           updatedAt,
+          snapshots,
         ]
       properties:
         id: { type: string, format: uuid }
@@ -1839,6 +1915,8 @@ components:
         manifestWorkName: { type: string }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+        snapshots:
+          { type: array, items: { $ref: "#/components/schemas/Snapshot" } }
     ProblemDetails:
       type: object
       description: RFC 9457 problem details with stable machine-readable extensions.

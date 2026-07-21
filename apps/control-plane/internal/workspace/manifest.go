@@ -86,6 +86,16 @@ func BuildWork(input ManifestInput) (ports.WorkRequest, error) {
 				},
 			},
 		)
+		for _, snapshot := range input.Workspace.Snapshots {
+			if snapshot.State == "failed" {
+				continue
+			}
+			manifests = append(manifests, map[string]any{
+				"apiVersion": "snapshot.storage.k8s.io/v1", "kind": "VolumeSnapshot",
+				"metadata": map[string]any{"name": snapshot.Name, "namespace": input.Workspace.NamespaceName, "labels": labels},
+				"spec":     map[string]any{"source": map[string]any{"persistentVolumeClaimName": snapshot.SourcePVCName}},
+			})
+		}
 	}
 	if input.Workspace.DesiredState == DesiredRunning {
 		manifests = append(manifests, map[string]any{

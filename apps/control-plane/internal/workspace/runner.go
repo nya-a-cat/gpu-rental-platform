@@ -60,7 +60,7 @@ func (runner *Runner) Run(ctx context.Context) {
 }
 
 func (runner *Runner) poll(ctx context.Context) {
-	for _, eventType := range []string{"workspace.created", "workspace.desired-state.updated"} {
+	for _, eventType := range []string{"workspace.created", "workspace.desired-state.updated", "workspace.snapshot.created"} {
 		events, err := runner.outbox.Claim(ctx, outbox.ClaimParams{WorkerID: runner.config.WorkerID + ":" + eventType, EventType: eventType, Limit: 1, LeaseDuration: runner.config.ReconcileTimeout + 30*time.Second})
 		if err != nil {
 			if ctx.Err() == nil {
